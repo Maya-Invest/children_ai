@@ -1,0 +1,116 @@
+{
+	"sourcePdf": "03. Prog Éduct MATHS 4e CND 0923.pdf",
+	"grade": "4e",
+	"lessons": [
+		{
+			"id": "ci.college.4e.math.c1.t1.l1",
+			"competence": { "id": "c1", "title": "Traiter une situation relative aux calculs algébriques et aux fonctions" },
+			"theme": { "id": "c1.t1", "title": "Calculs algébriques" },
+			"title": "Nombres décimaux relatifs",
+			"sequence": 1,
+			"exampleSituation": "Vitesse de la lumière 3×10⁸ m/s et 8 min 20 s Soleil–Terre : calculer la distance.",
+			"skills": ["Écrire un décimal en notation scientifique", "Calculer (a×10^p)×(b×10^q)", "Comparer des décimaux sous forme a×10^p", "Traiter une situation faisant appel aux nombres décimaux relatifs"],
+			"contents": ["Puissance de 10", "Notation scientifique", "Ordre d'un décimal"]
+		},
+		{
+			"id": "ci.college.4e.math.c1.t1.l2",
+			"competence": { "id": "c1", "title": "Traiter une situation relative aux calculs algébriques et aux fonctions" },
+			"theme": { "id": "c1.t1", "title": "Calculs algébriques" },
+			"title": "Nombres rationnels",
+			"sequence": 2,
+			"exampleSituation": "400 élèves dont 120 filles : plus grand nombre d'équipes (PGCD).",
+			"skills": ["Noter ℚ", "Utiliser PGCD et PPCM", "Calculer dans ℚ", "Encadrer un rationnel", "Traiter une situation faisant appel aux nombres rationnels"],
+			"contents": ["Ensemble ℚ", "PGCD", "PPCM", "Arrondi et troncature"]
+		},
+		{
+			"id": "ci.college.4e.math.c1.t1.l3",
+			"competence": { "id": "c1", "title": "Traiter une situation relative aux calculs algébriques et aux fonctions" },
+			"theme": { "id": "c1.t1", "title": "Calculs algébriques" },
+			"title": "Calcul littéral",
+			"sequence": 3,
+			"exampleSituation": "Aire d'un terrain rectangulaire partagé : deux façons de calculer (développement / factorisation).",
+			"skills": ["Développer a(x+y) et produits remarquables", "Factoriser ax+ay et expressions remarquables", "Traiter une situation faisant appel au calcul littéral"],
+			"contents": ["Développement", "Factorisation", "Identités remarquables"]
+		},
+		{
+			"id": "ci.college.4e.math.c1.t1.l4",
+			"competence": { "id": "c1", "title": "Traiter une situation relative aux calculs algébriques et aux fonctions" },
+			"theme": { "id": "c1.t1", "title": "Calculs algébriques" },
+			"title": "Équations et inéquations dans ℚ",
+			"sequence": 4,
+			"exampleSituation": "Reste < 10 000 F, calculatrice 8 000 F, cahiers 300 F : nombre maximum de cahiers.",
+			"skills": ["Traduire une situation par une équation ou une inéquation", "Résoudre une équation du premier degré dans ℚ", "Déterminer les solutions d'une inéquation dans ℚ", "Traiter une situation faisant appel aux équations ou inéquations dans ℚ"],
+			"contents": ["Équation du premier degré", "Inéquation du premier degré", "Droite graduée"]
+		},
+		{
+			"id": "ci.college.4e.math.c2.t1.l1",
+			"competence": { "id": "c2", "title": "Traiter une situation relative à la modélisation de phénomènes aléatoires, à l'organisation et au traitement des données" },
+			"theme": { "id": "c2.t1", "title": "Organisation et traitement de données" },
+			"title": "Statistique",
+			"sequence": 5,
+			"exampleSituation": "Effectifs et fréquences d'une série d'évaluations de quatrième.",
+			"skills": ["Organiser une série statistique", "Calculer effectifs et fréquences", "Traiter une situation faisant appel à la statistique"],
+			"contents": ["Série statistique", "Effectif", "Fréquence"]
+		},
+		{
+			"id": "ci.college.4e.math.c3.t1.l1",
+			"competence": { "id": "c3", "title": "Traiter une situation relative à la géométrie du plan, à la géométrie de l'espace et aux transformations du plan" },
+			"theme": { "id": "c3.t1", "title": "Géométrie du plan" },
+			"title": "Angles",
+			"sequence": 6,
+			"exampleSituation": "Angles formés par des droites sécantes sur un plan de classe.",
+			"skills": ["Utiliser les propriétés des angles", "Traiter une situation faisant appel aux angles"],
+			"contents": ["Angles alternes-internes", "Angles correspondants"]
+		},
+		{
+			"id": "ci.college.4e.math.c3.t1.l2",
+			"competence": { "id": "c3", "title": "Traiter une situation relative à la géométrie du plan, à la géométrie de l'espace et aux transformations du plan" },
+			"theme": { "id": "c3.t1", "title": "Géométrie du plan" },
+			"title": "Distances",
+			"sequence": 7,
+			"exampleSituation": "Distance d'un point à une droite dans la cour.",
+			"skills": ["Définir la distance d'un point à une droite", "Traiter une situation faisant appel aux distances"],
+			"contents": ["Distance d'un point à une droite", "Perpendiculaire"]
+		},
+		{
+			"id": "ci.college.4e.math.c3.t1.l3",
+			"competence": { "id": "c3", "title": "Traiter une situation relative à la géométrie du plan, à la géométrie de l'espace et aux transformations du plan" },
+			"theme": { "id": "c3.t1", "title": "Géométrie du plan" },
+			"title": "Cercles et triangles",
+			"sequence": 8,
+			"exampleSituation": "Cercle circonscrit ou inscrit dans un triangle du programme.",
+			"skills": ["Relier cercle et triangle", "Traiter une situation faisant appel aux cercles et triangles"],
+			"contents": ["Cercle circonscrit", "Triangle"]
+		},
+		{
+			"id": "ci.college.4e.math.c3.t1.l4",
+			"competence": { "id": "c3", "title": "Traiter une situation relative à la géométrie du plan, à la géométrie de l'espace et aux transformations du plan" },
+			"theme": { "id": "c3.t1", "title": "Géométrie du plan" },
+			"title": "Vecteurs",
+			"sequence": 9,
+			"exampleSituation": "Déplacements sur un plan : somme de vecteurs.",
+			"skills": ["Identifier un vecteur", "Utiliser l'égalité de vecteurs", "Traiter une situation faisant appel aux vecteurs"],
+			"contents": ["Vecteur", "Égalité de vecteurs", "Somme"]
+		},
+		{
+			"id": "ci.college.4e.math.c3.t2.l1",
+			"competence": { "id": "c3", "title": "Traiter une situation relative à la géométrie du plan, à la géométrie de l'espace et aux transformations du plan" },
+			"theme": { "id": "c3.t2", "title": "Géométrie de l'espace" },
+			"title": "Perspective cavalière",
+			"sequence": 10,
+			"exampleSituation": "Représenter un solide de la salle en perspective cavalière.",
+			"skills": ["Représenter un solide en perspective cavalière", "Traiter une situation faisant appel à la perspective cavalière"],
+			"contents": ["Perspective cavalière", "Arêtes vues et cachées"]
+		},
+		{
+			"id": "ci.college.4e.math.c3.t3.l1",
+			"competence": { "id": "c3", "title": "Traiter une situation relative à la géométrie du plan, à la géométrie de l'espace et aux transformations du plan" },
+			"theme": { "id": "c3.t3", "title": "Transformations du plan" },
+			"title": "Symétries et translations",
+			"sequence": 11,
+			"exampleSituation": "Motif obtenu par symétrie puis translation.",
+			"skills": ["Composer symétries et translation", "Traiter une situation relative aux symétries et translations"],
+			"contents": ["Symétrie centrale", "Symétrie axiale", "Translation"]
+		}
+	]
+}

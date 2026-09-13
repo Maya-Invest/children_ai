@@ -1,0 +1,28 @@
+{
+	"name": "@children-ai/api",
+	"type": "module",
+	"private": true,
+	"scripts": {
+		"dev": "bun --watch src/main.ts",
+		"dev:worker": "wrangler dev --port 8787",
+		"start": "bun src/main.ts",
+		"cron:local": "bun src/cron.ts",
+		"deploy": "wrangler deploy",
+		"cf-typegen": "wrangler types --env-interface CloudflareBindings",
+		"check": "tsc --noEmit",
+		"test": "bun test"
+	},
+	"dependencies": {
+		"@children-ai/adaptor-cloudflare": "workspace:*",
+		"@children-ai/adaptors": "workspace:*",
+		"@children-ai/app": "workspace:*",
+		"@children-ai/domain": "workspace:*",
+		"@maya-invest/edaya-identity-client": "file:../../../edaya_identity/package/identity-client",
+		"hono": "^4.7.9"
+	},
+	"devDependencies": {
+		"@types/bun": "^1.3.14",
+		"typescript": "^5.9.2",
+		"wrangler": "^4.37.0"
+	}
+}

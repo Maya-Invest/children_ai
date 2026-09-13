@@ -1,0 +1,371 @@
+{
+	"packVersion": "dpfc-college-maths-6e-cnd-0923",
+	"country": "CI",
+	"cycle": "college",
+	"subject": "MATH",
+	"sourcePdf": "01. Prog Éduct MATHS 6e CND 0923.pdf",
+	"lessons": [
+		{
+			"id": "ci.college.6e.math.c1.t1.l1",
+			"grade": "6e",
+			"competence": {
+				"id": "c1",
+				"title": "Traiter une situation relative aux calculs algébriques et aux fonctions"
+			},
+			"theme": { "id": "c1.t1", "title": "Calculs algébriques" },
+			"title": "Nombres entiers naturels",
+			"sequence": 1,
+			"exampleSituation": "Un élève de sixième se rend au dispensaire. Le médecin prescrit un sirop trois fois par jour, deux cuillerées de 3 cm³ pendant dix jours. Le flacon contient 120 cm³. Les camarades veulent savoir si un seul flacon suffit.",
+			"skills": [
+				"Noter l'ensemble des nombres entiers naturels ℕ",
+				"Connaître les caractères de divisibilité par 2, 3, 5, 9, 10, 100, 1000",
+				"Connaître les symboles ∈ et ∉",
+				"Reconnaître des entiers naturels consécutifs, un multiple, un diviseur",
+				"Écrire tous les diviseurs d'un entier naturel plus petit que 1000",
+				"Déterminer le nombre d'entiers consécutifs de m à n",
+				"Justifier qu'un entier est multiple, divisible ou diviseur d'un autre",
+				"Traiter une situation faisant appel aux nombres entiers naturels"
+			],
+			"contents": [
+				"Ensemble ℕ",
+				"Divisibilité par 2, 3, 5, 9, 10, 100, 1000",
+				"Multiples et diviseurs",
+				"Entiers naturels consécutifs"
+			]
+		},
+		{
+			"id": "ci.college.6e.math.c1.t1.l2",
+			"grade": "6e",
+			"competence": {
+				"id": "c1",
+				"title": "Traiter une situation relative aux calculs algébriques et aux fonctions"
+			},
+			"theme": { "id": "c1.t1", "title": "Calculs algébriques" },
+			"title": "Nombres décimaux relatifs",
+			"sequence": 2,
+			"exampleSituation": "Tournoi interclasse de football : points (3 / 1 / 0) et goal-average pour départager quatre classes de sixième après deux journées.",
+			"skills": [
+				"Identifier des nombres entiers relatifs et des nombres décimaux relatifs",
+				"Noter ℤ et ⅅ",
+				"Trouver l'opposé d'un nombre relatif",
+				"Comparer deux nombres décimaux relatifs",
+				"Lire et placer un point d'abscisse donnée sur une droite graduée",
+				"Calculer la somme de deux nombres décimaux relatifs",
+				"Traiter une situation faisant appel aux nombres décimaux relatifs"
+			],
+			"contents": [
+				"Entiers relatifs ℤ",
+				"Décimaux relatifs ⅅ",
+				"Opposé",
+				"Comparaison",
+				"Abscisse sur une droite graduée",
+				"Addition des décimaux relatifs"
+			]
+		},
+		{
+			"id": "ci.college.6e.math.c1.t1.l3",
+			"grade": "6e",
+			"competence": {
+				"id": "c1",
+				"title": "Traiter une situation relative aux calculs algébriques et aux fonctions"
+			},
+			"theme": { "id": "c1.t1", "title": "Calculs algébriques" },
+			"title": "Fractions",
+			"sequence": 3,
+			"exampleSituation": "Partage d'un troupeau : l'aîné reçoit 7/15, le cadet 1/3, le benjamin le reste. Les camarades comparent les parts.",
+			"skills": [
+				"Reconnaître une fraction et une fraction décimale",
+				"Déterminer des fractions égales et une fraction d'une quantité",
+				"Simplifier une fraction",
+				"Écrire un nombre décimal sous forme de fraction décimale",
+				"Réduire deux fractions au même dénominateur",
+				"Comparer deux fractions et une fraction au nombre 1",
+				"Calculer la somme de deux fractions",
+				"Traiter une situation faisant appel aux fractions"
+			],
+			"contents": [
+				"Fraction",
+				"Fraction décimale",
+				"Fractions égales",
+				"Simplification",
+				"Réduction au même dénominateur",
+				"Comparaison",
+				"Addition de fractions"
+			]
+		},
+		{
+			"id": "ci.college.6e.math.c2.t1.l1",
+			"grade": "6e",
+			"competence": {
+				"id": "c2",
+				"title": "Traiter une situation relative à la modélisation de phénomènes aléatoires, à l'organisation et au traitement des données"
+			},
+			"theme": { "id": "c2.t1", "title": "Organisation et traitement de données" },
+			"title": "Proportionnalité",
+			"sequence": 4,
+			"exampleSituation": "Commande de 45 bouteilles de bissap. La vendeuse produit 5 bouteilles avec 1,5 kg de sucre. Quelle quantité pour honorer la commande ?",
+			"skills": [
+				"Reconnaître des grandeurs proportionnelles et des coefficients de proportionnalité",
+				"Écrire un pourcentage sous forme de nombre décimal ou de fraction décimale",
+				"Calculer un coefficient de proportionnalité",
+				"Utiliser une échelle et un pourcentage",
+				"Justifier qu'un tableau est un tableau de proportionnalité",
+				"Utiliser la linéarité pour compléter un tableau",
+				"Traiter une situation faisant appel à la proportionnalité"
+			],
+			"contents": [
+				"Grandeurs proportionnelles",
+				"Coefficient de proportionnalité",
+				"Pourcentage",
+				"Échelle",
+				"Propriétés de linéarité"
+			]
+		},
+		{
+			"id": "ci.college.6e.math.c2.t1.l2",
+			"grade": "6e",
+			"competence": {
+				"id": "c2",
+				"title": "Traiter une situation relative à la modélisation de phénomènes aléatoires, à l'organisation et au traitement des données"
+			},
+			"theme": { "id": "c2.t1", "title": "Organisation et traitement de données" },
+			"title": "Statistique",
+			"sequence": 5,
+			"exampleSituation": "Élection du chef de classe : trois candidats, seuil de 40 % des suffrages. Organiser le dépouillement (effectifs et pourcentages).",
+			"skills": [
+				"Connaître effectif, effectif total, fréquence, fréquence en pourcentages",
+				"Traduire des données en tableaux d'effectifs et de fréquences",
+				"Interpréter un effectif et une fréquence",
+				"Calculer des effectifs, des fréquences et l'effectif total",
+				"Traiter une situation faisant appel à la statistique"
+			],
+			"contents": [
+				"Effectif",
+				"Effectif total",
+				"Fréquence",
+				"Fréquence en pourcentages",
+				"Tableaux statistiques"
+			]
+		},
+		{
+			"id": "ci.college.6e.math.c3.t1.l1",
+			"grade": "6e",
+			"competence": {
+				"id": "c3",
+				"title": "Traiter une situation relative à la géométrie du plan, à la géométrie de l'espace et aux transformations du plan"
+			},
+			"theme": { "id": "c3.t1", "title": "Géométrie du plan" },
+			"title": "Droites et points",
+			"sequence": 6,
+			"exampleSituation": "Sur une carte de Côte d'Ivoire, vérifier si trois villes sont alignées en traçant des droites passant par les villes deux à deux.",
+			"skills": [
+				"Identifier une droite et une demi-droite",
+				"Connaître points alignés, droites sécantes, perpendiculaires, parallèles",
+				"Nommer et noter une droite, une demi-droite",
+				"Tracer une droite passant par deux points, deux droites sécantes",
+				"Construire une perpendiculaire et une parallèle",
+				"Justifier l'alignement, le parallélisme, la perpendicularité",
+				"Traiter une situation faisant appel aux droites et points"
+			],
+			"contents": [
+				"Droite",
+				"Demi-droite",
+				"Points alignés",
+				"Droites sécantes",
+				"Droites perpendiculaires",
+				"Droites parallèles"
+			]
+		},
+		{
+			"id": "ci.college.6e.math.c3.t1.l2",
+			"grade": "6e",
+			"competence": {
+				"id": "c3",
+				"title": "Traiter une situation relative à la géométrie du plan, à la géométrie de l'espace et aux transformations du plan"
+			},
+			"theme": { "id": "c3.t1", "title": "Géométrie du plan" },
+			"title": "Segments",
+			"sequence": 7,
+			"exampleSituation": "Planter des fleurs à égale distance de deux cocotiers et sur la droite qui les relie : visualiser les positions (milieu, médiatrice).",
+			"skills": [
+				"Connaître segment, milieu, médiatrice",
+				"Reconnaître deux segments de même longueur",
+				"Noter et mesurer un segment",
+				"Comparer des longueurs au compas",
+				"Construire le milieu et la médiatrice",
+				"Traiter une situation faisant appel aux segments"
+			],
+			"contents": [
+				"Segment",
+				"Milieu d'un segment",
+				"Médiatrice",
+				"Report de longueurs"
+			]
+		},
+		{
+			"id": "ci.college.6e.math.c3.t1.l3",
+			"grade": "6e",
+			"competence": {
+				"id": "c3",
+				"title": "Traiter une situation relative à la géométrie du plan, à la géométrie de l'espace et aux transformations du plan"
+			},
+			"theme": { "id": "c3.t1", "title": "Géométrie du plan" },
+			"title": "Cercles et disques",
+			"sequence": 8,
+			"exampleSituation": "Autour d'un mât, planter des fleurs à 2 m du pied et du gazon entre les fleurs et le mât. Représenter les emplacements (échelle 1 cm pour 1 m).",
+			"skills": [
+				"Identifier disque, rayon, diamètre, corde, centre",
+				"Noter C(A, r) et D(A, r)",
+				"Connaître la caractérisation AM = r",
+				"Calculer le périmètre d'un cercle et l'aire d'un disque",
+				"Traiter une situation faisant appel à un cercle ou à un disque"
+			],
+			"contents": [
+				"Cercle",
+				"Disque",
+				"Rayon",
+				"Diamètre",
+				"Corde",
+				"Périmètre 2πr",
+				"Aire πr²"
+			]
+		},
+		{
+			"id": "ci.college.6e.math.c3.t1.l4",
+			"grade": "6e",
+			"competence": {
+				"id": "c3",
+				"title": "Traiter une situation relative à la géométrie du plan, à la géométrie de l'espace et aux transformations du plan"
+			},
+			"theme": { "id": "c3.t1", "title": "Géométrie du plan" },
+			"title": "Angles",
+			"sequence": 9,
+			"exampleSituation": "Tirs au but : à partir du point de penalty, déterminer les lignes limitant le champ de tirs vers les poteaux.",
+			"skills": [
+				"Identifier un angle, son sommet et ses côtés",
+				"Connaître la bissectrice",
+				"Reconnaître angle nul, droit, aigu, obtus, plat",
+				"Mesurer un angle en degrés",
+				"Reproduire et construire un angle",
+				"Construire la bissectrice",
+				"Traiter une situation faisant appel aux angles"
+			],
+			"contents": [
+				"Angle",
+				"Bissectrice",
+				"Angle nul, aigu, droit, obtus, plat",
+				"Mesure en degrés"
+			]
+		},
+		{
+			"id": "ci.college.6e.math.c3.t1.l5",
+			"grade": "6e",
+			"competence": {
+				"id": "c3",
+				"title": "Traiter une situation relative à la géométrie du plan, à la géométrie de l'espace et aux transformations du plan"
+			},
+			"theme": { "id": "c3.t1", "title": "Géométrie du plan" },
+			"title": "Triangles",
+			"sequence": 10,
+			"exampleSituation": "Échantillon de nappe pour le bureau des professeurs : identifier et construire triangles rectangle, isocèle, équilatéral, hauteurs et médianes.",
+			"skills": [
+				"Identifier un triangle",
+				"Connaître triangle rectangle, isocèle, équilatéral, hauteur, médiane, médiatrice d'un côté",
+				"Connaître périmètre et aire d'un triangle",
+				"Construire un triangle connaissant les longueurs des côtés",
+				"Calculer périmètre et aire",
+				"Traiter une situation faisant appel aux triangles"
+			],
+			"contents": [
+				"Triangle",
+				"Triangle rectangle, isocèle, équilatéral",
+				"Hauteur",
+				"Médiane",
+				"Périmètre",
+				"Aire"
+			]
+		},
+		{
+			"id": "ci.college.6e.math.c3.t1.l6",
+			"grade": "6e",
+			"competence": {
+				"id": "c3",
+				"title": "Traiter une situation relative à la géométrie du plan, à la géométrie de l'espace et aux transformations du plan"
+			},
+			"theme": { "id": "c3.t1", "title": "Géométrie du plan" },
+			"title": "Parallélogramme",
+			"sequence": 11,
+			"exampleSituation": "Motifs d'un pagne tissé : identifier la nature des quadrilatères, propriétés des diagonales et des côtés opposés.",
+			"skills": [
+				"Identifier un parallélogramme",
+				"Connaître définition, propriétés des diagonales et des côtés opposés",
+				"Connaître périmètre et aire",
+				"Construire un parallélogramme",
+				"Justifier qu'un quadrilatère est un parallélogramme",
+				"Traiter une situation faisant appel au parallélogramme"
+			],
+			"contents": [
+				"Parallélogramme",
+				"Diagonales",
+				"Côtés opposés",
+				"Périmètre",
+				"Aire"
+			]
+		},
+		{
+			"id": "ci.college.6e.math.c3.t2.l1",
+			"grade": "6e",
+			"competence": {
+				"id": "c3",
+				"title": "Traiter une situation relative à la géométrie du plan, à la géométrie de l'espace et aux transformations du plan"
+			},
+			"theme": { "id": "c3.t2", "title": "Géométrie de l'espace" },
+			"title": "Pavés droits et cylindres droits",
+			"sequence": 12,
+			"exampleSituation": "Coupure d'eau SODECI : remplir une bassine avec un seau. Identifier pavé/cylindre et calculer les volumes pour savoir combien de seaux.",
+			"skills": [
+				"Identifier pavé droit, cube, cylindre droit et leurs patrons",
+				"Dénombrer sommets, arêtes, faces d'un pavé",
+				"Connaître formules d'aires et de volumes",
+				"Construire un patron",
+				"Calculer aires latérale/totale et volume",
+				"Traiter une situation faisant appel aux pavés droits ou aux cylindres droits"
+			],
+			"contents": [
+				"Pavé droit",
+				"Cube",
+				"Cylindre droit",
+				"Patron",
+				"Aire latérale",
+				"Aire totale",
+				"Volume"
+			]
+		},
+		{
+			"id": "ci.college.6e.math.c3.t3.l1",
+			"grade": "6e",
+			"competence": {
+				"id": "c3",
+				"title": "Traiter une situation relative à la géométrie du plan, à la géométrie de l'espace et aux transformations du plan"
+			},
+			"theme": { "id": "c3.t3", "title": "Transformations du plan" },
+			"title": "Figures symétriques par rapport à un point",
+			"sequence": 13,
+			"exampleSituation": "Vitrail colonial brisé à Grand-Bassam, disque de 2 m de diamètre, symétrique par rapport au centre. Reconstituer le schéma complet.",
+			"skills": [
+				"Identifier le symétrique d'un point, d'un segment, d'une droite, d'un cercle",
+				"Identifier un centre de symétrie",
+				"Connaître les propriétés de conservation (alignement, longueurs, angles, parallélisme)",
+				"Construire le symétrique d'une figure par rapport à un point",
+				"Justifier une symétrie centrale",
+				"Traiter une situation relative aux figures symétriques par rapport à un point"
+			],
+			"contents": [
+				"Symétrie centrale",
+				"Centre de symétrie",
+				"Symétrique d'un point, d'un segment, d'une droite, d'un cercle",
+				"Propriétés de conservation"
+			]
+		}
+	]
+}

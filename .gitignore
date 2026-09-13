@@ -1,0 +1,11 @@
+node_modules
+.data
+.svelte-kit
+build
+dist
+.env
+.dev.vars
+.wrangler
+worker-configuration.d.ts
+*.log
+.DS_Store

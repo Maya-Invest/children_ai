@@ -1,0 +1,12 @@
+{
+	"name": "@children-ai/curriculum-data",
+	"type": "module",
+	"private": true,
+	"exports": {
+		"./ci-college-maths-6e.json": "./ci-college-maths-6e.json",
+		"./ci-college-maths-5e.json": "./ci-college-maths-5e.json",
+		"./ci-college-maths-4e.json": "./ci-college-maths-4e.json",
+		"./ci-college-maths-3e.json": "./ci-college-maths-3e.json",
+		"./edaya-math-mapping.json": "./edaya-math-mapping.json"
+	}
+}

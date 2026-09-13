@@ -1,0 +1,5 @@
+{
+	"edayaSubjectCode": "MATH",
+	"notes": "All DPFC collège Maths leçons map to the EDAYA school subject code MATH. Class-subject-matter titles in EDAYA are matched to official leçon titles (and contents aliases) when suggesting focus.",
+	"grades": ["6e", "5e", "4e", "3e"]
+}

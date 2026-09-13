@@ -1,0 +1,79 @@
+{
+	"name": "children-ai-api",
+	"main": "src/worker.ts",
+	"compatibility_date": "2026-09-07",
+	"observability": {
+		"enabled": true
+	},
+	"vars": {
+		"GEMINI_MODEL": "gemini-3.5-flash",
+		"CORS_ORIGIN": "http://localhost:5175,http://127.0.0.1:5175",
+		"PALIER": "local",
+		"EDAYA_API_ORIGIN": "http://localhost:9999",
+		"EDAYA_DEMO_SCHOOL_ID": "sch-edaya-ci-cocody",
+		"EDAYA_DEMO_ACADEMIC_YEAR_ID": "2025-ci",
+		"IDENTITY_ISSUER": "http://localhost:9900",
+		"CHILDREN_API_ORIGIN": "http://localhost:8787"
+	},
+	"kv_namespaces": [
+		{
+			"binding": "STORE",
+			"id": "00000000000000000000000000000000",
+			"preview_id": "00000000000000000000000000000000"
+		},
+		{
+			"binding": "SESSIONS",
+			"id": "00000000000000000000000000000001",
+			"preview_id": "00000000000000000000000000000001"
+		}
+	],
+	"triggers": {
+		"crons": ["0 6 * * *"]
+	},
+	"env": {
+		"staging": {
+			"vars": {
+				"GEMINI_MODEL": "gemini-3.5-flash",
+				"CORS_ORIGIN": "",
+				"PALIER": "staging",
+				"EDAYA_API_ORIGIN": "https://staging.api.edayaplus.com",
+				"EDAYA_DEMO_SCHOOL_ID": "sch-edaya-ci-cocody",
+				"EDAYA_DEMO_ACADEMIC_YEAR_ID": "2025-ci"
+			},
+			"kv_namespaces": [
+				{
+					"binding": "STORE",
+					"id": "11111111111111111111111111111111"
+				},
+				{
+					"binding": "SESSIONS",
+					"id": "11111111111111111111111111111112"
+				}
+			],
+			"triggers": {
+				"crons": ["0 6 * * *"]
+			}
+		},
+		"prod": {
+			"vars": {
+				"GEMINI_MODEL": "gemini-3.5-flash",
+				"CORS_ORIGIN": "",
+				"PALIER": "prod",
+				"EDAYA_API_ORIGIN": "https://api.edayaplus.com"
+			},
+			"kv_namespaces": [
+				{
+					"binding": "STORE",
+					"id": "22222222222222222222222222222222"
+				},
+				{
+					"binding": "SESSIONS",
+					"id": "22222222222222222222222222222223"
+				}
+			],
+			"triggers": {
+				"crons": ["0 6 * * *"]
+			}
+		}
+	}
+}
