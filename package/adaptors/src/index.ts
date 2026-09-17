@@ -5,9 +5,11 @@ export {
 	FIXTURE_ACADEMIC_YEAR_ID,
 	FIXTURE_SCHOOL_ID,
 	FIXTURE_STUDENT_ID,
+	FIXTURE_TIMETABLE,
 } from "./edaya-fixture.ts";
 export {
 	SchoolScopedEdayaContext,
+	DualEdayaContext,
 	createDemoEdayaContext,
 	createSchoolEdayaStack,
 } from "./school-scoped-edaya.ts";
@@ -21,7 +23,9 @@ export { encryptVaultSecret, decryptVaultSecret } from "./vault-crypto.ts";
 export {
 	LOCAL_FIXTURE_KEY,
 	MemorySchoolIntegrationVault,
+	LocalDerivingCredentialsPort,
 	demoSchoolCredentials,
+	deriveLocalChildrenAiApiKey,
 	keyPrefixOf,
 } from "./school-integration-vault.ts";
 export { StubExerciseGenerator } from "./generator-stub.ts";
@@ -34,6 +38,7 @@ export { createExerciseGenerator, resolveGeneratorName } from "./generator.ts";
 export { MemorySessionStore, type SessionStore } from "./session-store.ts";
 export {
 	InMemoryExerciseSetRepository,
+	InMemoryPracticeSettingsRepository,
 	InMemorySnapshotRepository,
 	InMemoryStudentAccessCodeRepository,
 } from "./memory-store.ts";

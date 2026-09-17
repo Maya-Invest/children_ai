@@ -6,6 +6,7 @@ export type StudentActor = {
 	codeId: string;
 	displayName: string;
 	childFirstName: string;
+	sessionKind?: 'demo' | 'code';
 };
 
 export type GuardianActor = {
@@ -13,12 +14,14 @@ export type GuardianActor = {
 	subjectId: string;
 	schoolId: string;
 	displayName: string;
+	sessionKind?: 'demo';
 };
 
 export type Actor = StudentActor | GuardianActor;
 
 export type Mark = {
 	id: string;
+	subject: string;
 	title: string;
 	score: number;
 	maxScore: number;
@@ -28,8 +31,11 @@ export type Mark = {
 export type Question = {
 	id: string;
 	prompt: string;
-	kind: 'short' | 'mcq';
+	kind: 'mcq' | 'written' | 'short';
 	choices?: string[];
+	expectedAnswer?: string;
+	answered?: boolean;
+	correct?: boolean;
 };
 
 export type ExerciseSet = {
@@ -39,6 +45,10 @@ export type ExerciseSet = {
 	generatedAt: string;
 	generator: string;
 	questions: Question[];
+	answers?: { questionId: string; value: string }[];
+	submittedAt?: string;
+	score?: { correct: number; total: number };
+	correctionReleasedAt?: string | null;
 };
 
 export type GuardianChildView = {
@@ -74,9 +84,24 @@ export type HomePayload = {
 	};
 	marks: Mark[];
 	rank?: { rank: number; classSize: number; overallAverage: number };
-	focus: { lessonId: string; rationale: string };
+	classProgress: { subject?: string; subjectMatter: string; completedPercentage: number }[];
+	timetable: {
+		id: string;
+		dayOfWeek: "monday" | "tuesday" | "wednesday" | "thursday" | "friday" | "saturday" | "sunday";
+		startTime: string;
+		endTime: string;
+		title: string;
+		kind: "lesson" | "activity";
+	}[];
+	attendance?: { presentRate: number };
+	observations: string[];
+	subjects: string[];
+	programmeLine: string;
+	focus: { lessonId: string; rationale: string; subject?: string };
+	focusSubject?: string;
 	lessonTitle: string;
 	canGenerate: boolean;
 	currentSet: ExerciseSet | null;
 	history: ExerciseSet[];
+	autoReleaseCorrection: boolean;
 };

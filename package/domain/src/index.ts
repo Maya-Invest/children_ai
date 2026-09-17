@@ -8,6 +8,7 @@ export type {
 	ExerciseGeneratorPort,
 	SnapshotRepository,
 	ExerciseSetRepository,
+	PracticeSettingsRepository,
 	GuardianChildrenPort,
 	GuardianChildrenQuery,
 	StudentAccessCodeRepository,
@@ -43,4 +44,28 @@ export {
 	type Palier,
 } from "./palier.ts";
 export { snapshotFingerprint } from "./fingerprint.ts";
+export {
+	demoFamilyListing,
+	demoGuardianActor,
+	demoStudentActor,
+	isDemoGuardian,
+	isDemoIssuedAccess,
+	learnerQueryForIssuedCode,
+} from "./demo-family.ts";
+export {
+	displaySubjectLabel,
+	formatProgrammeLine,
+	listLearnerSubjects,
+	subjectsMatch,
+} from "./display-subject.ts";
 export { suggestFocus } from "./suggest-focus.ts";
+export {
+	isAnswerCorrect,
+	normalizeAnswer,
+	questionKind,
+	scoreExerciseSet,
+} from "./score-set.ts";
+export {
+	presentExerciseSet,
+	type ExerciseAudience,
+} from "./present-set.ts";

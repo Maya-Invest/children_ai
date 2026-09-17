@@ -6,12 +6,14 @@ import type {
 	LearnerAcademicSnapshot,
 	LearnerContext,
 	PracticeFocus,
+	PracticeSettings,
 	StudentAccessCode,
 } from "./types.ts";
 
 export type LearnerContextQuery = {
 	schoolId: string;
 	studentId: string;
+	contextSource?: "fixture" | "live";
 };
 
 export interface EdayaContextPort {
@@ -63,6 +65,11 @@ export interface ExerciseSetRepository {
 	listByStudentId(query: LearnerContextQuery): Promise<ExerciseSet[]>;
 	getById(id: string): Promise<ExerciseSet | null>;
 	save(set: ExerciseSet): Promise<void>;
+}
+
+export interface PracticeSettingsRepository {
+	get(query: LearnerContextQuery): Promise<PracticeSettings | null>;
+	save(settings: PracticeSettings): Promise<void>;
 }
 
 export type GuardianChildrenQuery = {

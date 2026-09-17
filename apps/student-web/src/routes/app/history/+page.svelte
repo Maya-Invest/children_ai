@@ -2,15 +2,15 @@
 	import type { HomePayload } from '$lib/types';
 
 	let { data }: { data: { home: HomePayload } } = $props();
-	let home = $derived(data.home);
+	const home = $derived(data.home);
 </script>
 
 <section class="rounded-[2rem] bg-paper p-6 shadow-card sm:p-10">
 	<h1 class="text-3xl font-extrabold">Historique</h1>
-	<p class="mt-2 text-ink/70">Les ensembles déjà créés. Pas de régénération : on ouvre seulement.</p>
+	<p class="mt-2 text-ink/70">Consulte l’historique des évaluations passées.</p>
 
 	{#if home.history.length === 0}
-		<p class="mt-6 text-ink/60">Pas encore d’exercices.</p>
+		<p class="mt-6 text-ink/60">Aucune évaluation passée pour le moment.</p>
 	{:else}
 		<ul class="mt-6 space-y-3">
 			{#each home.history as set (set.id)}
@@ -20,7 +20,15 @@
 						href={`/app/sets/${set.id}`}
 					>
 						<span>Série du {new Date(set.generatedAt).toLocaleString('fr-CI')}</span>
-						<span class="text-forest">{set.questions.length} questions</span>
+						<span class="text-forest">
+							{#if set.correctionReleasedAt && set.score}
+								{set.score.correct}/{set.score.total}
+							{:else if set.submittedAt}
+								En attente du corrigé
+							{:else}
+								{set.questions.length} questions
+							{/if}
+						</span>
 					</a>
 				</li>
 			{/each}

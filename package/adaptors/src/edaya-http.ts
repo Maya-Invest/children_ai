@@ -11,6 +11,9 @@ import {
 	type LearnerContext,
 	type LearnerContextQuery,
 	type SchoolCredentials,
+	type TimetableDay,
+	type TimetableSlot,
+	CHILDREN_AI_RESOLVE_SECRET_HEADER,
 } from "@children-ai/domain";
 import { SchoolIntegrationMissingError } from "@children-ai/domain";
 
@@ -21,12 +24,17 @@ export type EdayaFetch = (
 
 export type HttpEdayaContextOptions = {
 	credentials: EdayaCredentialsPort;
-	schoolId?: string;
 	fetchImpl?: EdayaFetch;
 	now?: () => Date;
+	resolveGuardian?: {
+		origin: string;
+		secret: string;
+	};
 };
 
 type JsonRecord = Record<string, unknown>;
+
+const CHILDREN_LIST_CACHE_MS = 10_000;
 
 /**
  * Live EDAYA `/core/entities/{publicName}/list` adaptor.
@@ -35,6 +43,7 @@ type JsonRecord = Record<string, unknown>;
 export class HttpEdayaContext implements EdayaContextPort, GuardianChildrenPort {
 	private readonly fetchImpl: EdayaFetch;
 	private readonly now: () => Date;
+	private readonly childrenCache = new Map<string, { expiresAt: number; listing: GuardianChildrenListing }>();
 
 	constructor(private readonly options: HttpEdayaContextOptions) {
 		this.fetchImpl = options.fetchImpl ?? ((input, init) => fetch(input, init));
@@ -42,76 +51,56 @@ export class HttpEdayaContext implements EdayaContextPort, GuardianChildrenPort 
 	}
 
 	async listChildren(query: GuardianChildrenQuery): Promise<GuardianChildrenListing> {
-		const schoolId = this.options.schoolId?.trim() ?? "";
-		if (!schoolId) {
+		const resolve = this.options.resolveGuardian;
+		const origin = resolve?.origin?.trim().replace(/\/+$/, "") ?? "";
+		const secret = resolve?.secret?.trim() ?? "";
+		if (!origin || !secret) {
 			return { schoolId: "", displayName: query.email ?? "Parent", children: [] };
 		}
-		const credentials = await this.options.credentials.getActive(schoolId);
-		if (!credentials) {
-			return { schoolId, displayName: query.email ?? "Parent", children: [] };
+
+		const cacheKey = `${origin}:${query.subjectId}`;
+		const cached = this.childrenCache.get(cacheKey);
+		if (cached && cached.expiresAt > Date.now()) {
+			return cached.listing;
 		}
 
-		let guardians = await this.listOptional(credentials, "guardians", {
-			schoolId,
-			subjectId: query.subjectId,
+		const response = await this.fetchImpl(`${origin}/internal/children-ai/resolve-guardian`, {
+			method: "POST",
+			headers: {
+				"content-type": "application/json",
+				[CHILDREN_AI_RESOLVE_SECRET_HEADER]: secret,
+			},
+			body: JSON.stringify({ subjectId: query.subjectId }),
 		});
-		if (guardians.length === 0 && query.email) {
-			guardians = await this.listOptional(credentials, "guardians", {
-				schoolId,
-				email: query.email,
-			});
+		const text = await response.text();
+		if (!response.ok) {
+			throw new EdayaContextFetchError(
+				`EDAYA resolve-guardian a renvoyé ${response.status}.`,
+			);
 		}
-		const guardian = guardians.find((row) => {
-			if (query.subjectId && asString(row.subjectId) === query.subjectId) return true;
-			if (query.email && asString(row.email).toLowerCase() === query.email.toLowerCase()) {
-				return true;
-			}
-			return false;
-		}) ?? guardians[0];
-
-		const displayName = guardian
-			? `${asString(guardian.firstName)} ${asString(guardian.lastName)}`.trim()
-			: (query.email ?? "Parent");
-
-		if (!guardian) {
-			return { schoolId, displayName, children: [] };
-		}
-
-		const links = await this.listOptional(credentials, "guardian-links", {
-			schoolId,
-			guardianId: asString(guardian.id),
+		const parsed = parseResolveGuardian(text);
+		const listing = {
+			schoolId: parsed.schoolId,
+			displayName: parsed.displayName || query.email || "Parent",
+			children: parsed.children,
+		};
+		this.childrenCache.set(cacheKey, {
+			expiresAt: Date.now() + CHILDREN_LIST_CACHE_MS,
+			listing,
 		});
-		const studentIds = [
-			...new Set(
-				links
-					.map((row) => asString(row.studentId))
-					.filter(Boolean),
-			),
-		];
-		const children = [];
-		for (const studentId of studentIds) {
-			const students = await this.listOptional(credentials, "students", { id: studentId });
-			const student = students.find((row) => asString(row.id) === studentId);
-			if (!student) continue;
-			if (asString(student.schoolId) && asString(student.schoolId) !== schoolId) continue;
-			children.push({
-				studentId,
-				schoolId,
-				firstName: asString(student.firstName) || "Élève",
-				lastName: asString(student.lastName),
-			});
-		}
-		return { schoolId, displayName: displayName || "Parent", children };
+		return listing;
 	}
 
 	async pullLearnerContext(query: LearnerContextQuery): Promise<LearnerContext> {
 		const credentials = await this.options.credentials.getActive(query.schoolId);
 		if (!credentials) throw new SchoolIntegrationMissingError(query.schoolId);
 
-		const student = await this.requireStudent(credentials, query);
-		const enrollments = await this.list(credentials, "enrollments", {
-			studentId: query.studentId,
-		});
+		const [student, enrollments] = await Promise.all([
+			this.requireStudent(credentials, query),
+			this.list(credentials, "enrollments", {
+				studentId: query.studentId,
+			}),
+		]);
 		const enrollment =
 			enrollments.find(
 				(row) =>
@@ -125,61 +114,70 @@ export class HttpEdayaContext implements EdayaContextPort, GuardianChildrenPort 
 			: [];
 		const classGroup =
 			classGroups.find((row) => asString(row.id) === classGroupId) ?? classGroups[0];
-		const gradeLevels = classGroup
-			? await this.list(credentials, "grade-levels", {
-					id: asString(classGroup.gradeLevelId),
-				})
-			: [];
+
+		const [
+			gradeLevels,
+			subjects,
+			assessments,
+			results,
+			notes,
+			attendances,
+			years,
+			periods,
+			classSubjectsRaw,
+			reportCards,
+			schedules,
+		] = await Promise.all([
+			classGroup
+				? this.listOptional(credentials, "grade-levels", {
+						id: asString(classGroup.gradeLevelId),
+					})
+				: Promise.resolve([]),
+			this.listOptional(credentials, "subjects", { schoolId: query.schoolId }),
+			classGroupId
+				? this.listOptional(credentials, "assessments", { classGroupId })
+				: Promise.resolve([]),
+			this.listOptional(credentials, "assessment-results", {
+				studentId: query.studentId,
+			}),
+			this.listOptional(credentials, "student-notes", {
+				studentId: query.studentId,
+			}),
+			this.listOptional(credentials, "attendances", {
+				studentId: query.studentId,
+			}),
+			this.listOptional(credentials, "academic-years", {
+				id: credentials.integration.academicYearId,
+			}),
+			this.listOptional(credentials, "academic-periods", {
+				academicYearId: credentials.integration.academicYearId,
+			}),
+			classGroupId
+				? this.listOptional(credentials, "class-subjects", { classGroupId })
+				: Promise.resolve([]),
+			this.listOptional(credentials, "results", {
+				studentId: query.studentId,
+			}),
+			this.listSchedules(credentials, query.schoolId, classGroupId),
+		]);
+
 		const gradeLevel =
 			gradeLevels.find(
 				(row) => asString(row.id) === asString(classGroup?.gradeLevelId),
 			) ?? gradeLevels[0];
 
-		const [subjects, assessments, results, notes, attendances, years, periods] =
-			await Promise.all([
-				this.listOptional(credentials, "subjects", { schoolId: query.schoolId }),
-				classGroupId
-					? this.listOptional(credentials, "assessments", { classGroupId })
-					: Promise.resolve([]),
-				this.listOptional(credentials, "assessment-results", {
-					studentId: query.studentId,
-				}),
-				this.listOptional(credentials, "student-notes", {
-					studentId: query.studentId,
-				}),
-				this.listOptional(credentials, "attendances", {
-					studentId: query.studentId,
-				}),
-				this.listOptional(credentials, "academic-years", {
-					id: credentials.integration.academicYearId,
-				}),
-				this.listOptional(credentials, "academic-periods", {
-					academicYearId: credentials.integration.academicYearId,
-				}),
-			]);
-
-		const mathSubjectIds = new Set(
-			subjects
-				.filter((row) => isMathSubject(row))
-				.map((row) => asString(row.id))
-				.filter(Boolean),
+		const marks = buildMarks(
+			assessments,
+			results,
+			query.studentId,
+			classSubjectsRaw,
+			subjects,
 		);
-		const classSubjects = classGroupId
-			? (await this.listOptional(credentials, "class-subjects", { classGroupId }))
-					.filter((row) => mathSubjectIds.has(asString(row.subjectId)))
-			: [];
-		const mathClassSubjectIds = new Set(
-			classSubjects.map((row) => asString(row.id)).filter(Boolean),
-		);
-
-		const marks = buildMarks(assessments, results, query.studentId, mathClassSubjectIds);
 		const classProgress = await this.loadClassProgress(
 			credentials,
-			classSubjects,
+			classSubjectsRaw,
+			subjects,
 		);
-		const reportCards = await this.listOptional(credentials, "results", {
-			studentId: query.studentId,
-		});
 		const bulletin = pickBulletin(reportCards, query.studentId);
 		const period = pickPeriod(periods, this.now());
 
@@ -203,6 +201,7 @@ export class HttpEdayaContext implements EdayaContextPort, GuardianChildrenPort 
 					}
 				: undefined,
 			classProgress,
+			timetable: buildTimetable(schedules, classGroupId),
 			attendance: summarizeAttendance(attendances, query.studentId),
 			observations: notes
 				.filter(
@@ -237,32 +236,73 @@ export class HttpEdayaContext implements EdayaContextPort, GuardianChildrenPort 
 	private async loadClassProgress(
 		credentials: SchoolCredentials,
 		classSubjects: JsonRecord[],
+		subjects: JsonRecord[],
 	): Promise<ClassProgressItem[]> {
-		const items: ClassProgressItem[] = [];
-		for (const classSubject of classSubjects) {
-			const matters = await this.listOptional(credentials, "class-subject-matters", {
-				classSubjectId: asString(classSubject.id),
-			});
-			for (const matter of matters) {
-				const subjectMatters = await this.listOptional(credentials, "subject-matters", {
-					id: asString(matter.subjectMatterId),
-				});
-				const name =
-					asString(subjectMatters[0]?.name) || asString(matter.notes) || "Chapitre";
-				const progressRows = await this.listOptional(
-					credentials,
-					"class-subject-progress",
-					{ classSubjectMatterId: asString(matter.id) },
-				);
-				const latest = progressRows.at(-1);
-				const completed =
-					asNumber(latest?.completedPercentage)
-					?? asNumber(matter.completedPercentage)
-					?? 0;
-				items.push({ subjectMatter: name, completedPercentage: completed });
-			}
+		if (classSubjects.length === 0) return [];
+
+		const matterLists = await Promise.all(
+			classSubjects.map((classSubject) =>
+				this.listOptional(credentials, "class-subject-matters", {
+					classSubjectId: asString(classSubject.id),
+				}),
+			),
+		);
+		const matters = matterLists.flat();
+		if (matters.length === 0) return [];
+
+		const subjectIds = [
+			...new Set(classSubjects.map((row) => asString(row.subjectId)).filter(Boolean)),
+		];
+		const subjectMatterLists = await Promise.all(
+			subjectIds.map((subjectId) =>
+				this.listOptional(credentials, "subject-matters", { subjectId }),
+			),
+		);
+		const names = new Map<string, string>();
+		for (const row of subjectMatterLists.flat()) {
+			const id = asString(row.id);
+			if (id) names.set(id, asString(row.name) || "Chapitre");
 		}
-		return items;
+
+		const subjectNames = new Map<string, string>();
+		for (const row of subjects) {
+			const id = asString(row.id);
+			if (!id) continue;
+			subjectNames.set(id, asString(row.name) || asString(row.code) || "Matière");
+		}
+		const classSubjectById = new Map(
+			classSubjects.map((row) => [asString(row.id), row] as const),
+		);
+
+		return matters.map((matter) => {
+			const classSubject = classSubjectById.get(asString(matter.classSubjectId));
+			const subject = subjectNames.get(asString(classSubject?.subjectId));
+			return {
+				...(subject ? { subject } : {}),
+				subjectMatter:
+					names.get(asString(matter.subjectMatterId))
+					|| asString(matter.notes)
+					|| "Chapitre",
+				completedPercentage: asNumber(matter.completedPercentage) ?? 0,
+			};
+		});
+	}
+
+	private async listSchedules(
+		credentials: SchoolCredentials,
+		schoolId: string,
+		classGroupId: string,
+	): Promise<JsonRecord[]> {
+		if (!classGroupId) return [];
+		const byClass = await this.listOptional(credentials, "schedules", {
+			classGroupId,
+			$limit: 200,
+		});
+		if (byClass.length > 0) return byClass;
+		return this.listOptional(credentials, "schedules", {
+			schoolId,
+			$limit: 200,
+		});
 	}
 
 	private async listOptional(
@@ -305,6 +345,34 @@ export class HttpEdayaContext implements EdayaContextPort, GuardianChildrenPort 
 	}
 }
 
+function parseResolveGuardian(text: string): GuardianChildrenListing {
+	if (!text.trim()) {
+		return { schoolId: "", displayName: "", children: [] };
+	}
+	const parsed: unknown = JSON.parse(text);
+	if (!isRecord(parsed)) {
+		return { schoolId: "", displayName: "", children: [] };
+	}
+	const childrenRaw = Array.isArray(parsed.children) ? parsed.children : [];
+	const schoolId = asString(parsed.schoolId);
+	return {
+		schoolId,
+		displayName: asString(parsed.displayName),
+		children: childrenRaw.filter(isRecord).map((row) => {
+			const classLabel = asString(row.classLabel);
+			const grade = asOptionalGrade(row.grade);
+			return {
+				studentId: asString(row.studentId) || asString(row.id),
+				schoolId: asString(row.schoolId) || schoolId,
+				firstName: asString(row.firstName) || "Élève",
+				lastName: asString(row.lastName),
+				...(classLabel ? { classLabel } : {}),
+				...(grade ? { grade } : {}),
+			};
+		}).filter((child) => child.studentId),
+	};
+}
+
 function unwrapList(text: string): JsonRecord[] {
 	if (!text.trim()) return [];
 	const parsed: unknown = JSON.parse(text);
@@ -319,6 +387,7 @@ function unwrapList(text: string): JsonRecord[] {
 
 function matchesFilter(row: JsonRecord, filter: JsonRecord): boolean {
 	for (const [key, expected] of Object.entries(filter)) {
+		if (key.startsWith("$")) continue;
 		if (expected === undefined || expected === "") continue;
 		if (!(key in row)) continue;
 		if (asString(row[key]) !== String(expected)) return false;
@@ -330,25 +399,32 @@ function buildMarks(
 	assessments: JsonRecord[],
 	results: JsonRecord[],
 	studentId: string,
-	mathClassSubjectIds: Set<string>,
+	classSubjects: JsonRecord[],
+	subjects: JsonRecord[],
 ): AssessmentMark[] {
 	const byId = new Map(assessments.map((row) => [asString(row.id), row]));
+	const subjectsById = new Map(
+		subjects.map((row) => [asString(row.id), row] as const).filter(([id]) => id),
+	);
+	const classSubjectsById = new Map(
+		classSubjects.map((row) => [asString(row.id), row] as const).filter(([id]) => id),
+	);
 	const marks: AssessmentMark[] = [];
 	for (const result of results) {
 		if (asString(result.studentId) !== studentId) continue;
 		const assessment = byId.get(asString(result.assessmentId));
 		if (!assessment) continue;
-		if (
-			mathClassSubjectIds.size > 0
-			&& !mathClassSubjectIds.has(asString(assessment.classSubjectId))
-		) {
-			continue;
-		}
 		const score = asNumber(result.score);
 		if (score === undefined) continue;
+		const classSubject = classSubjectsById.get(asString(assessment.classSubjectId));
+		const subject = subjectsById.get(asString(classSubject?.subjectId));
 		marks.push({
 			id: asString(result.id) || asString(assessment.id),
-			subject: "MATH",
+			subject:
+				asString(subject?.name)
+				|| asString(subject?.code)
+				|| asString(assessment.subject)
+				|| "Matière",
 			title: asString(assessment.title) || "Évaluation",
 			score,
 			maxScore: asNumber(assessment.maxScore) ?? 20,
@@ -378,6 +454,53 @@ function pickPeriod(periods: JsonRecord[], now: Date): JsonRecord | undefined {
 	return containing ?? periods.at(-1) ?? periods[0];
 }
 
+const TIMETABLE_DAYS: TimetableDay[] = [
+	"monday",
+	"tuesday",
+	"wednesday",
+	"thursday",
+	"friday",
+	"saturday",
+	"sunday",
+];
+
+function buildTimetable(rows: JsonRecord[], classGroupId: string): TimetableSlot[] {
+	const slots: TimetableSlot[] = [];
+	for (const row of rows) {
+		if (classGroupId && asString(row.classGroupId) && asString(row.classGroupId) !== classGroupId) {
+			continue;
+		}
+		if (row.isRecurring === false) continue;
+		const dayOfWeek = asTimetableDay(row.dayOfWeek);
+		const startTime = asTime(row.startTime);
+		const endTime = asTime(row.endTime);
+		if (!dayOfWeek || !startTime || !endTime) continue;
+		slots.push({
+			id: asString(row.id) || `${dayOfWeek}-${startTime}`,
+			dayOfWeek,
+			startTime,
+			endTime,
+			title: asString(row.title) || "Cours",
+			kind: asString(row.scheduleKind) === "activity" ? "activity" : "lesson",
+		});
+	}
+	return slots.sort((left, right) => {
+		const dayDelta = TIMETABLE_DAYS.indexOf(left.dayOfWeek) - TIMETABLE_DAYS.indexOf(right.dayOfWeek);
+		return dayDelta !== 0 ? dayDelta : left.startTime.localeCompare(right.startTime);
+	});
+}
+
+function asTimetableDay(value: unknown): TimetableDay | undefined {
+	const raw = asString(value).toLowerCase();
+	return TIMETABLE_DAYS.find((day) => day === raw);
+}
+
+function asTime(value: unknown): string {
+	const match = asString(value).match(/^(\d{1,2}):(\d{2})/);
+	if (!match) return "";
+	return `${match[1].padStart(2, "0")}:${match[2]}`;
+}
+
 function summarizeAttendance(
 	rows: JsonRecord[],
 	studentId: string,
@@ -391,18 +514,22 @@ function summarizeAttendance(
 	return { presentRate: present / mine.length };
 }
 
-function isMathSubject(row: JsonRecord): boolean {
-	const code = asString(row.code).toUpperCase();
-	const name = asString(row.name).toLowerCase();
-	return code === "MATH" || name.includes("math");
+function mapGrade(gradeLevel: JsonRecord | undefined): GradeId {
+	return asOptionalGrade(
+		`${asString(gradeLevel?.label)} ${asString(gradeLevel?.name)} ${asString(gradeLevel?.id)}`,
+	) ?? "6e";
 }
 
-function mapGrade(gradeLevel: JsonRecord | undefined): GradeId {
-	const haystack = `${asString(gradeLevel?.label)} ${asString(gradeLevel?.name)} ${asString(gradeLevel?.id)}`.toLowerCase();
-	if (haystack.includes("3") || haystack.includes("trois")) return "3e";
-	if (haystack.includes("4") || haystack.includes("quatr")) return "4e";
-	if (haystack.includes("5") || haystack.includes("cinq")) return "5e";
-	return "6e";
+function asOptionalGrade(value: unknown): GradeId | undefined {
+	const raw = asString(value);
+	if (raw === "6e" || raw === "5e" || raw === "4e" || raw === "3e") return raw;
+	if (!raw) return undefined;
+	const haystack = raw.toLowerCase();
+	if (haystack.includes("3e") || haystack.includes("3ème") || haystack.includes("troisi")) return "3e";
+	if (haystack.includes("4e") || haystack.includes("4ème") || haystack.includes("quatr")) return "4e";
+	if (haystack.includes("5e") || haystack.includes("5ème") || haystack.includes("cinq")) return "5e";
+	if (haystack.includes("6e") || haystack.includes("6ème") || haystack.includes("sixi")) return "6e";
+	return undefined;
 }
 
 function dateOnly(value: string): string {

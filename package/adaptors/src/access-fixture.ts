@@ -29,11 +29,9 @@ export class FixtureGuardianChildrenPort implements GuardianChildrenPort {
 }
 
 export class EmptyGuardianChildrenPort implements GuardianChildrenPort {
-	constructor(private readonly schoolId = FIXTURE_SCHOOL_ID) {}
-
 	async listChildren(query: GuardianChildrenQuery): Promise<GuardianChildrenListing> {
 		return {
-			schoolId: this.schoolId,
+			schoolId: "",
 			displayName: query.email ?? "Parent",
 			children: [],
 		};

@@ -13,6 +13,7 @@ import {
 } from "@children-ai/adaptors";
 import {
 	FileExerciseSetRepository,
+	FilePracticeSettingsRepository,
 	FileSnapshotRepository,
 	FileStudentAccessCodeRepository,
 	JsonFileStore,
@@ -49,6 +50,7 @@ export function createLocalRuntime(): LocalRuntime {
 		apiKey: process.env.EDAYA_DEMO_API_KEY,
 		contextMode: process.env.EDAYA_CONTEXT,
 		seedDemoSchool: palier !== "prod",
+		resolveGuardianSecret: process.env.CHILDREN_AI_RESOLVE_SECRET,
 	});
 	const sessions = new MemorySessionStore();
 
@@ -63,6 +65,7 @@ export function createLocalRuntime(): LocalRuntime {
 		}),
 		snapshots: new FileSnapshotRepository(store),
 		sets: new FileExerciseSetRepository(store),
+		practiceSettings: new FilePracticeSettingsRepository(store),
 		codes: new FileStudentAccessCodeRepository(store),
 		children: demo.children,
 		studentSessions: sessions,

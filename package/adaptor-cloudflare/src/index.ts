@@ -1,5 +1,6 @@
 export {
 	KvExerciseSetRepository,
+	KvPracticeSettingsRepository,
 	KvSessionStore,
 	KvSnapshotRepository,
 	KvStudentAccessCodeRepository,

@@ -1,5 +1,8 @@
 import {
 	ExerciseGenerationError,
+	displaySubjectLabel,
+	normalizeAnswer,
+	questionKind,
 	type Clock,
 	type CurriculumLesson,
 	type ExerciseGeneratorPort,
@@ -11,7 +14,7 @@ import {
 } from "@children-ai/domain";
 
 export const DEFAULT_GEMINI_FLASH_MODEL = "gemini-3.5-flash";
-export const GEMINI_PROMPT_VERSION = "gemini-flash-v1";
+export const GEMINI_PROMPT_VERSION = "gemini-flash-v3";
 
 export type GeminiFetch = (
 	input: string,
@@ -30,6 +33,7 @@ type GeminiQuestion = {
 	prompt?: unknown;
 	kind?: unknown;
 	choices?: unknown;
+	expectedAnswer?: unknown;
 	answer?: unknown;
 	solution?: unknown;
 	correction?: unknown;
@@ -57,10 +61,11 @@ const QUESTION_SCHEMA = {
 				type: "object",
 				properties: {
 					prompt: { type: "string" },
-					kind: { type: "string", enum: ["short", "mcq"] },
+					kind: { type: "string", enum: ["written", "mcq"] },
 					choices: { type: "array", items: { type: "string" } },
+					expectedAnswer: { type: "string" },
 				},
-				required: ["prompt", "kind"],
+				required: ["prompt", "kind", "expectedAnswer"],
 			},
 		},
 	},
@@ -96,7 +101,7 @@ export class GeminiFlashExerciseGenerator implements ExerciseGeneratorPort {
 			},
 			body: JSON.stringify({
 				systemInstruction: {
-					parts: [{ text: systemPrompt() }],
+					parts: [{ text: systemPrompt(lesson) }],
 				},
 				contents: [
 					{
@@ -159,11 +164,14 @@ export class GeminiFlashExerciseGenerator implements ExerciseGeneratorPort {
 	}
 }
 
-function systemPrompt(): string {
+function systemPrompt(lesson: CurriculumLesson): string {
+	const subject = displaySubjectLabel(lesson.subject) || "la matière visée";
 	return [
-		"Tu génères des exercices de mathématiques pour le collège ivoirien, fidèles au programme DPFC.",
+		`Tu génères des exercices de ${subject} pour le collège ivoirien, fidèles au programme DPFC.`,
 		"Tu n'inventes pas de leçon hors du thème et des habiletés fournis.",
-		"Tu ne fournis JAMAIS de corrigé, de solution, de réponse attendue, ni d'indice qui révèle la réponse.",
+		"Deux types seulement : QCM (kind=mcq) et réponse rédigée (kind=written).",
+		"Fournis expectedAnswer pour le scoring interne. Ce n'est jamais montré à l'élève tant qu'un parent n'a pas ouvert le corrigé.",
+		"Ne mets pas de champ solution ni correction.",
 		"Réponds uniquement en JSON avec le champ questions.",
 	].join(" ");
 }
@@ -176,14 +184,17 @@ function userPrompt(
 	const name = snapshot.context.student.firstName;
 	return [
 		`Élève : ${name}, classe ${snapshot.context.student.classLabel} (${lesson.grade}).`,
+		`Matière : ${displaySubjectLabel(lesson.subject) || lesson.subject}.`,
 		`Leçon officielle : ${lesson.title} (${lesson.theme.title}).`,
 		`Pourquoi cette leçon : ${focus.rationale}`,
 		`Situation d'apprentissage : ${lesson.exampleSituation}`,
 		`Habiletés : ${lesson.skills.join(" | ")}`,
 		`Contenus : ${lesson.contents.join(" | ")}`,
-		"Produis 4 à 6 questions courtes en français, contextualisées en Côte d'Ivoire.",
-		"kind = short sauf si des choix sont vraiment utiles (alors kind = mcq et 3 ou 4 choices).",
-		"Aucun champ answer, solution ou correction.",
+		"Produis 4 à 6 questions en français, contextualisées en Côte d'Ivoire.",
+		"Mélange QCM et réponses rédigées : au moins 2 kind=mcq et 2 kind=written.",
+		"QCM : 3 ou 4 choices, et expectedAnswer identique à l'un des choix.",
+		"Réponse rédigée : expectedAnswer courte (une phrase ou une égalité), pour le scoring.",
+		"Aucun champ solution ou correction.",
 	].join("\n");
 }
 
@@ -208,22 +219,38 @@ function mapQuestions(payload: GeminiPayload, ids: IdGenerator): ExerciseQuestio
 	for (const item of payload.questions) {
 		const raw = item as GeminiQuestion;
 		if (typeof raw.prompt !== "string" || raw.prompt.trim() === "") continue;
-		const kind = raw.kind === "mcq" ? "mcq" : "short";
+		const expected = firstString(raw.expectedAnswer, raw.answer, raw.solution);
+		if (!expected) continue;
+		const kind = questionKind(typeof raw.kind === "string" ? raw.kind : "written");
 		const question: ExerciseQuestion = {
 			id: ids.next(),
 			kind,
 			prompt: raw.prompt.trim(),
+			expectedAnswer: expected,
 		};
-		if (kind === "mcq" && Array.isArray(raw.choices)) {
-			const choices = raw.choices.filter(
-				(choice): choice is string =>
-					typeof choice === "string" && choice.trim() !== "",
+		if (kind === "mcq") {
+			const choices = Array.isArray(raw.choices)
+				? raw.choices.filter(
+					(choice): choice is string =>
+						typeof choice === "string" && choice.trim() !== "",
+				)
+				: [];
+			const match = choices.find(
+				(choice) => normalizeAnswer(choice) === normalizeAnswer(expected),
 			);
-			if (choices.length >= 2) question.choices = choices;
-			else question.kind = "short";
+			if (!match || choices.length < 2) continue;
+			question.choices = choices;
+			question.expectedAnswer = match;
 		}
 		questions.push(question);
 		if (questions.length >= 6) break;
 	}
 	return questions;
+}
+
+function firstString(...values: unknown[]): string | undefined {
+	for (const value of values) {
+		if (typeof value === "string" && value.trim() !== "") return value.trim();
+	}
+	return undefined;
 }

@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { signInStudent } from '$lib/api';
-	import { setToken } from '$lib/session';
+	import { isDemoExplore, setToken } from '$lib/session';
 
 	let code = $state('');
 	let error = $state('');
 	let pending = $state(false);
+	let demo = $derived(isDemoExplore());
 
 	async function submit(event: SubmitEvent) {
 		event.preventDefault();
@@ -25,7 +26,9 @@
 
 <main class="mx-auto flex min-h-screen max-w-xl flex-col justify-center px-6 py-12">
 	<div class="rounded-[2rem] bg-paper p-8 shadow-card sm:p-10">
-		<a class="text-sm font-bold text-forest" href="/">← Accueil</a>
+		<a class="text-sm font-bold text-forest" href={demo ? '/parent' : '/'}>
+			{demo ? '← Espace parent' : '← Accueil'}
+		</a>
 		<h1 class="mt-4 text-3xl font-extrabold text-ink">Entrer avec un code</h1>
 		<p class="mt-3 text-ink/70">
 			Le code est donné par un parent. Il ressemble à <span class="font-extrabold">A123-B456-C789-D125</span>.

@@ -1,12 +1,20 @@
 export type GradeId = "6e" | "5e" | "4e" | "3e";
 
+/** Built-in Aminata demo — landing hint “Essayer la démo” only, never Identity parents. */
+export const DEMO_FIXTURE_SCHOOL_ID = "sch-edaya-ci-cocody";
+export const DEMO_FIXTURE_STUDENT_ID = "ci-s1";
+export const DEMO_FIXTURE_GUARDIAN_SUBJECT_ID = "demo-guardian";
+export const DEMO_FIXTURE_GUARDIAN_NAME = "Mariam Koné";
+
+export const CHILDREN_AI_RESOLVE_SECRET_HEADER = "x-children-ai-resolve-secret";
+
 export type CurriculumLesson = {
 	id: string;
 	packVersion: string;
 	country: "CI";
 	cycle: "college";
 	grade: GradeId;
-	subject: "MATH";
+	subject: string;
 	competence: { id: string; title: string };
 	theme: { id: string; title: string };
 	title: string;
@@ -19,7 +27,7 @@ export type CurriculumLesson = {
 
 export type AssessmentMark = {
 	id: string;
-	subject: "MATH";
+	subject: string;
 	title: string;
 	score: number;
 	maxScore: number;
@@ -27,8 +35,27 @@ export type AssessmentMark = {
 };
 
 export type ClassProgressItem = {
+	subject?: string;
 	subjectMatter: string;
 	completedPercentage: number;
+};
+
+export type TimetableDay =
+	| "monday"
+	| "tuesday"
+	| "wednesday"
+	| "thursday"
+	| "friday"
+	| "saturday"
+	| "sunday";
+
+export type TimetableSlot = {
+	id: string;
+	dayOfWeek: TimetableDay;
+	startTime: string;
+	endTime: string;
+	title: string;
+	kind: "lesson" | "activity";
 };
 
 export type LearnerContext = {
@@ -48,6 +75,7 @@ export type LearnerContext = {
 		overallAverage: number;
 	};
 	classProgress: ClassProgressItem[];
+	timetable: TimetableSlot[];
 	attendance?: {
 		presentRate: number;
 	};
@@ -66,14 +94,33 @@ export type LearnerAcademicSnapshot = {
 
 export type PracticeFocus = {
 	lessonId: string;
+	subject: string;
 	rationale: string;
 };
+
+export type QuestionKind = "mcq" | "written";
 
 export type ExerciseQuestion = {
 	id: string;
 	prompt: string;
-	kind: "short" | "mcq";
+	kind: QuestionKind;
 	choices?: string[];
+	/** Kept server-side; omitted for the student until a parent releases the corrigé. */
+	expectedAnswer?: string;
+	/** Whether a non-empty answer was supplied; added only when presenting a submitted set. */
+	answered?: boolean;
+	/** Per-question verdict; omitted for the student until a parent releases the corrigé. */
+	correct?: boolean;
+};
+
+export type StudentAnswer = {
+	questionId: string;
+	value: string;
+};
+
+export type ExerciseScore = {
+	correct: number;
+	total: number;
 };
 
 export type ExerciseSet = {
@@ -86,6 +133,16 @@ export type ExerciseSet = {
 	generator: "stub" | "llm";
 	promptVersion: string;
 	questions: ExerciseQuestion[];
+	answers?: StudentAnswer[];
+	submittedAt?: string;
+	score?: ExerciseScore;
+	correctionReleasedAt?: string | null;
+};
+
+export type PracticeSettings = {
+	schoolId: string;
+	studentId: string;
+	autoReleaseCorrection: boolean;
 };
 
 export type LearnerBinding = {
@@ -98,6 +155,7 @@ export type GuardianActor = {
 	subjectId: string;
 	schoolId: string;
 	displayName: string;
+	sessionKind?: "demo";
 };
 
 export type StudentActor = {
@@ -108,6 +166,7 @@ export type StudentActor = {
 	codeId: string;
 	displayName: string;
 	childFirstName: string;
+	sessionKind?: "demo" | "code";
 };
 
 export type SessionActor = GuardianActor | StudentActor;
@@ -205,6 +264,54 @@ export class ChildNotLinkedError extends DomainError {
 export class ExerciseGenerationError extends DomainError {
 	constructor(message = "La génération d'exercices a échoué.") {
 		super("GENERATION_FAILED", message);
+	}
+}
+
+export class AlreadySubmittedError extends DomainError {
+	constructor() {
+		super(
+			"ALREADY_SUBMITTED",
+			"Cette série a déjà été terminée.",
+		);
+	}
+}
+
+export class SetNotSubmittedError extends DomainError {
+	constructor() {
+		super(
+			"SET_NOT_SUBMITTED",
+			"L'élève n'a pas encore terminé cette série.",
+		);
+	}
+}
+
+export class EmptySubmissionError extends DomainError {
+	constructor() {
+		super(
+			"EMPTY_SUBMISSION",
+			"Réponds à au moins une question avant de terminer la série.",
+		);
+	}
+}
+
+export class CorrectionUnavailableError extends DomainError {
+	constructor() {
+		super(
+			"CORRECTION_UNAVAILABLE",
+			"Cette ancienne série ne contient pas de corrigé exploitable.",
+		);
+	}
+}
+
+export class ExerciseSetNotFoundError extends DomainError {
+	constructor() {
+		super("NOT_FOUND", "Aucun ensemble d'exercices trouvé.");
+	}
+}
+
+export class StudentOnlyActionError extends DomainError {
+	constructor(message = "Cette action est réservée à l'élève.") {
+		super("FORBIDDEN", message);
 	}
 }
 

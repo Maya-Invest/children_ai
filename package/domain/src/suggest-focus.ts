@@ -1,3 +1,4 @@
+import { displaySubjectLabel, subjectsMatch } from "./display-subject.ts";
 import type {
 	CurriculumLesson,
 	LearnerAcademicSnapshot,
@@ -27,9 +28,28 @@ function matchLesson(
 	return byContent;
 }
 
+function lessonsForSubject(
+	gradeLessons: CurriculumLesson[],
+	subject: string,
+): CurriculumLesson[] {
+	if (!subject.trim()) return [];
+	return gradeLessons.filter((lesson) => subjectsMatch(lesson.subject, subject));
+}
+
 function ratio(score: number, maxScore: number): number {
 	if (maxScore <= 0) return 1;
 	return score / maxScore;
+}
+
+function focusFor(
+	lesson: CurriculumLesson,
+	rationale: string,
+): PracticeFocus {
+	return {
+		lessonId: lesson.id,
+		subject: lesson.subject,
+		rationale,
+	};
 }
 
 export function suggestFocus(
@@ -40,32 +60,37 @@ export function suggestFocus(
 		.filter((lesson) => lesson.grade === snapshot.context.student.grade)
 		.sort((a, b) => a.sequence - b.sequence);
 
-	const weakest = [...snapshot.context.marks].sort(
+	const marks = [...snapshot.context.marks].sort(
 		(a, b) => ratio(a.score, a.maxScore) - ratio(b.score, b.maxScore),
-	)[0];
+	);
 
-	if (weakest) {
-		const lesson = matchLesson(weakest.title, gradeLessons);
-		if (lesson) {
-			return {
-				lessonId: lesson.id,
-				rationale: `Évaluation MATH « ${weakest.title} » : ${weakest.score}/${weakest.maxScore}. Entraînement sur la leçon officielle « ${lesson.title} ».`,
-			};
-		}
+	for (const mark of marks) {
+		const pool = lessonsForSubject(gradeLessons, mark.subject);
+		if (pool.length === 0) continue;
+		const lesson = matchLesson(mark.title, pool);
+		if (!lesson) continue;
+		const subject = displaySubjectLabel(mark.subject) || displaySubjectLabel(lesson.subject);
+		return focusFor(
+			lesson,
+			`Évaluation ${subject} « ${mark.title} » : ${mark.score}/${mark.maxScore}. Entraînement sur la leçon officielle « ${lesson.title} ».`,
+		);
 	}
 
 	const inProgress = [...snapshot.context.classProgress].sort(
 		(a, b) => a.completedPercentage - b.completedPercentage,
-	).find((item) => item.completedPercentage < 100);
+	).filter((item) => item.completedPercentage < 100);
 
-	if (inProgress) {
-		const lesson = matchLesson(inProgress.subjectMatter, gradeLessons);
-		if (lesson) {
-			return {
-				lessonId: lesson.id,
-				rationale: `La classe avance sur « ${inProgress.subjectMatter} » (${inProgress.completedPercentage} %) — leçon officielle « ${lesson.title} ».`,
-			};
-		}
+	for (const item of inProgress) {
+		const pool = item.subject
+			? lessonsForSubject(gradeLessons, item.subject)
+			: gradeLessons;
+		if (pool.length === 0) continue;
+		const lesson = matchLesson(item.subjectMatter, pool);
+		if (!lesson) continue;
+		return focusFor(
+			lesson,
+			`La classe avance sur « ${item.subjectMatter} » (${item.completedPercentage} %) — leçon officielle « ${lesson.title} ».`,
+		);
 	}
 
 	const fallback = gradeLessons[0];
@@ -73,8 +98,8 @@ export function suggestFocus(
 		throw new Error("Aucune leçon officielle n'est disponible pour ce niveau.");
 	}
 
-	return {
-		lessonId: fallback.id,
-		rationale: `Première leçon du programme officiel de ${snapshot.context.student.grade} (MATH).`,
-	};
+	return focusFor(
+		fallback,
+		`Première leçon du programme officiel de ${snapshot.context.student.grade} (${displaySubjectLabel(fallback.subject)}).`,
+	);
 }

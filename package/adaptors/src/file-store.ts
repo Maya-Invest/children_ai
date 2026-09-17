@@ -1,22 +1,31 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import type {
-	ExerciseSet,
-	ExerciseSetRepository,
-	LearnerAcademicSnapshot,
-	LearnerContextQuery,
-	SnapshotRepository,
-	StudentAccessCode,
-	StudentAccessCodeRepository,
+import {
+	learnerQueryForIssuedCode,
+	type ExerciseSet,
+	type ExerciseSetRepository,
+	type LearnerAcademicSnapshot,
+	type LearnerContextQuery,
+	type PracticeSettings,
+	type PracticeSettingsRepository,
+	type SnapshotRepository,
+	type StudentAccessCode,
+	type StudentAccessCodeRepository,
 } from "@children-ai/domain";
 
 type StoreFile = {
 	snapshots: LearnerAcademicSnapshot[];
 	sets: ExerciseSet[];
 	accessCodes: StudentAccessCode[];
+	practiceSettings: PracticeSettings[];
 };
 
-const empty = (): StoreFile => ({ snapshots: [], sets: [], accessCodes: [] });
+const empty = (): StoreFile => ({
+	snapshots: [],
+	sets: [],
+	accessCodes: [],
+	practiceSettings: [],
+});
 
 export class JsonFileStore {
 	constructor(private readonly filePath: string) {}
@@ -29,6 +38,7 @@ export class JsonFileStore {
 				snapshots: parsed.snapshots ?? [],
 				sets: parsed.sets ?? [],
 				accessCodes: parsed.accessCodes ?? [],
+				practiceSettings: parsed.practiceSettings ?? [],
 			};
 		} catch {
 			return empty();
@@ -85,7 +95,34 @@ export class FileExerciseSetRepository implements ExerciseSetRepository {
 
 	async save(set: ExerciseSet): Promise<void> {
 		const data = await this.store.read();
-		data.sets.push(set);
+		const index = data.sets.findIndex((item) => item.id === set.id);
+		if (index >= 0) data.sets[index] = set;
+		else data.sets.push(set);
+		await this.store.write(data);
+	}
+}
+
+export class FilePracticeSettingsRepository implements PracticeSettingsRepository {
+	constructor(private readonly store: JsonFileStore) {}
+
+	async get(query: LearnerContextQuery): Promise<PracticeSettings | null> {
+		const data = await this.store.read();
+		return (
+			data.practiceSettings.find(
+				(item) =>
+					item.schoolId === query.schoolId && item.studentId === query.studentId,
+			) ?? null
+		);
+	}
+
+	async save(settings: PracticeSettings): Promise<void> {
+		const data = await this.store.read();
+		const index = data.practiceSettings.findIndex(
+			(item) =>
+				item.schoolId === settings.schoolId && item.studentId === settings.studentId,
+		);
+		if (index >= 0) data.practiceSettings[index] = settings;
+		else data.practiceSettings.push(settings);
 		await this.store.write(data);
 	}
 }
@@ -117,7 +154,7 @@ export class FileStudentAccessCodeRepository implements StudentAccessCodeReposit
 		const data = await this.store.read();
 		return data.accessCodes
 			.filter((item) => item.revokedAt === null)
-			.map((item) => ({ schoolId: item.schoolId, studentId: item.studentId }));
+			.map((item) => learnerQueryForIssuedCode(item));
 	}
 
 	async save(code: StudentAccessCode): Promise<void> {

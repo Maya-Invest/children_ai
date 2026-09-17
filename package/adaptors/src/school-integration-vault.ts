@@ -25,6 +25,44 @@ export class MemorySchoolIntegrationVault implements EdayaCredentialsPort {
 	}
 }
 
+/** Must match Edaya `localChildrenAiS2sApiKey` (onboarding mint on palier local). */
+export function deriveLocalChildrenAiApiKey(schoolId: string): string {
+	return `s2s_live_local_${schoolId.replaceAll("-", "")}_children_ai01`;
+}
+
+type MutableCredentialsPort = EdayaCredentialsPort & {
+	put(record: SchoolCredentials): void | Promise<void>;
+};
+
+export class LocalDerivingCredentialsPort implements EdayaCredentialsPort {
+	constructor(
+		private readonly inner: MutableCredentialsPort,
+		private readonly options: {
+			edayaApiBaseUrl: string;
+			academicYearId?: string;
+		},
+	) {}
+
+	put(record: SchoolCredentials): void | Promise<void> {
+		return this.inner.put(record);
+	}
+
+	async getActive(schoolId: string): Promise<SchoolCredentials | null> {
+		const existing = await this.inner.getActive(schoolId);
+		if (existing) return existing;
+		const trimmed = schoolId.trim();
+		if (!trimmed) return null;
+		const record = demoSchoolCredentials({
+			schoolId: trimmed,
+			edayaApiBaseUrl: this.options.edayaApiBaseUrl,
+			academicYearId: this.options.academicYearId,
+			apiKey: deriveLocalChildrenAiApiKey(trimmed),
+		});
+		await this.inner.put(record);
+		return record;
+	}
+}
+
 export function keyPrefixOf(apiKey: string): string {
 	return apiKey.slice(0, 16);
 }

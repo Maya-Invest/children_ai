@@ -12,6 +12,7 @@ import {
 } from "@children-ai/adaptors";
 import {
 	KvExerciseSetRepository,
+	KvPracticeSettingsRepository,
 	KvSchoolIntegrationVault,
 	KvSessionStore,
 	KvSnapshotRepository,
@@ -45,6 +46,7 @@ export type CloudflareAdaptorEnv = {
 	IDENTITY_DIRECTORY_SECRET?: string;
 	CHILDREN_API_ORIGIN?: string;
 	PUBLIC_API_URL?: string;
+	CHILDREN_AI_RESOLVE_SECRET?: string;
 };
 
 export type WorkerRuntime = {
@@ -91,6 +93,8 @@ export async function createCloudflareRuntime(
 		contextMode: env.EDAYA_CONTEXT,
 		credentials: vault,
 		seedDemoSchool: false,
+		resolveGuardianSecret: env.CHILDREN_AI_RESOLVE_SECRET,
+		deriveLocalS2sKey: palier === "local",
 	});
 	const sessions = new KvSessionStore(env.SESSIONS);
 
@@ -105,6 +109,7 @@ export async function createCloudflareRuntime(
 		}),
 		snapshots: new KvSnapshotRepository(env.STORE),
 		sets: new KvExerciseSetRepository(env.STORE),
+		practiceSettings: new KvPracticeSettingsRepository(env.STORE),
 		codes: new KvStudentAccessCodeRepository(env.STORE),
 		children: demo.children,
 		studentSessions: sessions,

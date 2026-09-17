@@ -41,6 +41,7 @@ const snapshot: LearnerAcademicSnapshot = {
 		periodId: "T1",
 		marks: [],
 		classProgress: [],
+		timetable: [],
 		observations: [],
 	},
 };
@@ -67,7 +68,7 @@ describe("exercise generator selection", () => {
 		expect(generator).toBeInstanceOf(GeminiFlashExerciseGenerator);
 	});
 
-	test("maps Gemini JSON to an llm set without solutions", async () => {
+	test("maps Gemini JSON to an llm set with expected answers and no solution field", async () => {
 		const fetchImpl: GeminiFetch = async () =>
 			new Response(
 				JSON.stringify({
@@ -80,14 +81,16 @@ describe("exercise generator selection", () => {
 											questions: [
 												{
 													prompt: "Compare 1/2 et 1/3.",
-													kind: "short",
+													kind: "written",
+													expectedAnswer: "1/2 > 1/3",
 													solution: "must be stripped",
 												},
-												{ prompt: "Calcule 1/4 + 1/4.", kind: "short" },
+												{ prompt: "Calcule 1/4 + 1/4.", kind: "written", expectedAnswer: "1/2" },
 												{
 													prompt: "Quelle fraction est la plus grande ?",
 													kind: "mcq",
 													choices: ["1/5", "1/2", "1/8"],
+													expectedAnswer: "1/2",
 												},
 											],
 										}),
@@ -110,12 +113,15 @@ describe("exercise generator selection", () => {
 		const set = await generator.generate({
 			snapshot,
 			lesson,
-			focus: { lessonId: lesson.id, rationale: "note faible" },
+			focus: { lessonId: lesson.id, subject: lesson.subject, rationale: "note faible" },
 		});
 
 		expect(set.generator).toBe("llm");
 		expect(set.questions.length).toBe(3);
 		expect(JSON.stringify(set)).not.toContain("must be stripped");
 		expect(set.questions.some((question) => "solution" in question)).toBe(false);
+		expect(set.questions.map((question) => question.kind).sort()).toEqual(["mcq", "written", "written"]);
+		expect(set.questions.every((question) => Boolean(question.expectedAnswer))).toBe(true);
+		expect(set.questions.find((question) => question.kind === "mcq")?.expectedAnswer).toBe("1/2");
 	});
 });

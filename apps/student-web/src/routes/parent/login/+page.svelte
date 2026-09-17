@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { authClient } from '$lib/auth/client';
 	import { accessTokens } from '$lib/auth/bearer-fetch';
+	import { clearDemoFamily } from '$lib/session';
 
 	let email = $state('m.kone@mail.ci');
 	let password = $state('');
@@ -22,6 +23,7 @@
 				return;
 			}
 			accessTokens.clear();
+			clearDemoFamily();
 			await goto('/parent');
 		} catch (caught) {
 			error = caught instanceof Error ? caught.message : 'Connexion impossible';

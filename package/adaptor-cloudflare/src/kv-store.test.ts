@@ -26,6 +26,7 @@ const snapshot: LearnerAcademicSnapshot = {
 		periodId: "T1",
 		marks: [],
 		classProgress: [],
+		timetable: [],
 		observations: [],
 	},
 };
@@ -39,7 +40,7 @@ const set: ExerciseSet = {
 	generatedAt: "2026-09-07T10:01:00.000Z",
 	generator: "stub",
 	promptVersion: "stub-v1",
-	questions: [{ id: "q1", kind: "short", prompt: "Calcule." }],
+	questions: [{ id: "q1", kind: "written", prompt: "Calcule.", expectedAnswer: "1" }],
 };
 
 const actor: SessionActor = {
@@ -64,6 +65,10 @@ describe("Cloudflare KV adaptors", () => {
 		await sets.save(set);
 		expect((await sets.findBySnapshotId("snap-1"))?.id).toBe("set-1");
 		expect((await sets.listByStudentId({ schoolId: "school", studentId: "student-1" }))[0]?.id).toBe("set-1");
+
+		await sets.save({ ...set, submittedAt: "2026-09-13T02:00:00.000Z", score: { correct: 1, total: 1 } });
+		expect((await sets.getById("set-1"))?.score).toEqual({ correct: 1, total: 1 });
+		expect((await sets.listByStudentId({ schoolId: "school", studentId: "student-1" }))).toHaveLength(1);
 	});
 
 	test("stores sessions without a process-wide Map", async () => {

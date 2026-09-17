@@ -1,13 +1,16 @@
-import type {
-	ExerciseSet,
-	ExerciseSetRepository,
-	LearnerAcademicSnapshot,
-	LearnerContextQuery,
-	SessionActor,
-	SnapshotRepository,
-	StudentAccessCode,
-	StudentAccessCodeRepository,
-	StudentActor,
+import {
+	learnerQueryForIssuedCode,
+	type ExerciseSet,
+	type ExerciseSetRepository,
+	type LearnerAcademicSnapshot,
+	type LearnerContextQuery,
+	type PracticeSettings,
+	type PracticeSettingsRepository,
+	type SessionActor,
+	type SnapshotRepository,
+	type StudentAccessCode,
+	type StudentAccessCodeRepository,
+	type StudentActor,
 } from "@children-ai/domain";
 import type { SessionStore } from "@children-ai/adaptors";
 
@@ -102,6 +105,21 @@ export class KvExerciseSetRepository implements ExerciseSetRepository {
 	}
 }
 
+export class KvPracticeSettingsRepository implements PracticeSettingsRepository {
+	constructor(private readonly kv: KvNamespaceLike) {}
+
+	async get(query: LearnerContextQuery): Promise<PracticeSettings | null> {
+		return readJson<PracticeSettings>(this.kv, practiceKey(query.schoolId, query.studentId));
+	}
+
+	async save(settings: PracticeSettings): Promise<void> {
+		await this.kv.put(
+			practiceKey(settings.schoolId, settings.studentId),
+			JSON.stringify(settings),
+		);
+	}
+}
+
 export class KvStudentAccessCodeRepository implements StudentAccessCodeRepository {
 	constructor(private readonly kv: KvNamespaceLike) {}
 
@@ -139,7 +157,7 @@ export class KvStudentAccessCodeRepository implements StudentAccessCodeRepositor
 		for (const id of ids) {
 			const code = await this.getById(id);
 			if (code && !code.revokedAt) {
-				learners.push({ schoolId: code.schoolId, studentId: code.studentId });
+				learners.push(learnerQueryForIssuedCode(code));
 			}
 		}
 		return learners;
@@ -220,6 +238,10 @@ function currentKey(schoolId: string, studentId: string): string {
 
 function studentSetsKey(schoolId: string, studentId: string): string {
 	return `sets-of:${schoolId}:${studentId}`;
+}
+
+function practiceKey(schoolId: string, studentId: string): string {
+	return `practice:${schoolId}:${studentId}`;
 }
 
 function sessionKey(token: string): string {

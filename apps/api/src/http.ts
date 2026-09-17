@@ -4,6 +4,10 @@ import { cors } from "hono/cors";
 import {
 	DomainError,
 	PALIER_EDAYA_ORIGINS,
+	displaySubjectLabel,
+	formatProgrammeLine,
+	isDemoGuardian,
+	listLearnerSubjects,
 	type GuardianActor,
 	type Palier,
 	type StudentActor,
@@ -18,7 +22,7 @@ type Env = {
 	};
 };
 
-const publicPaths = new Set(["/health", "/auth/student-code"]);
+const publicPaths = new Set(["/health", "/auth/student-code", "/auth/demo"]);
 
 export type IdentityVerifier = {
 	verifyAccessToken(token: string): Promise<IdentityClaims>;
@@ -64,6 +68,16 @@ export function createHttpApp(app: ChildrenAiApp, options: HttpOptions) {
 		const parentRoute = c.req.path.startsWith("/parent");
 		if (parentRoute) {
 			if (!looksLikeJwt(token)) {
+				const actor = await options.sessions.get(token);
+				if (
+					actor?.role === "guardian"
+					&& isDemoGuardian(actor)
+					&& (options.palier ?? "local") !== "prod"
+				) {
+					c.set("guardian", actor);
+					await next();
+					return;
+				}
 				return c.json({ error: "UNAUTHENTICATED", message: "JWT parent requis." }, 401);
 			}
 			try {
@@ -120,11 +134,28 @@ export function createHttpApp(app: ChildrenAiApp, options: HttpOptions) {
 		return c.json({ token, actor });
 	});
 
+	http.post("/auth/demo", async (c) => {
+		if ((options.palier ?? "local") === "prod") {
+			return c.json(
+				{ error: "DEMO_DISABLED", message: "La démo n'est pas disponible en production." },
+				403,
+			);
+		}
+		const guardian = await app.signInDemoGuardian();
+		const guardianToken = crypto.randomUUID();
+		await options.sessions.set(guardianToken, guardian);
+		return c.json({
+			token: guardianToken,
+			actor: guardian,
+			guardian: { token: guardianToken, actor: guardian },
+		});
+	});
+
 	http.get("/me", (c) => c.json({ actor: c.get("actor") }));
 
 	http.get("/home", async (c) => {
 		const actor = requireStudent(c.get("actor"));
-		const home = await app.getHome(learnerRef(actor));
+		const home = await app.getHome(learnerRef(actor), "student");
 		return c.json(serializeHome(actor, home, true));
 	});
 
@@ -148,8 +179,22 @@ export function createHttpApp(app: ChildrenAiApp, options: HttpOptions) {
 
 	http.get("/exercise-sets/:id", async (c) => {
 		const actor = requireStudent(c.get("actor"));
-		const set = await app.getSet(learnerRef(actor), c.req.param("id"));
+		const set = await app.getSet(learnerRef(actor), c.req.param("id"), "student");
 		if (!set) return c.json({ error: "NOT_FOUND" }, 404);
+		return c.json({ set });
+	});
+
+	http.post("/exercise-sets/:id/submit", async (c) => {
+		const actor = requireStudent(c.get("actor"));
+		const body = await c.req.json().catch(() => ({}));
+		const set = await app.submitSet(actor, c.req.param("id"), parseAnswers(body));
+		return c.json({ set });
+	});
+
+	http.post("/exercise-sets/:id/progress", async (c) => {
+		const actor = requireStudent(c.get("actor"));
+		const body = await c.req.json().catch(() => ({}));
+		const set = await app.saveSetProgress(actor, c.req.param("id"), parseAnswers(body));
 		return c.json({ set });
 	});
 
@@ -176,7 +221,14 @@ export function createHttpApp(app: ChildrenAiApp, options: HttpOptions) {
 		if (!child) {
 			return c.json({ error: "CHILD_NOT_LINKED", message: "Cet élève n'est pas lié à votre compte parent." }, 403);
 		}
-		const home = await app.getHome({ schoolId: child.schoolId, studentId: child.studentId });
+		const home = await app.getHome(
+			{
+				schoolId: child.schoolId,
+				studentId: child.studentId,
+				...(isDemoGuardian(guardian) ? { contextSource: "fixture" as const } : {}),
+			},
+			"guardian",
+		);
 		return c.json({
 			...serializeHome(
 				{
@@ -204,14 +256,39 @@ export function createHttpApp(app: ChildrenAiApp, options: HttpOptions) {
 		return c.json({ ok: true });
 	});
 
+	http.post("/parent/children/:studentId/correction/release", async (c) => {
+		const guardian = requireGuardian(c.get("guardian"));
+		const body = await c.req.json().catch(() => ({})) as { setId?: unknown };
+		const setId = typeof body.setId === "string" ? body.setId : undefined;
+		const set = await app.releaseCorrection(guardian, c.req.param("studentId"), setId);
+		return c.json({ set });
+	});
+
+	http.post("/parent/children/:studentId/practice-settings", async (c) => {
+		const guardian = requireGuardian(c.get("guardian"));
+		const body = await c.req.json().catch(() => ({})) as { autoReleaseCorrection?: unknown };
+		const settings = await app.updatePracticeSettings(
+			guardian,
+			c.req.param("studentId"),
+			body.autoReleaseCorrection === true,
+		);
+		return c.json({ settings });
+	});
+
 	http.onError((error, c) => {
 		if (error instanceof DomainError) {
 			const status =
 				error.code === "UNKNOWN_ACCESS_CODE" || error.code === "UNAUTHENTICATED"
 					? 401
-					: error.code === "ALREADY_GENERATED"
+					: error.code === "ALREADY_GENERATED" || error.code === "ALREADY_SUBMITTED"
 						? 409
-						: error.code === "GUARDIAN_CANNOT_GENERATE" || error.code === "CHILD_NOT_LINKED"
+					: error.code === "SET_NOT_SUBMITTED"
+						? 409
+					: error.code === "NOT_FOUND"
+						? 404
+					: error.code === "FORBIDDEN"
+						|| error.code === "GUARDIAN_CANNOT_GENERATE"
+						|| error.code === "CHILD_NOT_LINKED"
 							? 403
 							: error.code === "PALIER_ORIGIN_MISMATCH" ||
 								  error.code === "SCHOOL_INTEGRATION_MISSING"
@@ -234,6 +311,7 @@ function serializeHome(
 	home: Awaited<ReturnType<ChildrenAiApp["getHome"]>>,
 	studentCanGenerate: boolean,
 ) {
+	const subjects = listLearnerSubjects(home.snapshot.context);
 	return {
 		actor,
 		student: home.snapshot.context.student,
@@ -243,13 +321,35 @@ function serializeHome(
 			fingerprint: home.snapshot.fingerprint,
 			packVersion: home.snapshot.packVersion,
 		},
-		marks: home.snapshot.context.marks,
+		marks: home.snapshot.context.marks.map((mark) => ({
+			...mark,
+			subject: displaySubjectLabel(mark.subject) || mark.subject,
+		})),
 		rank: home.snapshot.context.rank,
+		classProgress: home.snapshot.context.classProgress.map((item) => ({
+			...item,
+			...(item.subject
+				? { subject: displaySubjectLabel(item.subject) || item.subject }
+				: {}),
+		})),
+		timetable: home.snapshot.context.timetable,
+		attendance: home.snapshot.context.attendance,
+		observations: home.snapshot.context.observations,
+		subjects,
+		programmeLine: formatProgrammeLine(
+			home.snapshot.context.student.classLabel,
+			subjects,
+		),
 		focus: home.focus,
+		focusSubject: displaySubjectLabel(home.focus.subject),
 		lessonTitle: home.lessonTitle,
-		canGenerate: studentCanGenerate && actor.role === "student" && home.currentSet === null,
+		canGenerate:
+			studentCanGenerate
+			&& actor.role === "student"
+			&& (home.currentSet === null || home.exerciseUpgradeAvailable),
 		currentSet: home.currentSet,
 		history: home.history,
+		autoReleaseCorrection: home.autoReleaseCorrection,
 	};
 }
 
@@ -273,4 +373,21 @@ function looksLikeJwt(token: string): boolean {
 
 function uniqueOrigins(origins: string[]): string[] {
 	return [...new Set(origins.map((item) => item.trim()).filter(Boolean))];
+}
+
+function parseAnswers(body: unknown): Array<{ questionId: string; value: string }> {
+	if (!body || typeof body !== "object" || !("answers" in body)) return [];
+	const answers = (body as { answers: unknown }).answers;
+	if (!Array.isArray(answers)) return [];
+	const parsed: Array<{ questionId: string; value: string }> = [];
+	for (const item of answers) {
+		if (!item || typeof item !== "object") continue;
+		const record = item as { questionId?: unknown; value?: unknown };
+		if (typeof record.questionId !== "string") continue;
+		parsed.push({
+			questionId: record.questionId,
+			value: typeof record.value === "string" ? record.value : "",
+		});
+	}
+	return parsed;
 }

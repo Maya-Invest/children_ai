@@ -10,9 +10,9 @@ Parents sign in with their **Edaya Identity** account. Students have **no Identi
 
 | What you want | What to do |
 |---------------|------------|
-| Exercise the parent UI + student app locally | **Path fixture**: Identity + Children AI. Academic data is the built-in Aminata demo. |
-| Real notes / classe / bulletin from Cocody | **Path live**: Identity + seeded Edaya + `s2s_live_` in the Children AI vault. |
-| Parent Identity with no guardian links | `/parent` shows an empty list (no demo child injected in `EDAYA_CONTEXT=http`). |
+| Your school’s students after Identity login | **Path live**: Identity + school API. Parent lists the children linked in Edaya (including a school you just created). |
+| Try Aminata without a school | **Path demo**: landing button **Essayer la démo**. Fixture notes only. Not attached to Identity parents. |
+| Parent Identity with no guardian links | `/parent` shows an empty list (no Aminata). |
 
 Children AI never writes back to EDAYA. The S2S key stays on the Children AI API; the browser never sees it.
 
@@ -29,7 +29,15 @@ bun install
 copy .env.example .env
 ```
 
-On macOS/Linux: `cp .env.example .env`. Leave `EDAYA_DEMO_API_KEY` and `EDAYA_CONTEXT` empty for Path fixture.
+On macOS/Linux: `cp .env.example .env`.
+
+Keep these aligned with `edaya_backend/apps/api/.env`:
+
+```
+EDAYA_API_ORIGIN=http://localhost:9999
+EDAYA_CONTEXT=http
+CHILDREN_AI_RESOLVE_SECRET=local-children-ai-resolve-secret
+```
 
 `apps/student-web/.env` should contain:
 
@@ -42,15 +50,18 @@ Identity must allow the Children AI API as a JWT audience and the student-web or
 
 ---
 
-## Path fixture — Identity + Children AI (no school API)
+## Path live — Identity + your school’s students
 
-Identity can run **without** a school seed. Academic context for Aminata is in-process (`EDAYA_CONTEXT=fixture`).
+Start Identity and the school API. Create a school in the webapp (or seed Cocody). Register-school mints a **read** S2S client `children-ai`. Locally the key is deterministic: `s2s_live_local_<schoolIdWithoutDashes>_children_ai01`. Children AI derives the same secret when the vault has no row.
 
 ```bash
 # Terminal 1
 cd edaya_identity && bun repo dev     # :9900
 
 # Terminal 2
+cd edaya_backend && bun repo dev      # :9999
+
+# Terminal 3
 cd children_ai
 bun test
 bun run dev
@@ -61,72 +72,41 @@ bun run dev
 | Student / parent web | http://127.0.0.1:5175 |
 | API health | http://localhost:8787/health |
 
-Health should look like `palier: local`, `schoolTenancy: per-school`, `contextMode: fixture`, `generator: stub` (unless you set `GEMINI_API_KEY`).
+Health should look like `palier: local`, `schoolTenancy: per-school`, `contextMode: http`, `generator: stub` (unless you set `GEMINI_API_KEY`).
 
 ### What to click
 
 1. Open http://127.0.0.1:5175
-2. **Parent → Me connecter** with an Identity account (after school seed, demo guardian `m.kone@mail.ci` / `DevPassword1!`). Fixture mode still attaches **Aminata** (`ci-s1`) to that parent so you can generate a code without `:9999`.
+2. **Parent → Me connecter** with the Identity account that is a **linked guardian** in Edaya. You should see **your** students, never Aminata unless she is actually linked.
 3. On the parent dashboard: **Générer un code**. Copy the `A123-B456-C789-D125` value — it is shown **once**. Hint afterwards is the last four characters.
 4. **Révoquer** invalidates that code and any student session.
-5. **J’ai un code** (or `/student`): paste the code → espace élève (accueil, génération, historique).
-6. Parents cannot generate exercises. Students only see their own `studentId`.
+5. **J’ai un code** (or `/student`): paste the code → espace élève (accueil, génération, historique). The code’s `schoolId` + `studentId` drive live Edaya marks.
 
-There are **no** global demo logins `STUDENT-AMINA` / `PARENT-AMINA`.
+A teacher Identity login is not a guardian: the live list stays empty unless that account is also linked as a guardian.
 
----
+Staff login in EDAYA (optional): after seed, `a.kone@ecole-ci.edaya.dev` / `DevPassword1!`. Demo guardian after seed: `m.kone@mail.ci` / `DevPassword1!`.
 
-## Path live — Identity + seeded Edaya + S2S key
+### Seeded Cocody (optional)
 
-Use this when you want home/marks/rank from the **seeded** École Cocody database.
+`bun repo seed` on Edaya mints `s2s_live_dev_edaya_ci_cocody_children_ai_key01` for `sch-edaya-ci-cocody`. Put that value in `EDAYA_DEMO_API_KEY` (already in `.env.example`) so the vault does not need to derive a local key for Cocody.
 
-### 1. Start identity, school API, and seed
-
-```bash
-# Terminal 1
-cd edaya_identity && bun repo dev     # :9900
-
-# Terminal 2
-cd edaya_backend && bun repo dev      # :9999
-```
-
-Other terminal:
-
-```bash
-cd edaya_backend
-bun repo seed
-```
-
-Default dataset is `demo-ci` (Cocody). Seed mints a **read** S2S client `children-ai` with the deterministic key:
-
-`s2s_live_dev_edaya_ci_cocody_children_ai_key01`
-
-Local API `.env` needs `PLATFORM_BOOTSTRAP_EMAILS=a.kone@ecole-ci.edaya.dev` so seed can mint that key as a platform actor. Without seed, a platform operator can `POST /core/s2s-clients` and put the key in the Children AI vault. A parent whose Identity subject is not linked to a guardian sees an empty children list.
-
-Staff login in EDAYA (optional, inspect data): `a.kone@ecole-ci.edaya.dev` / `DevPassword1!`. Parent login in Children AI is an Identity guardian, e.g. `m.kone@mail.ci` / `DevPassword1!`.
-
-### 2. Point Children AI at that API
-
-In `children_ai/.env`:
-
-```
-PALIER=local
-EDAYA_API_ORIGIN=http://localhost:9999
-EDAYA_DEMO_SCHOOL_ID=sch-edaya-ci-cocody
-EDAYA_DEMO_ACADEMIC_YEAR_ID=2025-ci
-EDAYA_DEMO_API_KEY=s2s_live_dev_edaya_ci_cocody_children_ai_key01
-EDAYA_CONTEXT=http
-```
-
-Restart `bun run dev` in `children_ai`. `/health` should show `contextMode: http`.
-
-If the guardian has no children in Edaya, `/parent/children` is `[]` with an empty-state message — **no** Aminata injection.
+Local API `.env` needs `PLATFORM_BOOTSTRAP_EMAILS=a.kone@ecole-ci.edaya.dev` so seed can mint that key as a platform actor, and `CHILDREN_AI_RESOLVE_SECRET` matching Children AI.
 
 ### Optional: change marks in EDAYA
 
 1. In EDAYA, open the linked student and change a **Mathématiques** assessment score.
 2. Wait ~5 minutes or call `POST http://localhost:8787/snapshots/sync` with the **student** Bearer token from code login.
 3. If the academic picture changed, a **new snapshot** is stored and the student can generate **one new** exercise set.
+
+---
+
+## Path demo — landing button (Aminata fixture)
+
+No Identity and no code. On the landing page, **Essayer la démo** calls `POST /auth/demo` (blocked on palier `prod`) and opens Aminata’s fixture notes.
+
+Parent `/parent/*` still uses live Edaya resolve. Aminata is **not** attached to Identity parents.
+
+There are **no** global demo logins `STUDENT-AMINA` / `PARENT-AMINA`.
 
 ---
 
@@ -158,11 +138,13 @@ curl http://localhost:8787/health
 | `POST /auth/edaya/access-token` 401 after a successful login | Restart student-web so the Vite `/auth` proxy is active. `127.0.0.1:5175` and `localhost:9900` are different sites; the session cookie is not sent on a cross-site POST. |
 | Parent JWT 401 on `/parent/*` | `FIRST_PARTY_API_ORIGINS` missing `http://localhost:8787`, or `CHILDREN_API_ORIGIN` mismatch |
 | `PALIER_ORIGIN_MISMATCH` | `EDAYA_API_ORIGIN` is staging/prod while `PALIER=local` |
-| `SCHOOL_INTEGRATION_MISSING` | Wrong `EDAYA_DEMO_SCHOOL_ID` or vault not seeded |
-| Live home empty / fetch error | EDAYA not running, not seeded, or `EDAYA_CONTEXT=http` without the `s2s_live_` key |
-| Empty children in live mode | Guardian Identity subject not linked in Edaya (expected) |
+| `SCHOOL_INTEGRATION_MISSING` | New UUID school not minted, or vault cannot derive the local key |
+| Live home empty / fetch error | EDAYA not running, resolve secret mismatch, or missing `s2s_live_` for that school |
+| Empty children in live mode | Guardian Identity subject not linked in Edaya, or teacher-only login (expected) |
+| Parent still sees Aminata | Old `EDAYA_CONTEXT=fixture` / empty origin; set `EDAYA_CONTEXT=http` and restart |
 | Generate stuck on stub | `GEMINI_API_KEY` empty or API not restarted |
 | Parent can see sets but no generate button | Expected |
+| Demo button 403 | Palier `prod` |
 
 Local file store (snapshots/sets/codes) lives in `children_ai/.data/`. Delete that folder if you want a clean generate-once cycle.
 
@@ -180,8 +162,9 @@ Tenancy is two axes: **palier** (this deployment: local / staging / prod) and **
 
 ```
 Parent browser  →  Identity cookies  →  JWT aud=Children AI  →  /parent/*
-Student browser →  code              →  opaque session       →  /home, /exercise-sets
-Children AI API →  Bearer s2s_live_  →  Edaya /core/entities/*/list
+Student browser →  code or demo      →  opaque session       →  /home, /exercise-sets
+Children AI API →  resolve secret    →  Edaya POST /internal/children-ai/resolve-guardian
+Children AI API →  Bearer s2s_live_  →  Edaya /core/entities/*/list  (marks / progress)
 ```
 
 | Palier | EDAYA origin |
@@ -201,9 +184,10 @@ wrangler secret put VAULT_MASTER_KEY --env staging
 wrangler secret put GEMINI_API_KEY --env staging
 wrangler secret put EDAYA_DEMO_API_KEY --env staging
 wrangler secret put IDENTITY_DIRECTORY_SECRET --env staging
+wrangler secret put CHILDREN_AI_RESOLVE_SECRET --env staging
 ```
 
-Do not set `EDAYA_DEMO_API_KEY` on prod.
+Do not set `EDAYA_DEMO_API_KEY` on prod. Do not enable `/auth/demo` on palier prod.
 
 ```
 package/domain              ports and types
