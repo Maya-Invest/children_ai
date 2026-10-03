@@ -88,7 +88,7 @@ describe("Hono API", () => {
 		});
 	});
 
-	test("parent JWT lists live children and never injects Aminata", async () => {
+	test("parent JWT lists live children and never injects Léa", async () => {
 		const live: GuardianChildrenPort = {
 			async listChildren() {
 				return {
@@ -250,7 +250,7 @@ describe("Hono API", () => {
 		expect(body.emptyMessage).toContain("Aucun enfant");
 	});
 
-	test("demo parent lists Aminata then student enters only with a generated code", async () => {
+	test("demo parent lists Léa then student enters only with a generated code", async () => {
 		const { http, keys } = await createRuntime();
 		const demo = await http.request("http://localhost/auth/demo", { method: "POST" });
 		expect(demo.status).toBe(200);
@@ -279,8 +279,8 @@ describe("Hono API", () => {
 			children: Array<{ studentId: string }>;
 			displayName: string;
 		};
-		expect(demoListing.displayName).toBe("Mariam Koné");
-		expect(demoListing.children.map((child) => child.studentId)).toEqual(["ci-s1"]);
+		expect(demoListing.displayName).toBe("Sophie Tremblay");
+		expect(demoListing.children.map((child) => child.studentId)).toEqual(["ci-s1", "ci-s31"]);
 
 		const issued = await http.request("http://localhost/parent/children/ci-s1/access-codes", {
 			method: "POST",

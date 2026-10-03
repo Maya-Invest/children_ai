@@ -22,12 +22,12 @@
 </script>
 
 <svelte:head>
-	<title>Children AI — Accueil</title>
+	<title>Edaya Spark — Accueil</title>
 </svelte:head>
 
 <main class="mx-auto flex min-h-screen max-w-xl flex-col justify-center px-6 py-12">
 	<div class="rounded-[2rem] bg-paper p-8 shadow-card sm:p-10">
-		<p class="text-sm font-extrabold uppercase tracking-[0.2em] text-forest">Children AI</p>
+		<p class="text-sm font-extrabold uppercase tracking-[0.2em] text-forest">Edaya Spark</p>
 		<h1 class="mt-3 text-4xl font-extrabold leading-tight text-ink">
 			Des exercices de révision, alignés sur le programme.
 		</h1>
@@ -54,7 +54,7 @@
 	</div>
 
 	<p class="mt-5 text-center text-xs text-ink/50">
-		Vous explorez Children AI ?
+		Vous explorez Edaya Spark ?
 		<button
 			class="font-medium text-forest hover:underline disabled:opacity-60"
 			disabled={demoPending}

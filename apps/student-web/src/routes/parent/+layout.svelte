@@ -26,7 +26,7 @@
 {:else}
 	<div class="mx-auto min-h-screen max-w-5xl px-4 py-6 sm:px-8">
 		<header class="mb-6 flex flex-wrap items-center justify-between gap-3">
-			<a href="/parent" class="text-xl font-extrabold text-ink">Children AI · Parents</a>
+			<a href="/parent" class="text-xl font-extrabold text-ink">Edaya Spark · Parents</a>
 			<nav class="flex items-center gap-3 text-sm font-bold">
 				<DemoSwitcher />
 				<button class="rounded-full px-4 py-2 text-ink/60" type="button" onclick={leave}>Déconnexion</button>

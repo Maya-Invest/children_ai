@@ -32,7 +32,7 @@
 </script>
 
 <svelte:head>
-	<title>Children AI — Démo</title>
+	<title>Edaya Spark — Démo</title>
 </svelte:head>
 
 <main class="mx-auto flex min-h-screen max-w-3xl flex-col justify-center px-6 py-12">
@@ -52,8 +52,10 @@
 			<ol class="mt-8 space-y-3">
 				<li class="rounded-2xl bg-cream p-4">
 					<p class="text-xs font-extrabold uppercase tracking-wide text-forest">1 · Parent</p>
-					<p class="mt-1 font-extrabold text-ink">Ouvre l’espace de Mariam Koné</p>
-					<p class="mt-1 text-sm font-bold text-ink/60">Génère un code pour Aminata, puis copie-le.</p>
+					<p class="mt-1 font-extrabold text-ink">Ouvre l’espace de Sophie Tremblay</p>
+					<p class="mt-1 text-sm font-bold text-ink/60">
+						Génère un code pour Léa ou Thomas, puis copie-le.
+					</p>
 					<a class="mt-3 inline-block rounded-full bg-forest px-4 py-2 text-sm font-extrabold text-white" href="/parent">
 						Espace parent
 					</a>
@@ -65,7 +67,7 @@
 				</li>
 				<li class="rounded-2xl bg-clay p-4 text-white">
 					<p class="text-xs font-extrabold uppercase tracking-wide text-white/80">3 · Élève</p>
-					<p class="mt-1 font-extrabold">Colle le code pour entrer chez Aminata</p>
+					<p class="mt-1 font-extrabold">Colle le code pour entrer chez l’enfant choisi</p>
 					<p class="mt-1 text-sm font-bold text-white/80">Même écran « J’ai un code » que hors démo.</p>
 					<a class="mt-3 inline-block rounded-full bg-white px-4 py-2 text-sm font-extrabold text-clay" href="/student">
 						Se connecter comme élève

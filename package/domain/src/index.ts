@@ -45,6 +45,7 @@ export {
 } from "./palier.ts";
 export { snapshotFingerprint } from "./fingerprint.ts";
 export {
+	demoFamilyChildren,
 	demoFamilyListing,
 	demoGuardianActor,
 	demoStudentActor,

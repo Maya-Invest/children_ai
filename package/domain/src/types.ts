@@ -1,10 +1,11 @@
 export type GradeId = "6e" | "5e" | "4e" | "3e";
 
-/** Built-in Aminata demo — landing hint “Essayer la démo” only, never Identity parents. */
+/** Built-in Sophie Tremblay demo family — landing hint “Essayer la démo” only, never Identity parents. */
 export const DEMO_FIXTURE_SCHOOL_ID = "sch-edaya-ci-cocody";
 export const DEMO_FIXTURE_STUDENT_ID = "ci-s1";
+export const DEMO_FIXTURE_STUDENT_ID_BROU = "ci-s31";
 export const DEMO_FIXTURE_GUARDIAN_SUBJECT_ID = "demo-guardian";
-export const DEMO_FIXTURE_GUARDIAN_NAME = "Mariam Koné";
+export const DEMO_FIXTURE_GUARDIAN_NAME = "Sophie Tremblay";
 
 export const CHILDREN_AI_RESOLVE_SECRET_HEADER = "x-children-ai-resolve-secret";
 

@@ -5,7 +5,7 @@
 </script>
 
 <svelte:head>
-	<title>Children AI</title>
+	<title>Edaya Spark</title>
 </svelte:head>
 
 {@render children()}

@@ -7,7 +7,7 @@
 
 	let { data }: { data: { set: ExerciseSet } } = $props();
 	let localSet = $state<ExerciseSet | null>(null);
-	const set = $derived(localSet ?? data.set);
+	const set = $derived(localSet?.id === data.set.id ? localSet : data.set);
 	let index = $state(0);
 	let pending = $state<'idle' | 'save' | 'finish'>('idle');
 	let saved = $state(false);
@@ -40,7 +40,7 @@
 	}
 
 	function setAnswer(questionId: string, value: string) {
-		draft[questionId] = value;
+		draft = { ...draft, [questionId]: value };
 	}
 
 	function isMcq(item: Question): boolean {

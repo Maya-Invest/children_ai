@@ -7,7 +7,7 @@ import {
 	EmptyGuardianChildrenPort,
 	FixtureEdayaContext,
 	FixtureGuardianChildrenPort,
-	FIXTURE_STUDENT_ID as AMINA_ID,
+	FIXTURE_STUDENT_ID as LEA_ID,
 	InMemoryExerciseSetRepository,
 	InMemoryPracticeSettingsRepository,
 	InMemorySnapshotRepository,
@@ -79,7 +79,7 @@ async function fixtureStudent(app: ChildrenAiApp) {
 		subjectId: "sub-parent",
 		email: "m.kone@mail.ci",
 	});
-	const issued = await app.issueAccessCode(guardian, AMINA_ID);
+	const issued = await app.issueAccessCode(guardian, LEA_ID);
 	const student = await app.signInStudent(issued.code);
 	return { guardian, issued, student };
 }
@@ -133,11 +133,11 @@ describe("ChildrenAiApp", () => {
 			subjectId: "sub-parent",
 			email: "m.kone@mail.ci",
 		});
-		const first = await app.issueAccessCode(guardian, AMINA_ID);
+		const first = await app.issueAccessCode(guardian, LEA_ID);
 		const student = await app.signInStudent(first.code);
 		await sessions.set("token-1", student);
 
-		const second = await app.issueAccessCode(guardian, AMINA_ID);
+		const second = await app.issueAccessCode(guardian, LEA_ID);
 		expect(second.code).not.toBe(first.code);
 		await expect(app.signInStudent(first.code)).rejects.toBeInstanceOf(UnknownAccessCodeError);
 		expect(await sessions.get("token-1")).toBeNull();
@@ -161,7 +161,7 @@ describe("ChildrenAiApp", () => {
 			subjectId: "sub-parent",
 			email: "nobody@mail.ci",
 		});
-		await expect(app.issueAccessCode(guardian, AMINA_ID)).rejects.toBeInstanceOf(ChildNotLinkedError);
+		await expect(app.issueAccessCode(guardian, LEA_ID)).rejects.toBeInstanceOf(ChildNotLinkedError);
 		const listing = await app.listChildren(guardian);
 		expect(listing.children).toEqual([]);
 	});
@@ -177,7 +177,7 @@ describe("ChildrenAiApp", () => {
 		expect(again[0]?.snapshotId).toBe(results[0]?.snapshotId);
 	});
 
-	test("demo sign-in uses fixture Aminata without a parent code", async () => {
+	test("demo sign-in uses fixture Léa without a parent code", async () => {
 		const { app } = createApp(new EmptyGuardianChildrenPort());
 		const student = await app.signInDemo();
 		expect(student.studentId).toBe("ci-s1");
@@ -186,13 +186,19 @@ describe("ChildrenAiApp", () => {
 		expect(home.lessonTitle).toBe("Fractions");
 	});
 
-	test("demo guardian lists Aminata even when Identity children are empty", async () => {
+	test("demo guardian lists Léa even when Identity children are empty", async () => {
 		const { app } = createApp(new EmptyGuardianChildrenPort());
 		const guardian = await app.signInDemoGuardian();
 		expect(guardian.sessionKind).toBe("demo");
 		const listing = await app.listChildren(guardian);
-		expect(listing.children.map((child) => child.studentId)).toEqual(["ci-s1"]);
-		expect(listing.displayName).toBe("Mariam Koné");
+		expect(listing.children.map((child) => child.studentId)).toEqual(["ci-s1", "ci-s31"]);
+		expect(listing.children[1]).toMatchObject({
+			firstName: "Thomas",
+			lastName: "Tremblay",
+			classLabel: "5ème 1",
+			grade: "5e",
+		});
+		expect(listing.displayName).toBe("Sophie Tremblay");
 	});
 
 	test("demo-issued student codes use fixture EDAYA; Identity codes stay on live", async () => {
@@ -200,15 +206,22 @@ describe("ChildrenAiApp", () => {
 
 		const { app: demoApp } = createApp(new ThrowingGuardianChildrenPort(), edaya);
 		const guardian = await demoApp.signInDemoGuardian();
-		const issued = await demoApp.issueAccessCode(guardian, AMINA_ID);
+		const issued = await demoApp.issueAccessCode(guardian, LEA_ID);
 		const demoStudent = await demoApp.signInStudent(issued.code);
 		expect(demoStudent.sessionKind).toBe("code");
-		expect(demoStudent.displayName).toBe("Aminata Koné");
+		expect(demoStudent.displayName).toBe("Léa Tremblay");
 		expect(learnerRef(demoStudent).contextSource).toBe("fixture");
 		const home = await demoApp.getHome(learnerRef(demoStudent));
 		expect(home.lessonTitle).toBe("Fractions");
 		const synced = await demoApp.syncLinkedSnapshots();
 		expect(synced.map((item) => item.studentId)).toEqual(["ci-s1"]);
+		const brouIssued = await demoApp.issueAccessCode(guardian, "ci-s31");
+		const brouStudent = await demoApp.signInStudent(brouIssued.code);
+		expect(brouStudent.displayName).toBe("Thomas Tremblay");
+		expect(learnerRef(brouStudent).contextSource).toBe("fixture");
+		const brouHome = await demoApp.getHome(learnerRef(brouStudent));
+		expect(brouHome.lessonTitle).toBe("Nombres décimaux relatifs");
+		expect(brouHome.snapshot.context.student.classLabel).toBe("5ème 1");
 
 		const { app: liveApp } = createApp(new FixtureGuardianChildrenPort(), edaya);
 		const { student } = await fixtureStudent(liveApp);

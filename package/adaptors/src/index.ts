@@ -5,7 +5,9 @@ export {
 	FIXTURE_ACADEMIC_YEAR_ID,
 	FIXTURE_SCHOOL_ID,
 	FIXTURE_STUDENT_ID,
+	FIXTURE_STUDENT_ID_BROU,
 	FIXTURE_TIMETABLE,
+	FIXTURE_TIMETABLE_BROU,
 } from "./edaya-fixture.ts";
 export {
 	SchoolScopedEdayaContext,

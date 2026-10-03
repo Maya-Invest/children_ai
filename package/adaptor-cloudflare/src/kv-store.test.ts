@@ -17,8 +17,8 @@ const snapshot: LearnerAcademicSnapshot = {
 	context: {
 		student: {
 			edayaStudentId: "student-1",
-			firstName: "Aminata",
-			lastName: "Kouassi",
+			firstName: "Emma",
+			lastName: "Martin",
 			grade: "6e",
 			classLabel: "6ème 1",
 		},
@@ -49,8 +49,8 @@ const actor: SessionActor = {
 	schoolId: "school",
 	guardianSubjectId: "sub-parent",
 	codeId: "code-1",
-	displayName: "Aminata",
-	childFirstName: "Aminata",
+	displayName: "Emma",
+	childFirstName: "Emma",
 };
 
 describe("Cloudflare KV adaptors", () => {

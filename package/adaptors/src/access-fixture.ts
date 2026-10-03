@@ -1,9 +1,10 @@
-import type {
-	GuardianChildrenListing,
-	GuardianChildrenPort,
-	GuardianChildrenQuery,
+import {
+	demoFamilyChildren,
+	type GuardianChildrenListing,
+	type GuardianChildrenPort,
+	type GuardianChildrenQuery,
 } from "@children-ai/domain";
-import { FIXTURE_SCHOOL_ID, FIXTURE_STUDENT_ID } from "./edaya-fixture.ts";
+import { FIXTURE_SCHOOL_ID } from "./edaya-fixture.ts";
 
 export class FixtureGuardianChildrenPort implements GuardianChildrenPort {
 	constructor(private readonly schoolId = FIXTURE_SCHOOL_ID) {}
@@ -14,16 +15,10 @@ export class FixtureGuardianChildrenPort implements GuardianChildrenPort {
 		return {
 			schoolId: this.schoolId,
 			displayName,
-			children: [
-				{
-					studentId: FIXTURE_STUDENT_ID,
-					schoolId: this.schoolId,
-					firstName: "Aminata",
-					lastName: "Koné",
-					classLabel: "6ème 1",
-					grade: "6e",
-				},
-			],
+			children: demoFamilyChildren().map((child) => ({
+				...child,
+				schoolId: this.schoolId,
+			})),
 		};
 	}
 }

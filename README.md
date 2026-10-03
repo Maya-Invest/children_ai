@@ -11,8 +11,8 @@ Parents sign in with their **Edaya Identity** account. Students have **no Identi
 | What you want | What to do |
 |---------------|------------|
 | Your school’s students after Identity login | **Path live**: Identity + school API. Parent lists the children linked in Edaya (including a school you just created). |
-| Try Aminata without a school | **Path demo**: landing button **Essayer la démo**. Fixture notes only. Not attached to Identity parents. |
-| Parent Identity with no guardian links | `/parent` shows an empty list (no Aminata). |
+| Try Léa without a school | **Path demo**: landing button **Essayer la démo**. Fixture notes only. Not attached to Identity parents. |
+| Parent Identity with no guardian links | `/parent` shows an empty list (no Léa). |
 
 Children AI never writes back to EDAYA. The S2S key stays on the Children AI API; the browser never sees it.
 
@@ -77,7 +77,7 @@ Health should look like `palier: local`, `schoolTenancy: per-school`, `contextMo
 ### What to click
 
 1. Open http://127.0.0.1:5175
-2. **Parent → Me connecter** with the Identity account that is a **linked guardian** in Edaya. You should see **your** students, never Aminata unless she is actually linked.
+2. **Parent → Me connecter** with the Identity account that is a **linked guardian** in Edaya. You should see **your** students, never Léa unless she is actually linked.
 3. On the parent dashboard: **Générer un code**. Copy the `A123-B456-C789-D125` value — it is shown **once**. Hint afterwards is the last four characters.
 4. **Révoquer** invalidates that code and any student session.
 5. **J’ai un code** (or `/student`): paste the code → espace élève (accueil, génération, historique). The code’s `schoolId` + `studentId` drive live Edaya marks.
@@ -100,13 +100,13 @@ Local API `.env` needs `PLATFORM_BOOTSTRAP_EMAILS=a.kone@ecole-ci.edaya.dev` so 
 
 ---
 
-## Path demo — landing button (Aminata fixture)
+## Path demo — landing button (Léa fixture)
 
-No Identity and no code. On the landing page, **Essayer la démo** calls `POST /auth/demo` (blocked on palier `prod`) and opens Aminata’s fixture notes.
+No Identity and no code. On the landing page, **Essayer la démo** calls `POST /auth/demo` (blocked on palier `prod`) and opens Léa’s fixture notes.
 
-Parent `/parent/*` still uses live Edaya resolve. Aminata is **not** attached to Identity parents.
+Parent `/parent/*` still uses live Edaya resolve. Léa is **not** attached to Identity parents.
 
-There are **no** global demo logins `STUDENT-AMINA` / `PARENT-AMINA`.
+There are **no** global demo logins `STUDENT-LEA` / `PARENT-LEA`.
 
 ---
 
@@ -141,7 +141,7 @@ curl http://localhost:8787/health
 | `SCHOOL_INTEGRATION_MISSING` | New UUID school not minted, or vault cannot derive the local key |
 | Live home empty / fetch error | EDAYA not running, resolve secret mismatch, or missing `s2s_live_` for that school |
 | Empty children in live mode | Guardian Identity subject not linked in Edaya, or teacher-only login (expected) |
-| Parent still sees Aminata | Old `EDAYA_CONTEXT=fixture` / empty origin; set `EDAYA_CONTEXT=http` and restart |
+| Parent still sees Léa | Old `EDAYA_CONTEXT=fixture` / empty origin; set `EDAYA_CONTEXT=http` and restart |
 | Generate stuck on stub | `GEMINI_API_KEY` empty or API not restarted |
 | Parent can see sets but no generate button | Expected |
 | Demo button 403 | Palier `prod` |

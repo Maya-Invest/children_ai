@@ -24,14 +24,18 @@
 		home,
 		onGenerate,
 		onReleaseCorrection,
+		onToggleAutoRelease,
 	}: {
 		home: HomePayload;
 		onGenerate?: () => Promise<void> | void;
 		onReleaseCorrection?: (setId: string) => Promise<void> | void;
+		onToggleAutoRelease?: (checked: boolean) => Promise<void> | void;
 	} = $props();
 
 	let student = $derived(home.student);
 	let pending = $state(false);
+	let settingsPending = $state(false);
+	let settingsError = $state('');
 	let releasingId = $state('');
 	let releasingAll = $state(false);
 	let viewingSetId = $state<string | null>(null);
@@ -183,7 +187,9 @@
 			return isGuardian ? `${student.firstName} n’a pas encore répondu` : 'Pas débuté';
 		}
 		if (!hasAnswer) return 'Aucune réponse enregistrée';
-		if (!set.correctionReleasedAt) return 'En attente du corrigé';
+		if (!set.correctionReleasedAt) {
+			return isGuardian ? 'Corrigé à rendre disponible' : 'En attente du corrigé';
+		}
 		if (hasCorrection) return 'Corrigé ouvert';
 		return 'Ancienne série · corrigé indisponible';
 	}
@@ -230,6 +236,23 @@
 
 	function onWindowKeydown(event: KeyboardEvent) {
 		if (event.key === 'Escape' && viewingSetId) closeCorrection();
+	}
+
+	async function toggleAutoRelease(event: Event) {
+		if (!onToggleAutoRelease) return;
+		const input = event.currentTarget as HTMLInputElement;
+		const checked = input.checked;
+		settingsPending = true;
+		settingsError = '';
+		try {
+			await onToggleAutoRelease(checked);
+		} catch (caught) {
+			input.checked = home.autoReleaseCorrection;
+			settingsError =
+				caught instanceof Error ? caught.message : 'Impossible d’enregistrer ce réglage.';
+		} finally {
+			settingsPending = false;
+		}
 	}
 
 	async function generate() {
@@ -323,28 +346,49 @@
 		</div>
 	</div>
 
-	<p class="mt-6 text-ink/80">{home.focus.rationale}</p>
+	{#if isGuardian && onToggleAutoRelease}
+		<label class="mt-6 flex cursor-pointer items-center gap-3 rounded-2xl bg-cream px-4 py-3">
+			<input
+				class="shrink-0"
+				type="checkbox"
+				checked={home.autoReleaseCorrection}
+				disabled={settingsPending}
+				onchange={toggleAutoRelease}
+			/>
+			<span>
+				<span class="text-xs font-extrabold uppercase tracking-[0.14em] text-forest">Corrigé</span>
+				<span class="mt-0.5 block font-extrabold">Automatique dès la fin des exercices</span>
+			</span>
+		</label>
+		{#if settingsError}
+			<p class="mt-2 font-bold text-clay">{settingsError}</p>
+		{/if}
+	{:else if !isGuardian}
+		<p class="mt-6 text-ink/80">{home.focus.rationale}</p>
+	{/if}
 
-	<div class="mt-8 flex flex-wrap gap-3">
-		{#if canStudentGenerate}
-			<button
-				class="rounded-full bg-clay px-6 py-3 text-lg font-extrabold text-white disabled:opacity-60"
-				onclick={generate}
-				disabled={!generateEnabled || pending}
-				type="button"
-			>
-				{pending ? 'Préparation…' : 'Tout générer'}
-			</button>
-		{/if}
-		{#if !isGuardian}
-			<a
-				class="rounded-full bg-white px-6 py-3 text-lg font-extrabold text-ink"
-				href={resolve('/app/history')}
-			>
-				Voir l’historique
-			</a>
-		{/if}
-	</div>
+	{#if canStudentGenerate || !isGuardian}
+		<div class="mt-8 flex flex-wrap gap-3">
+			{#if canStudentGenerate}
+				<button
+					class="rounded-full bg-clay px-6 py-3 text-lg font-extrabold text-white disabled:opacity-60"
+					onclick={generate}
+					disabled={!generateEnabled || pending}
+					type="button"
+				>
+					{pending ? 'Préparation…' : 'Tout générer'}
+				</button>
+			{/if}
+			{#if !isGuardian}
+				<a
+					class="rounded-full bg-white px-6 py-3 text-lg font-extrabold text-ink"
+					href={resolve('/app/history')}
+				>
+					Voir l’historique
+				</a>
+			{/if}
+		</div>
+	{/if}
 	{#if isGuardian && !home.currentSet}
 		<p class="mt-4 text-sm font-bold text-ink/60">
 			Aucun ensemble pour le moment. Seul {student.firstName} peut en demander un.

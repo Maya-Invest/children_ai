@@ -4,6 +4,7 @@ import {
 	DEMO_FIXTURE_GUARDIAN_SUBJECT_ID,
 	DEMO_FIXTURE_SCHOOL_ID,
 	DEMO_FIXTURE_STUDENT_ID,
+	DEMO_FIXTURE_STUDENT_ID_BROU,
 	type GuardianActor,
 	type GuardianChild,
 	type GuardianChildrenListing,
@@ -47,8 +48,8 @@ export function demoStudentActor(): StudentActor {
 		schoolId: DEMO_FIXTURE_SCHOOL_ID,
 		guardianSubjectId: DEMO_FIXTURE_GUARDIAN_SUBJECT_ID,
 		codeId: "demo",
-		displayName: "Aminata Koné",
-		childFirstName: "Aminata",
+		displayName: "Léa Tremblay",
+		childFirstName: "Léa",
 		sessionKind: "demo",
 	};
 }
@@ -58,10 +59,18 @@ export function demoFamilyChildren(): GuardianChild[] {
 		{
 			studentId: DEMO_FIXTURE_STUDENT_ID,
 			schoolId: DEMO_FIXTURE_SCHOOL_ID,
-			firstName: "Aminata",
-			lastName: "Koné",
+			firstName: "Léa",
+			lastName: "Tremblay",
 			classLabel: "6ème 1",
 			grade: "6e",
+		},
+		{
+			studentId: DEMO_FIXTURE_STUDENT_ID_BROU,
+			schoolId: DEMO_FIXTURE_SCHOOL_ID,
+			firstName: "Thomas",
+			lastName: "Tremblay",
+			classLabel: "5ème 1",
+			grade: "5e",
 		},
 	];
 }

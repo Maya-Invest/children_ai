@@ -8,16 +8,24 @@ import {
 	type LearnerContextQuery,
 	type PracticeSettings,
 	type PracticeSettingsRepository,
+	type SessionActor,
 	type SnapshotRepository,
 	type StudentAccessCode,
 	type StudentAccessCodeRepository,
 } from "@children-ai/domain";
+import type { SessionStore } from "./session-store.ts";
+
+type StoredSession = {
+	token: string;
+	actor: SessionActor;
+};
 
 type StoreFile = {
 	snapshots: LearnerAcademicSnapshot[];
 	sets: ExerciseSet[];
 	accessCodes: StudentAccessCode[];
 	practiceSettings: PracticeSettings[];
+	sessions: StoredSession[];
 };
 
 const empty = (): StoreFile => ({
@@ -25,29 +33,63 @@ const empty = (): StoreFile => ({
 	sets: [],
 	accessCodes: [],
 	practiceSettings: [],
+	sessions: [],
 });
 
+function normalize(parsed: Partial<StoreFile>): StoreFile {
+	return {
+		snapshots: parsed.snapshots ?? [],
+		sets: parsed.sets ?? [],
+		accessCodes: parsed.accessCodes ?? [],
+		practiceSettings: parsed.practiceSettings ?? [],
+		sessions: parsed.sessions ?? [],
+	};
+}
+
 export class JsonFileStore {
+	private tail: Promise<void> = Promise.resolve();
+
 	constructor(private readonly filePath: string) {}
 
 	async read(): Promise<StoreFile> {
+		return this.enqueue(() => this.readUnlocked());
+	}
+
+	async write(store: StoreFile): Promise<void> {
+		await this.enqueue(async () => {
+			await this.writeUnlocked(store);
+		});
+	}
+
+	async update(mutator: (data: StoreFile) => void): Promise<void> {
+		await this.enqueue(async () => {
+			const data = await this.readUnlocked();
+			mutator(data);
+			await this.writeUnlocked(data);
+		});
+	}
+
+	private enqueue<T>(work: () => Promise<T>): Promise<T> {
+		const run = this.tail.then(work, work);
+		this.tail = run.then(
+			() => undefined,
+			() => undefined,
+		);
+		return run;
+	}
+
+	private async readUnlocked(): Promise<StoreFile> {
 		try {
 			const raw = await readFile(this.filePath, "utf8");
-			const parsed = JSON.parse(raw) as Partial<StoreFile>;
-			return {
-				snapshots: parsed.snapshots ?? [],
-				sets: parsed.sets ?? [],
-				accessCodes: parsed.accessCodes ?? [],
-				practiceSettings: parsed.practiceSettings ?? [],
-			};
+			return normalize(JSON.parse(raw) as Partial<StoreFile>);
 		} catch {
 			return empty();
 		}
 	}
 
-	async write(store: StoreFile): Promise<void> {
+	private async writeUnlocked(store: StoreFile): Promise<void> {
 		await mkdir(dirname(this.filePath), { recursive: true });
-		await writeFile(this.filePath, JSON.stringify(store, null, 2), "utf8");
+		await writeFile(this.filePath, JSON.stringify(normalize(store), null, 2), "utf8");
 	}
 }
 
@@ -64,9 +106,9 @@ export class FileSnapshotRepository implements SnapshotRepository {
 	}
 
 	async save(snapshot: LearnerAcademicSnapshot): Promise<void> {
-		const data = await this.store.read();
-		data.snapshots.push(snapshot);
-		await this.store.write(data);
+		await this.store.update((data) => {
+			data.snapshots.push(snapshot);
+		});
 	}
 }
 
@@ -94,11 +136,11 @@ export class FileExerciseSetRepository implements ExerciseSetRepository {
 	}
 
 	async save(set: ExerciseSet): Promise<void> {
-		const data = await this.store.read();
-		const index = data.sets.findIndex((item) => item.id === set.id);
-		if (index >= 0) data.sets[index] = set;
-		else data.sets.push(set);
-		await this.store.write(data);
+		await this.store.update((data) => {
+			const index = data.sets.findIndex((item) => item.id === set.id);
+			if (index >= 0) data.sets[index] = set;
+			else data.sets.push(set);
+		});
 	}
 }
 
@@ -116,14 +158,14 @@ export class FilePracticeSettingsRepository implements PracticeSettingsRepositor
 	}
 
 	async save(settings: PracticeSettings): Promise<void> {
-		const data = await this.store.read();
-		const index = data.practiceSettings.findIndex(
-			(item) =>
-				item.schoolId === settings.schoolId && item.studentId === settings.studentId,
-		);
-		if (index >= 0) data.practiceSettings[index] = settings;
-		else data.practiceSettings.push(settings);
-		await this.store.write(data);
+		await this.store.update((data) => {
+			const index = data.practiceSettings.findIndex(
+				(item) =>
+					item.schoolId === settings.schoolId && item.studentId === settings.studentId,
+			);
+			if (index >= 0) data.practiceSettings[index] = settings;
+			else data.practiceSettings.push(settings);
+		});
 	}
 }
 
@@ -158,10 +200,35 @@ export class FileStudentAccessCodeRepository implements StudentAccessCodeReposit
 	}
 
 	async save(code: StudentAccessCode): Promise<void> {
+		await this.store.update((data) => {
+			const index = data.accessCodes.findIndex((item) => item.id === code.id);
+			if (index >= 0) data.accessCodes[index] = code;
+			else data.accessCodes.push(code);
+		});
+	}
+}
+
+export class FileSessionStore implements SessionStore {
+	constructor(private readonly store: JsonFileStore) {}
+
+	async get(token: string): Promise<SessionActor | null> {
 		const data = await this.store.read();
-		const index = data.accessCodes.findIndex((item) => item.id === code.id);
-		if (index >= 0) data.accessCodes[index] = code;
-		else data.accessCodes.push(code);
-		await this.store.write(data);
+		return data.sessions.find((item) => item.token === token)?.actor ?? null;
+	}
+
+	async set(token: string, actor: SessionActor): Promise<void> {
+		await this.store.update((data) => {
+			const index = data.sessions.findIndex((item) => item.token === token);
+			if (index >= 0) data.sessions[index] = { token, actor };
+			else data.sessions.push({ token, actor });
+		});
+	}
+
+	async deleteByStudentId(studentId: string): Promise<void> {
+		await this.store.update((data) => {
+			data.sessions = data.sessions.filter(
+				(item) => !(item.actor.role === "student" && item.actor.studentId === studentId),
+			);
+		});
 	}
 }

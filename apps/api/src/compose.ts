@@ -6,7 +6,6 @@ import {
 	createSchoolEdayaStack,
 	CryptoIdGenerator,
 	JsonCurriculumCatalog,
-	MemorySessionStore,
 	resolveGeneratorName,
 	SystemClock,
 	type SessionStore,
@@ -14,6 +13,7 @@ import {
 import {
 	FileExerciseSetRepository,
 	FilePracticeSettingsRepository,
+	FileSessionStore,
 	FileSnapshotRepository,
 	FileStudentAccessCodeRepository,
 	JsonFileStore,
@@ -52,7 +52,7 @@ export function createLocalRuntime(): LocalRuntime {
 		seedDemoSchool: palier !== "prod",
 		resolveGuardianSecret: process.env.CHILDREN_AI_RESOLVE_SECRET,
 	});
-	const sessions = new MemorySessionStore();
+	const sessions = new FileSessionStore(store);
 
 	const app = new ChildrenAiApp({
 		edaya: demo.edaya,

@@ -42,8 +42,8 @@ describe("SchoolScopedEdayaContext", () => {
 			schoolId: FIXTURE_SCHOOL_ID,
 			studentId: FIXTURE_STUDENT_ID,
 		});
-		expect(context.student.firstName).toBe("Aminata");
-		expect(context.student.lastName).toBe("Koné");
+		expect(context.student.firstName).toBe("Léa");
+		expect(context.student.lastName).toBe("Tremblay");
 		expect(context.student.edayaStudentId).toBe("ci-s1");
 	});
 
@@ -139,7 +139,7 @@ describe("HttpEdayaContext", () => {
 			studentId: "ci-s1",
 		});
 
-		expect(context.student.firstName).toBe("Aminata");
+		expect(context.student.firstName).toBe("Léa");
 		expect(context.student.classLabel).toBe("6ème 1");
 		expect(context.student.grade).toBe("6e");
 		expect(context.marks).toEqual([
@@ -197,7 +197,7 @@ describe("HttpEdayaContext", () => {
 		expect(calls.some((url) => url.includes("/class-subject-progress/list"))).toBe(false);
 	});
 
-	test("fills an empty live timetable from the Aminata fixture", async () => {
+	test("fills an empty live timetable from the Léa fixture", async () => {
 		const vault = new MemorySchoolIntegrationVault();
 		vault.put(
 			demoSchoolCredentials({
@@ -253,7 +253,7 @@ describe("HttpEdayaContext", () => {
 			studentId: FIXTURE_STUDENT_ID,
 			contextSource: "fixture",
 		});
-		expect(context.student.firstName).toBe("Aminata");
+		expect(context.student.firstName).toBe("Léa");
 	});
 
 	test("lists only students linked to the authenticated guardian", async () => {
@@ -410,8 +410,8 @@ describe("HttpEdayaContext", () => {
 						{
 							id: "ci-s1",
 							schoolId: "sch-other",
-							firstName: "Aminata",
-							lastName: "Koné",
+							firstName: "Léa",
+							lastName: "Tremblay",
 						},
 					]),
 				),
@@ -449,7 +449,7 @@ describe("local S2S derive", () => {
 		expect(credentials?.apiKey).toBe("s2s_live_local_550e8400e29b41d4a716446655440000_children_ai01");
 	});
 
-	test("does not attach Aminata to Identity parents in compose", async () => {
+	test("does not attach Léa to Identity parents in compose", async () => {
 		const stack = createSchoolEdayaStack({ palier: "in-memory", contextMode: "fixture" });
 		const listing = await stack.children.listChildren({ subjectId: "anyone", email: "p@mail.ci" });
 		expect(listing.children).toEqual([]);
@@ -468,8 +468,8 @@ function payloadFor(url: string, body: Record<string, string>): unknown[] {
 			{
 				id: "ci-s1",
 				schoolId: FIXTURE_SCHOOL_ID,
-				firstName: "Aminata",
-				lastName: "Koné",
+				firstName: "Léa",
+				lastName: "Tremblay",
 			},
 			{
 				id: "ci-s2",

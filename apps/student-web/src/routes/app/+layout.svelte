@@ -13,7 +13,7 @@
 
 <div class="mx-auto min-h-screen max-w-5xl px-4 py-6 sm:px-8">
 	<header class="mb-6 flex flex-wrap items-center justify-between gap-3">
-		<a href="/app" class="text-xl font-extrabold text-ink">Children AI</a>
+		<a href="/app" class="text-xl font-extrabold text-ink">Edaya Spark</a>
 		<nav class="flex items-center gap-3 text-sm font-bold">
 			<DemoSwitcher />
 			<a class="rounded-full px-4 py-2 text-forest hover:bg-white" href="/app">Accueil</a>
