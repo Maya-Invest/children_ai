@@ -30,6 +30,15 @@ export function snapshotFingerprint(
 			.sort((a, b) => a.id.localeCompare(b.id)),
 		attendance: context.attendance ?? null,
 		observations: [...context.observations].sort(),
+		upcomingAssessments: [...(context.upcomingAssessments ?? [])]
+			.map((item) => ({
+				id: item.id,
+				subject: item.subject,
+				title: item.title,
+				kind: item.kind,
+				dueAt: item.dueAt,
+			}))
+			.sort((a, b) => a.id.localeCompare(b.id)),
 	};
 
 	return createHash("sha256").update(JSON.stringify(picture)).digest("hex");

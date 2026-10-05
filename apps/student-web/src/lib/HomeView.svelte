@@ -2,10 +2,29 @@
 	import { resolve } from '$app/paths';
 	import ResultFilterBar from '$lib/ResultFilterBar.svelte';
 	import SchoolFollowPanel from '$lib/SchoolFollowPanel.svelte';
+	import { exerciseStatusLabel, studentExerciseButtonLabel } from '$lib/exercise-status';
 	import { summarizePractice } from '$lib/revision-stats';
 	import { filterByResult, resultCounts, type ResultFilter } from '$lib/result-filter';
 	import { formatMarkDate, groupClassProgress, groupMarksBySubject, groupTimetable } from '$lib/timetable';
-	import type { ExerciseSet, HomePayload, Question } from '$lib/types';
+	import type { ExerciseSet, HomePayload, PracticeIntent, Question } from '$lib/types';
+
+	const FOCUS_CHOICES: { id: PracticeIntent; label: string; hint: string }[] = [
+		{
+			id: 'upcoming_work',
+			label: 'Devoirs à venir',
+			hint: 'Préparer les devoirs et les évaluations annoncés',
+		},
+		{
+			id: 'improve_results',
+			label: 'Amélioration des résultats',
+			hint: 'Renforcer les matières où les notes sont les plus faibles',
+		},
+		{
+			id: 'prepare_next_day',
+			label: 'Préparation de cours',
+			hint: 'Réviser les matières du prochain cours',
+		},
+	];
 
 	type ListedExercise = {
 		id: string;
@@ -25,11 +44,13 @@
 		onGenerate,
 		onReleaseCorrection,
 		onToggleAutoRelease,
+		onChangeFocusIntent,
 	}: {
 		home: HomePayload;
 		onGenerate?: () => Promise<void> | void;
 		onReleaseCorrection?: (setId: string) => Promise<void> | void;
 		onToggleAutoRelease?: (checked: boolean) => Promise<void> | void;
+		onChangeFocusIntent?: (intent: PracticeIntent) => Promise<void> | void;
 	} = $props();
 
 	let student = $derived(home.student);
@@ -48,7 +69,6 @@
 	let programmeLine = $derived(
 		home.programmeLine || `${student.classLabel} · Programme officiel DPFC`,
 	);
-	let observations = $derived(home.observations ?? []);
 	let weekDays = $derived(groupTimetable(timetable));
 	let attendanceLabel = $derived(
 		home.attendance ? `${Math.round(home.attendance.presentRate * 100)} %` : '—',
@@ -60,16 +80,10 @@
 			? home.rank.overallAverage.toLocaleString('fr-CI', { maximumFractionDigits: 1 })
 			: '—',
 	);
-	let snapshotLabel = $derived(formatMarkDate(home.snapshot.createdAt));
 	let practice = $derived(summarizePractice(home.history, home.currentSet));
-	let seriesHint = $derived(
-		practice.openCount > 0
-			? `${practice.openCount} en cours`
-			: practice.submittedCount === 0
-				? 'Pas encore commencé'
-				: practice.submittedCount === 1
-					? 'série terminée'
-					: 'séries terminées',
+	let questionTotal = $derived(practice.questionsWorked + practice.questionsOpen);
+	let revisionsHint = $derived(
+		practice.seriesCount === 0 ? 'Pas encore commencé' : 'séries terminées',
 	);
 	let successValue = $derived(
 		practice.successPercent !== null
@@ -85,24 +99,49 @@
 				? 'Corrigé à ouvrir'
 				: 'Après le corrigé',
 	);
-	let questionsValue = $derived(
-		practice.questionsWorked > 0
-			? String(practice.questionsWorked)
-			: practice.questionsOpen > 0
-				? String(practice.questionsOpen)
-				: '0',
-	);
-	let questionsHint = $derived(
-		practice.questionsWorked > 0
-			? 'travaillées'
-			: practice.questionsOpen > 0
-				? 'dans la série'
-				: 'travaillées',
-	);
+	let questionsHint = $derived(questionTotal === 0 ? 'Aucune pour le moment' : 'travaillées');
 	let lastActivityValue = $derived(
 		practice.lastPracticeAt ? formatMarkDate(practice.lastPracticeAt) : '—',
 	);
+	let openTip = $state('');
+	let revisionsTip = $derived.by(() => {
+		const done = practice.submittedCount;
+		const total = practice.seriesCount;
+		if (total === 0) return 'Aucune série pour le moment.';
+		const finished = done === 1 ? '1 terminé' : `${done} terminés`;
+		return `${done}/${total} (${finished} sur ${total} au total)`;
+	});
+	let successTip = $derived.by(() => {
+		if (practice.successPercent !== null && practice.scoredTotal > 0) {
+			const good =
+				practice.scoredCorrect === 1
+					? '1 bonne réponse'
+					: `${practice.scoredCorrect} bonnes réponses`;
+			return `${practice.successPercent} % (${good} sur ${practice.scoredTotal} dans les séries corrigées)`;
+		}
+		if (practice.pendingCorrectionCount > 0) {
+			return 'Le pourcentage s’affichera quand le corrigé sera ouvert.';
+		}
+		return 'Le pourcentage s’affiche après l’ouverture du corrigé.';
+	});
+	let questionsTip = $derived.by(() => {
+		const worked = practice.questionsWorked;
+		const open = practice.questionsOpen;
+		if (worked > 0 && open > 0) {
+			return `${questionCountPhrase(worked, 'travaillée')} dans les séries terminées, et ${questionCountPhrase(open, 'ouverte')} en cours.`;
+		}
+		if (worked > 0) return `${questionCountPhrase(worked, 'travaillée')} dans les séries terminées.`;
+		if (open > 0) return `${questionCountPhrase(open, 'ouverte')} dans les séries en cours.`;
+		return 'Aucune question travaillée pour le moment.';
+	});
+	let activityTip = $derived(
+		practice.lastPracticeAt
+			? `Dernière série commencée ou terminée le ${lastActivityValue}.`
+			: 'Aucune activité enregistrée sur la plateforme.',
+	);
 	let currentSet = $derived(home.currentSet);
+	let practiceBrief = $derived(home.focus.brief || home.focus.rationale);
+	let selectedFocus = $derived(home.focusIntent ?? home.focus.intent ?? 'improve_results');
 	let canStudentGenerate = $derived(!isGuardian && Boolean(onGenerate));
 	let generateEnabled = $derived(canStudentGenerate && home.canGenerate);
 	let listedExercises = $derived.by((): ListedExercise[] => {
@@ -163,6 +202,12 @@
 			.filter((setId): setId is string => Boolean(setId)),
 	);
 
+	function questionCountPhrase(count: number, adjective: 'travaillée' | 'ouverte') {
+		const plural = adjective === 'travaillée' ? 'travaillées' : 'ouvertes';
+		if (count === 1) return `1 question ${adjective}`;
+		return `${count} questions ${plural}`;
+	}
+
 	function questionDetail(count: number) {
 		if (count > 0) {
 			return `${count} question${count > 1 ? 's' : ''} · QCM et réponses rédigées`;
@@ -181,27 +226,22 @@
 		return (set.answers ?? []).some((answer) => answer.value.trim().length > 0);
 	}
 
-	function setStatus(set: ExerciseSet, hasCorrection: boolean, hasAnswer: boolean) {
-		if (!set.submittedAt) {
-			if (hasAnswer) return 'En cours';
-			return isGuardian ? `${student.firstName} n’a pas encore répondu` : 'Pas débuté';
-		}
-		if (!hasAnswer) return 'Aucune réponse enregistrée';
-		if (!set.correctionReleasedAt) {
-			return isGuardian ? 'Corrigé à rendre disponible' : 'En attente du corrigé';
-		}
-		if (hasCorrection) return 'Corrigé ouvert';
-		return 'Ancienne série · corrigé indisponible';
+	function setStatus(set: ExerciseSet, archived: boolean) {
+		return exerciseStatusLabel(set, {
+			audience: isGuardian ? 'guardian' : 'student',
+			firstName: student.firstName,
+			archived,
+		});
 	}
 
-	function toListedExercise(set: ExerciseSet, title: string): ListedExercise {
+	function toListedExercise(set: ExerciseSet, title: string, archived = false): ListedExercise {
 		const hasCorrection = hasCompleteCorrection(set);
 		const hasAnswer = hasAnyAnswer(set);
 		return {
 			id: set.id,
 			title,
 			detail: questionDetail(set.questions.length),
-			status: setStatus(set, hasCorrection, hasAnswer),
+			status: setStatus(set, archived),
 			setId: set.id,
 			submitted: Boolean(set.submittedAt),
 			correctionReleased: Boolean(set.correctionReleasedAt),
@@ -235,7 +275,23 @@
 	}
 
 	function onWindowKeydown(event: KeyboardEvent) {
-		if (event.key === 'Escape' && viewingSetId) closeCorrection();
+		if (event.key !== 'Escape') return;
+		if (viewingSetId) closeCorrection();
+		else openTip = '';
+	}
+
+	async function changeFocus(intent: PracticeIntent) {
+		if (!onChangeFocusIntent || intent === selectedFocus) return;
+		settingsPending = true;
+		settingsError = '';
+		try {
+			await onChangeFocusIntent(intent);
+		} catch (caught) {
+			settingsError =
+				caught instanceof Error ? caught.message : 'Impossible d’enregistrer ce réglage.';
+		} finally {
+			settingsPending = false;
+		}
 	}
 
 	async function toggleAutoRelease(event: Event) {
@@ -305,7 +361,9 @@
 		<p class="text-sm font-extrabold uppercase tracking-[0.18em] text-forest">
 			{isGuardian ? `Espace parent · ${student.firstName}` : 'Espace élève'}
 		</p>
-		<p class="shrink-0 text-right text-xs font-bold text-ink/40">Snapshot · {snapshotLabel}</p>
+		<p class="shrink-0 text-right text-xs font-bold text-ink/40" title={activityTip}>
+			Dernière activité · {lastActivityValue}
+		</p>
 	</div>
 	<h1 class="mt-2 text-4xl font-extrabold text-ink">
 		{isGuardian ? `Le suivi de ${student.firstName}` : `Bonjour ${student.firstName}`}
@@ -314,40 +372,115 @@
 		{programmeLine}
 	</p>
 
-	<div
-		class="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-[minmax(0,1.25fr)_repeat(4,minmax(0,1fr))]"
-	>
-		<div class="col-span-2 rounded-2xl bg-cream p-4 lg:col-span-1">
-			<p class="text-sm font-bold text-ink/50">Focus suggéré</p>
-			{#if home.focusSubject}
-				<p class="mt-1 text-xs font-extrabold uppercase tracking-wide text-forest">{home.focusSubject}</p>
-			{/if}
-			<p class="mt-1 text-xl font-extrabold">{home.lessonTitle}</p>
+	{#snippet statCard(
+		id: string,
+		label: string,
+		value: string,
+		total: string,
+		hint: string,
+		detail: string,
+		alignEnd: boolean,
+	)}
+		<div
+			class="relative min-w-0 rounded-2xl bg-cream p-4"
+			role="group"
+			onmouseenter={() => (openTip = id)}
+			onmouseleave={() => {
+				if (openTip === id) openTip = '';
+			}}
+		>
+			<p class="text-sm font-bold text-ink/50">{label}</p>
+			<p class="mt-1 flex items-end gap-1.5">
+				<span class="min-w-0 break-words text-xl font-extrabold">{value}</span>
+				{#if total}
+					<span class="mb-0.5 text-sm font-bold text-ink/40">/ {total}</span>
+				{/if}
+				<button
+					class="mb-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-ink/10 text-[11px] font-extrabold text-ink/60"
+					type="button"
+					aria-label={`Détail : ${label}`}
+					aria-describedby={`stat-tip-${id}`}
+					aria-expanded={openTip === id}
+					onfocus={() => (openTip = id)}
+					onblur={() => {
+						if (openTip === id) openTip = '';
+					}}
+				>
+					i
+				</button>
+			</p>
+			<p class="mt-1 text-sm font-bold text-ink/60">{hint}</p>
+			<p
+				id={`stat-tip-${id}`}
+				role="tooltip"
+				class={[
+					'absolute top-full z-30 mt-2 w-max max-w-[16rem] rounded-2xl bg-ink px-3 py-2 text-xs font-bold leading-snug text-white shadow-card',
+					alignEnd ? 'right-0' : 'left-0',
+					openTip === id ? '' : 'sr-only',
+				]}
+			>
+				{detail}
+			</p>
 		</div>
-		<div class="min-w-0 rounded-2xl bg-cream p-4">
-			<p class="text-sm font-bold text-ink/50">Révisions</p>
-			<p class="mt-1 text-xl font-extrabold">{practice.submittedCount}</p>
-			<p class="mt-1 text-sm font-bold text-ink/60">{seriesHint}</p>
-		</div>
-		<div class="min-w-0 rounded-2xl bg-cream p-4">
-			<p class="text-sm font-bold text-ink/50">Réussite</p>
-			<p class="mt-1 text-xl font-extrabold">{successValue}</p>
-			<p class="mt-1 text-sm font-bold text-ink/60">{successHint}</p>
-		</div>
-		<div class="min-w-0 rounded-2xl bg-cream p-4">
-			<p class="text-sm font-bold text-ink/50">Questions</p>
-			<p class="mt-1 text-xl font-extrabold">{questionsValue}</p>
-			<p class="mt-1 text-sm font-bold text-ink/60">{questionsHint}</p>
-		</div>
-		<div class="min-w-0 rounded-2xl bg-cream p-4">
-			<p class="text-sm font-bold text-ink/50">Dernière activité</p>
-			<p class="mt-1 break-words text-xl font-extrabold">{lastActivityValue}</p>
-			<p class="mt-1 text-sm font-bold text-ink/60">sur la plateforme</p>
-		</div>
+	{/snippet}
+
+	<div class="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-3">
+		{@render statCard(
+			'revisions',
+			'Révisions',
+			String(practice.submittedCount),
+			practice.seriesCount > 0 ? String(practice.seriesCount) : '',
+			revisionsHint,
+			revisionsTip,
+			false,
+		)}
+		{@render statCard('success', 'Réussite', successValue, '', successHint, successTip, false)}
+		{@render statCard(
+			'questions',
+			'Questions',
+			String(practice.questionsWorked),
+			questionTotal > 0 ? String(questionTotal) : '',
+			questionsHint,
+			questionsTip,
+			true,
+		)}
 	</div>
 
+	{#if !isGuardian}
+		<p class="mt-6 rounded-2xl bg-forest/10 px-4 py-4 text-lg text-ink/80">{practiceBrief}</p>
+	{/if}
+
+	{#if isGuardian && onChangeFocusIntent}
+		<fieldset class="mt-6 rounded-2xl bg-cream px-4 py-4" disabled={settingsPending}>
+			<legend class="text-xs font-extrabold uppercase tracking-[0.14em] text-forest">
+				Focus des exercices
+			</legend>
+			<div class="mt-3 space-y-2">
+				{#each FOCUS_CHOICES as choice (choice.id)}
+					<label class="flex cursor-pointer items-start gap-3 rounded-xl bg-paper px-3 py-3">
+						<input
+							class="mt-1"
+							type="radio"
+							name="practice-focus"
+							value={choice.id}
+							checked={selectedFocus === choice.id}
+							onchange={() => changeFocus(choice.id)}
+						/>
+						<span>
+							<span class="block font-extrabold">{choice.label}</span>
+							<span class="mt-0.5 block text-sm font-bold text-ink/60">{choice.hint}</span>
+						</span>
+					</label>
+				{/each}
+			</div>
+			<p class="mt-3 text-sm text-ink/70">
+				<span class="font-extrabold text-ink">Message pour l’élève. </span>{practiceBrief}
+			</p>
+		</fieldset>
+	{/if}
+
 	{#if isGuardian && onToggleAutoRelease}
-		<label class="mt-6 flex cursor-pointer items-center gap-3 rounded-2xl bg-cream px-4 py-3">
+		<label class="mt-3 flex cursor-pointer items-center gap-3 rounded-2xl bg-cream px-4 py-3">
 			<input
 				class="shrink-0"
 				type="checkbox"
@@ -360,11 +493,9 @@
 				<span class="mt-0.5 block font-extrabold">Automatique dès la fin des exercices</span>
 			</span>
 		</label>
-		{#if settingsError}
-			<p class="mt-2 font-bold text-clay">{settingsError}</p>
-		{/if}
-	{:else if !isGuardian}
-		<p class="mt-6 text-ink/80">{home.focus.rationale}</p>
+	{/if}
+	{#if isGuardian && settingsError}
+		<p class="mt-2 font-bold text-clay">{settingsError}</p>
 	{/if}
 
 	{#if canStudentGenerate || !isGuardian}
@@ -429,14 +560,25 @@
 					</div>
 					<div class="flex shrink-0 flex-wrap items-center justify-end gap-2">
 						{#if !isGuardian}
-							{#if exercise.setId && !exercise.correctionReleased}
-								<a
-									class="rounded-full bg-white px-3 py-2 text-xs font-extrabold text-ink ring-1 ring-ink/10"
-									href={resolve('/app/sets/[id]', { id: exercise.setId })}
-								>
-									{exercise.submitted ? 'Voir mes réponses' : 'Répondre'}
-								</a>
-							{:else if !exercise.setId}
+							{#if exercise.set}
+								{@const studentButton = studentExerciseButtonLabel(exercise.set, exercise.status === 'Archivé')}
+								{#if studentButton === 'Voir la correction'}
+									<button
+										class="rounded-full bg-forest px-3 py-2 text-xs font-extrabold text-white"
+										type="button"
+										onclick={() => openCorrection(exercise.setId)}
+									>
+										Voir la correction
+									</button>
+								{:else}
+									<a
+										class="rounded-full bg-white px-3 py-2 text-xs font-extrabold text-ink ring-1 ring-ink/10"
+										href={resolve('/app/sets/[id]', { id: exercise.set.id })}
+									>
+										{studentButton}
+									</a>
+								{/if}
+							{:else}
 								<button
 									class="rounded-full bg-clay px-3 py-2 text-xs font-extrabold text-white disabled:opacity-60"
 									onclick={generate}
@@ -473,14 +615,6 @@
 									{releasingId === exercise.setId ? 'Ouverture…' : 'Ouvrir à l’élève'}
 								</button>
 							{/if}
-						{:else if exercise.setId && exercise.correctionReleased}
-							<button
-								class="rounded-full bg-forest px-3 py-2 text-xs font-extrabold text-white"
-								type="button"
-								onclick={() => openCorrection(exercise.setId)}
-							>
-								Voir la correction
-							</button>
 						{/if}
 					</div>
 				</li>
@@ -593,14 +727,3 @@
 	{rankLabel}
 	{averageLabel}
 />
-
-{#if isGuardian && observations.length > 0}
-	<section class="mt-6 rounded-[2rem] bg-paper p-6 shadow-card">
-		<h2 class="text-xl font-extrabold">Observations de l’école</h2>
-		<ul class="mt-4 space-y-2">
-			{#each observations as note, index (`${index}-${note}`)}
-				<li class="rounded-2xl bg-cream px-4 py-3 font-bold text-ink/80">{note}</li>
-			{/each}
-		</ul>
-	</section>
-{/if}

@@ -13,6 +13,8 @@ import {
 	type SchoolCredentials,
 	type TimetableDay,
 	type TimetableSlot,
+	type UpcomingAssessment,
+	type UpcomingAssessmentKind,
 	CHILDREN_AI_RESOLVE_SECRET_HEADER,
 } from "@children-ai/domain";
 import { SchoolIntegrationMissingError } from "@children-ai/domain";
@@ -211,6 +213,14 @@ export class HttpEdayaContext implements EdayaContextPort, GuardianChildrenPort 
 				)
 				.map((row) => asString(row.body) || asString(row.title))
 				.filter(Boolean),
+			upcomingAssessments: buildUpcomingAssessments(
+				assessments,
+				results,
+				query.studentId,
+				classSubjectsRaw,
+				subjects,
+				this.now(),
+			),
 		};
 	}
 
@@ -436,6 +446,63 @@ function buildMarks(
 		});
 	}
 	return marks;
+}
+
+function buildUpcomingAssessments(
+	assessments: JsonRecord[],
+	results: JsonRecord[],
+	studentId: string,
+	classSubjects: JsonRecord[],
+	subjects: JsonRecord[],
+	now: Date,
+): UpcomingAssessment[] {
+	const today = now.toISOString().slice(0, 10);
+	const horizon = new Date(now.getTime());
+	horizon.setUTCDate(horizon.getUTCDate() + 21);
+	const horizonKey = horizon.toISOString().slice(0, 10);
+	const scored = new Set(
+		results
+			.filter((row) => asString(row.studentId) === studentId && asNumber(row.score) !== undefined)
+			.map((row) => asString(row.assessmentId))
+			.filter(Boolean),
+	);
+	const subjectsById = new Map(
+		subjects.map((row) => [asString(row.id), row] as const).filter(([id]) => id),
+	);
+	const classSubjectsById = new Map(
+		classSubjects.map((row) => [asString(row.id), row] as const).filter(([id]) => id),
+	);
+	const upcoming: UpcomingAssessment[] = [];
+	for (const assessment of assessments) {
+		const id = asString(assessment.id);
+		if (!id || scored.has(id) || asString(assessment.completedAt)) continue;
+		const rawDue = asString(assessment.dueAt) || asString(assessment.startsAt);
+		const dueAt = rawDue.slice(0, 10);
+		if (!/^\d{4}-\d{2}-\d{2}$/.test(dueAt) || dueAt < today || dueAt > horizonKey) continue;
+		const classSubject = classSubjectsById.get(asString(assessment.classSubjectId));
+		const subject = subjectsById.get(asString(classSubject?.subjectId));
+		upcoming.push({
+			id,
+			subject:
+				asString(subject?.name)
+				|| asString(subject?.code)
+				|| asString(assessment.subject)
+				|| "Matière",
+			title: asString(assessment.title) || "Évaluation",
+			kind: upcomingKind(asString(assessment.kind), asString(assessment.title)),
+			dueAt,
+		});
+	}
+	return upcoming.sort((left, right) => left.dueAt.localeCompare(right.dueAt));
+}
+
+function upcomingKind(kind: string, title: string): UpcomingAssessmentKind {
+	const folded = `${kind} ${title}`.toLowerCase();
+	if (kind === "homework" || folded.includes("devoir")) return "homework";
+	if (folded.includes("examen") || folded.includes("composition")) return "exam";
+	if (kind === "quiz") return "quiz";
+	if (kind === "project") return "project";
+	return "other";
 }
 
 function pickBulletin(rows: JsonRecord[], studentId: string): JsonRecord | undefined {

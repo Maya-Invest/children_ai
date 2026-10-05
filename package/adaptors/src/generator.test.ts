@@ -113,7 +113,13 @@ describe("exercise generator selection", () => {
 		const set = await generator.generate({
 			snapshot,
 			lesson,
-			focus: { lessonId: lesson.id, subject: lesson.subject, rationale: "note faible" },
+			focus: {
+				lessonId: lesson.id,
+				subject: lesson.subject,
+				rationale: "note faible",
+				brief: "Voici la série d'exercices suggérée.",
+				intent: "improve_results",
+			},
 		});
 
 		expect(set.generator).toBe("llm");

@@ -81,7 +81,32 @@ export type LearnerContext = {
 		presentRate: number;
 	};
 	observations: string[];
+	upcomingAssessments?: UpcomingAssessment[];
 };
+
+export type UpcomingAssessmentKind = "homework" | "exam" | "quiz" | "project" | "other";
+
+export type UpcomingAssessment = {
+	id: string;
+	subject: string;
+	title: string;
+	kind: UpcomingAssessmentKind;
+	dueAt: string;
+};
+
+export const PRACTICE_INTENTS = [
+	"upcoming_work",
+	"improve_results",
+	"prepare_next_day",
+] as const;
+
+export type PracticeIntent = (typeof PRACTICE_INTENTS)[number];
+
+export const DEFAULT_PRACTICE_INTENT: PracticeIntent = "improve_results";
+
+export function isPracticeIntent(value: unknown): value is PracticeIntent {
+	return PRACTICE_INTENTS.some((intent) => intent === value);
+}
 
 export type LearnerAcademicSnapshot = {
 	id: string;
@@ -97,6 +122,8 @@ export type PracticeFocus = {
 	lessonId: string;
 	subject: string;
 	rationale: string;
+	brief: string;
+	intent: PracticeIntent;
 };
 
 export type QuestionKind = "mcq" | "written";
@@ -144,6 +171,7 @@ export type PracticeSettings = {
 	schoolId: string;
 	studentId: string;
 	autoReleaseCorrection: boolean;
+	focusIntent?: PracticeIntent;
 };
 
 export type LearnerBinding = {

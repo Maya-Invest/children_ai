@@ -90,5 +90,85 @@ describe("suggestFocus", () => {
 		expect(focus.rationale).toContain("Fractions");
 		expect(focus.rationale).not.toContain("Dictée");
 		expect(focus.rationale).not.toContain("MATH «");
+		expect(focus.brief).toContain("Compte tenu de tes résultats");
+		expect(focus.brief).toContain("Fractions");
+		expect(focus.intent).toBe("improve_results");
+	});
+
+	test("uses the soonest upcoming homework when the parent chooses that focus", () => {
+		const focus = suggestFocus(
+			snapshot({
+				marks: [
+					{
+						id: "math",
+						subject: "MATH",
+						title: "Contrôle Nombres entiers naturels",
+						score: 4,
+						maxScore: 20,
+						date: "2025-11-03",
+					},
+				],
+				upcomingAssessments: [
+					{
+						id: "exam",
+						subject: "MATH",
+						title: "Examen Fractions",
+						kind: "exam",
+						dueAt: "2026-10-20",
+					},
+					{
+						id: "hw",
+						subject: "MATH",
+						title: "Devoir Fractions",
+						kind: "homework",
+						dueAt: "2026-10-08",
+					},
+				],
+			}),
+			[entiers, fractions],
+			{ intent: "upcoming_work", now: new Date("2026-10-05T08:00:00.000Z") },
+		);
+		expect(focus.lessonId).toBe("l-frac");
+		expect(focus.intent).toBe("upcoming_work");
+		expect(focus.brief).toContain("devoir");
+		expect(focus.brief).toContain("série d'exercices suggérée");
+		expect(focus.brief).not.toContain("Nombres entiers");
+	});
+
+	test("revises the next official lesson on the timetable", () => {
+		const geometry = lesson({
+			id: "l-droites",
+			title: "Droites et points",
+			sequence: 8,
+			theme: { id: "geo", title: "Géométrie du plan" },
+		});
+		const focus = suggestFocus(
+			snapshot({
+				timetable: [
+					{
+						id: "hg",
+						dayOfWeek: "tuesday",
+						startTime: "08:15",
+						endTime: "09:00",
+						title: "Histoire-Géographie",
+						kind: "lesson",
+					},
+					{
+						id: "math",
+						dayOfWeek: "wednesday",
+						startTime: "09:15",
+						endTime: "10:00",
+						title: "Mathématiques — géométrie",
+						kind: "lesson",
+					},
+				],
+			}),
+			[entiers, fractions, geometry],
+			{ intent: "prepare_next_day", now: new Date("2026-10-05T08:00:00.000Z") },
+		);
+		expect(focus.lessonId).toBe("l-droites");
+		expect(focus.brief.startsWith("Mercredi")).toBe(true);
+		expect(focus.brief).toContain("Mathématiques — géométrie");
+		expect(focus.brief).toContain("Droites et points");
 	});
 });

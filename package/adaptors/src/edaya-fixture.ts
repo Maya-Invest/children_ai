@@ -169,6 +169,22 @@ const LEA: LearnerContext = {
 	observations: [
 		"Bon engagement en classe. Fractions encore fragiles ; lecture et cartes d’Afrique à consolider.",
 	],
+	upcomingAssessments: [
+		{
+			id: "up-lea-fractions",
+			subject: "Mathématiques",
+			title: "Devoir Fractions",
+			kind: "homework",
+			dueAt: "2026-10-08",
+		},
+		{
+			id: "up-lea-lecture",
+			subject: "Français",
+			title: "Examen de lecture",
+			kind: "exam",
+			dueAt: "2026-10-15",
+		},
+	],
 };
 
 /** Same 5ème 1 week as demo-ci seed (`ci-5a` / Thomas). */
@@ -308,6 +324,15 @@ const THOMAS: LearnerContext = {
 	attendance: { presentRate: 0.96 },
 	observations: [
 		"Bon niveau en calcul. Les nombres relatifs restent fragiles ; à retravailler avant les équations.",
+	],
+	upcomingAssessments: [
+		{
+			id: "up-thomas-relatifs",
+			subject: "Mathématiques",
+			title: "Devoir Nombres décimaux relatifs",
+			kind: "homework",
+			dueAt: "2026-10-09",
+		},
 	],
 };
 

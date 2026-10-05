@@ -3,6 +3,7 @@ import {
 	AlreadySubmittedError,
 	ChildNotLinkedError,
 	CorrectionUnavailableError,
+	DomainError,
 	EmptySubmissionError,
 	ExerciseSetNotFoundError,
 	GuardianCannotGenerateError,
@@ -37,6 +38,7 @@ import {
 	type LearnerAcademicSnapshot,
 	type LearnerContextQuery,
 	type PracticeFocus,
+	type PracticeIntent,
 	type PracticeSettings,
 	type PracticeSettingsRepository,
 	type SessionActor,
@@ -51,6 +53,7 @@ import {
 	demoStudentActor,
 	isDemoGuardian,
 	isDemoIssuedAccess,
+	isPracticeIntent,
 	learnerQueryForIssuedCode,
 } from "@children-ai/domain";
 
@@ -243,16 +246,13 @@ export class ChildrenAiApp {
 		currentSet: ExerciseSet | null;
 		history: ExerciseSet[];
 		autoReleaseCorrection: boolean;
+		focusIntent: PracticeIntent;
 		exerciseUpgradeAvailable: boolean;
 	}> {
 		const snapshot = await this.syncSnapshot(query);
-		const lessons = this.ports.catalog.listLessons(snapshot.context.student.grade);
-		const focus = suggestFocus(snapshot, lessons);
-		const lesson = this.ports.catalog.getLesson(focus.lessonId);
-		if (!lesson) throw new LessonNotInPackError(focus.lessonId);
+		const { focus, lesson, settings } = await this.resolveFocus(query, snapshot);
 		const currentSet = await this.ports.sets.findBySnapshotId(snapshot.id);
 		const history = await this.ports.sets.listByStudentId(query);
-		const settings = await this.ports.practiceSettings.get(query);
 		return {
 			snapshot,
 			focus,
@@ -260,6 +260,7 @@ export class ChildrenAiApp {
 			currentSet: currentSet ? presentExerciseSet(currentSet, audience) : null,
 			history: history.map((set) => presentExerciseSet(set, audience)),
 			autoReleaseCorrection: settings?.autoReleaseCorrection ?? false,
+			focusIntent: focus.intent,
 			exerciseUpgradeAvailable: isUpgradableSet(currentSet),
 		};
 	}
@@ -273,10 +274,7 @@ export class ChildrenAiApp {
 			throw new AlreadyGeneratedError(existing.id);
 		}
 
-		const lessons = this.ports.catalog.listLessons(snapshot.context.student.grade);
-		const focus = suggestFocus(snapshot, lessons);
-		const lesson = this.ports.catalog.getLesson(focus.lessonId);
-		if (!lesson) throw new LessonNotInPackError(focus.lessonId);
+		const { focus, lesson } = await this.resolveFocus(query, snapshot);
 
 		const generated = await this.ports.generator.generate({ snapshot, lesson, focus });
 		const set = existing ? { ...generated, id: existing.id } : generated;
@@ -404,17 +402,26 @@ export class ChildrenAiApp {
 	async updatePracticeSettings(
 		guardian: GuardianActor,
 		studentId: string,
-		autoReleaseCorrection: boolean,
+		patch: {
+			autoReleaseCorrection?: boolean;
+			focusIntent?: PracticeIntent;
+		},
 	): Promise<PracticeSettings> {
+		if (patch.focusIntent !== undefined && !isPracticeIntent(patch.focusIntent)) {
+			throw new DomainError("INVALID_PRACTICE_INTENT", "Ce choix de focus n'est pas reconnu.");
+		}
 		const child = await this.requireLinkedChild(guardian, studentId);
 		const query = { schoolId: child.schoolId, studentId: child.studentId };
+		const current = await this.ports.practiceSettings.get(query);
+		const autoReleaseCorrection = patch.autoReleaseCorrection ?? current?.autoReleaseCorrection ?? false;
 		const settings: PracticeSettings = {
 			schoolId: child.schoolId,
 			studentId: child.studentId,
 			autoReleaseCorrection,
+			focusIntent: patch.focusIntent ?? current?.focusIntent,
 		};
 		await this.ports.practiceSettings.save(settings);
-		if (autoReleaseCorrection) {
+		if (patch.autoReleaseCorrection === true) {
 			const current = await this.currentSetFor(query);
 			const hasAnswer = (current?.answers ?? []).some((answer) =>
 				Boolean(normalizeAnswer(answer.value))
@@ -447,6 +454,19 @@ export class ChildrenAiApp {
 			results.push({ studentId: learner.studentId, snapshotId: snapshot.id });
 		}
 		return results;
+	}
+
+	private async resolveFocus(query: LearnerContextQuery, snapshot: LearnerAcademicSnapshot) {
+		const settings = await this.ports.practiceSettings.get(query);
+		const lessons = this.ports.catalog.listLessons(snapshot.context.student.grade);
+		const now = new Date(this.ports.clock.nowIso());
+		const focus = suggestFocus(snapshot, lessons, {
+			intent: settings?.focusIntent,
+			now: Number.isNaN(now.getTime()) ? new Date() : now,
+		});
+		const lesson = this.ports.catalog.getLesson(focus.lessonId);
+		if (!lesson) throw new LessonNotInPackError(focus.lessonId);
+		return { focus, lesson, settings };
 	}
 
 	private async requireOwnedSet(

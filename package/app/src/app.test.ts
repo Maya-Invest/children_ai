@@ -30,6 +30,7 @@ import {
 function createAppWithSets(
 	children: GuardianChildrenPort = new FixtureGuardianChildrenPort(),
 	edaya?: EdayaContextPort,
+	clock: { nowIso(): string } = new SystemClock(),
 ) {
 	const ids = new CryptoIdGenerator();
 	const demo = createDemoEdayaContext({ palier: "in-memory" });
@@ -45,7 +46,7 @@ function createAppWithSets(
 		codes: new InMemoryStudentAccessCodeRepository(),
 		children,
 		studentSessions: sessions,
-		clock: new SystemClock(),
+		clock,
 		ids,
 		syncDebounceMs: 0,
 	});
@@ -55,8 +56,9 @@ function createAppWithSets(
 function createApp(
 	children: GuardianChildrenPort = new FixtureGuardianChildrenPort(),
 	edaya?: EdayaContextPort,
+	clock: { nowIso(): string } = new SystemClock(),
 ) {
-	const { app, sessions } = createAppWithSets(children, edaya);
+	const { app, sessions } = createAppWithSets(children, edaya, clock);
 	return { app, sessions };
 }
 
@@ -93,7 +95,28 @@ describe("ChildrenAiApp", () => {
 		expect(home.focus.subject).toBe("MATH");
 		expect(home.focus.rationale).toContain("Mathématiques");
 		expect(home.focus.rationale).not.toMatch(/MATH «/);
+		expect(home.focus.brief).toContain("série d'exercices suggérée");
+		expect(home.focus.brief).toContain("Fractions");
+		expect(home.focusIntent).toBe("improve_results");
 		expect(home.currentSet).toBeNull();
+	});
+
+	test("keeps the parent exercise focus and uses it for the child brief", async () => {
+		const { app } = createApp(new FixtureGuardianChildrenPort(), undefined, {
+			nowIso: () => "2026-10-05T08:00:00.000Z",
+		});
+		const { guardian, student } = await fixtureStudent(app);
+		const settings = await app.updatePracticeSettings(guardian, student.studentId, {
+			focusIntent: "upcoming_work",
+		});
+		expect(settings.focusIntent).toBe("upcoming_work");
+		expect(settings.autoReleaseCorrection).toBe(false);
+
+		const home = await app.getHome(learnerRef(student));
+		expect(home.focusIntent).toBe("upcoming_work");
+		expect(home.focus.brief).toContain("devoir");
+		expect(home.focus.brief).toContain("série d'exercices suggérée");
+		expect(home.lessonTitle).toBe("Fractions");
 	});
 
 	test("allows generate once per snapshot then rejects regenerate", async () => {
@@ -378,7 +401,9 @@ describe("ChildrenAiApp", () => {
 		const { app } = createApp();
 		const { guardian, student } = await fixtureStudent(app);
 		const generated = await app.generate(student);
-		await app.updatePracticeSettings(guardian, student.studentId, true);
+		await app.updatePracticeSettings(guardian, student.studentId, {
+			autoReleaseCorrection: true,
+		});
 		const parentHome = await app.getHome(learnerRef(student), "guardian");
 		const submitted = await app.submitSet(
 			student,

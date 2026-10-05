@@ -7,6 +7,8 @@ export type PracticeSummary = {
 	pendingCorrectionCount: number;
 	questionsWorked: number;
 	questionsOpen: number;
+	scoredCorrect: number;
+	scoredTotal: number;
 	successPercent: number | null;
 	lastPracticeAt: string | null;
 };
@@ -48,6 +50,8 @@ export function summarizePractice(
 			0,
 		),
 		questionsOpen: open.reduce((sum, set) => sum + set.questions.length, 0),
+		scoredCorrect: correct,
+		scoredTotal: total,
 		successPercent: total > 0 ? Math.round((correct / total) * 100) : null,
 		lastPracticeAt,
 	};

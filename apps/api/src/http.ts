@@ -7,6 +7,7 @@ import {
 	displaySubjectLabel,
 	formatProgrammeLine,
 	isDemoGuardian,
+	isPracticeIntent,
 	listLearnerSubjects,
 	type GuardianActor,
 	type Palier,
@@ -266,11 +267,30 @@ export function createHttpApp(app: ChildrenAiApp, options: HttpOptions) {
 
 	http.post("/parent/children/:studentId/practice-settings", async (c) => {
 		const guardian = requireGuardian(c.get("guardian"));
-		const body = await c.req.json().catch(() => ({})) as { autoReleaseCorrection?: unknown };
+		const body = await c.req.json().catch(() => ({})) as {
+			autoReleaseCorrection?: unknown;
+			focusIntent?: unknown;
+		};
+		const patch: {
+			autoReleaseCorrection?: boolean;
+			focusIntent?: "upcoming_work" | "improve_results" | "prepare_next_day";
+		} = {};
+		if ("autoReleaseCorrection" in body) {
+			patch.autoReleaseCorrection = body.autoReleaseCorrection === true;
+		}
+		if ("focusIntent" in body) {
+			if (!isPracticeIntent(body.focusIntent)) {
+				throw new DomainError(
+					"INVALID_PRACTICE_INTENT",
+					"Ce choix de focus n'est pas reconnu.",
+				);
+			}
+			patch.focusIntent = body.focusIntent;
+		}
 		const settings = await app.updatePracticeSettings(
 			guardian,
 			c.req.param("studentId"),
-			body.autoReleaseCorrection === true,
+			patch,
 		);
 		return c.json({ settings });
 	});
@@ -342,6 +362,7 @@ function serializeHome(
 		),
 		focus: home.focus,
 		focusSubject: displaySubjectLabel(home.focus.subject),
+		focusIntent: home.focusIntent,
 		lessonTitle: home.lessonTitle,
 		canGenerate:
 			studentCanGenerate

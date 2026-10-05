@@ -1,3 +1,5 @@
+export type PracticeIntent = 'upcoming_work' | 'improve_results' | 'prepare_next_day';
+
 export type StudentActor = {
 	role: 'student';
 	studentId: string;
@@ -97,8 +99,9 @@ export type HomePayload = {
 	observations: string[];
 	subjects: string[];
 	programmeLine: string;
-	focus: { lessonId: string; rationale: string; subject?: string };
+	focus: { lessonId: string; rationale: string; brief?: string; subject?: string; intent?: PracticeIntent };
 	focusSubject?: string;
+	focusIntent?: PracticeIntent;
 	lessonTitle: string;
 	canGenerate: boolean;
 	currentSet: ExerciseSet | null;

@@ -1,9 +1,14 @@
 <script lang="ts">
+	import { exerciseStatusLabel } from '$lib/exercise-status';
 	import type { HomePayload } from '$lib/types';
 
 	let { data }: { data: { home: HomePayload } } = $props();
 	const home = $derived(data.home);
 </script>
+
+<p class="mb-4">
+	<a class="text-sm font-bold text-forest" href="/app">← Retour</a>
+</p>
 
 <section class="rounded-[2rem] bg-paper p-6 shadow-card sm:p-10">
 	<h1 class="text-3xl font-extrabold">Historique</h1>
@@ -21,13 +26,10 @@
 					>
 						<span>Série du {new Date(set.generatedAt).toLocaleString('fr-CI')}</span>
 						<span class="text-forest">
-							{#if set.correctionReleasedAt && set.score}
-								{set.score.correct}/{set.score.total}
-							{:else if set.submittedAt}
-								En attente du corrigé
-							{:else}
-								{set.questions.length} questions
-							{/if}
+							{exerciseStatusLabel(set, {
+								audience: 'student',
+								firstName: home.student.firstName,
+							})}
 						</span>
 					</a>
 				</li>

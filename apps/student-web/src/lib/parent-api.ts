@@ -1,7 +1,13 @@
 import { parentApiFetch } from './auth/bearer-fetch';
 import { env } from '$env/dynamic/public';
 import { getGuardianToken, isDemoExplore } from './session';
-import type { ExerciseSet, GuardianChildView, HomePayload, ParentChildrenPayload } from './types';
+import type {
+	ExerciseSet,
+	GuardianChildView,
+	HomePayload,
+	ParentChildrenPayload,
+	PracticeIntent,
+} from './types';
 
 const base = env.PUBLIC_API_URL ?? 'http://localhost:8787';
 
@@ -57,12 +63,15 @@ export function releaseChildCorrection(studentId: string, setId?: string) {
 	});
 }
 
-export function updateChildPracticeSettings(studentId: string, autoReleaseCorrection: boolean) {
-	return request<{ settings: { autoReleaseCorrection: boolean } }>(
+export function updateChildPracticeSettings(
+	studentId: string,
+	patch: { autoReleaseCorrection?: boolean; focusIntent?: PracticeIntent },
+) {
+	return request<{ settings: { autoReleaseCorrection: boolean; focusIntent?: PracticeIntent } }>(
 		`/parent/children/${studentId}/practice-settings`,
 		{
 			method: 'POST',
-			body: JSON.stringify({ autoReleaseCorrection }),
+			body: JSON.stringify(patch),
 		},
 	);
 }
