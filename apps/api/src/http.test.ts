@@ -16,13 +16,13 @@ import {
 	StubExerciseGenerator,
 	SystemClock,
 } from "@children-ai/adaptors";
-import { verifyIdentityToken } from "@maya-invest/edaya-identity-client";
-import { createTestIdentityKeys, signTestIdentityToken } from "@maya-invest/edaya-identity-client/testing";
+import { verifyIdentityToken } from "./identity.ts";
+import { createTestIdentityKeys, signTestIdentityToken } from "./identity-testing.ts";
 import type { GuardianChildrenPort } from "@children-ai/domain";
 import { createHttpApp, type HttpOptions } from "./http.ts";
 
-const issuer = "http://localhost:9900";
-const audience = "http://localhost:8787";
+const issuer = "http://localhost:9999";
+const audience = "http://localhost:9999";
 
 async function createRuntime(
 	children: GuardianChildrenPort = new EmptyGuardianChildrenPort(),

@@ -15,6 +15,10 @@
 		"test": "bun test package apps/api",
 		"check": "bun --filter '*' check"
 	},
+	"dependencies": {
+		"@neon/config": "^1.8.4",
+		"@neon/env": "^1.5.1"
+	},
 	"overrides": {
 		"@maya-invest/edaya-identity-client": "file:../edaya_identity/package/identity-client"
 	}

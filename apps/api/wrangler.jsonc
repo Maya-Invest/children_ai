@@ -12,8 +12,6 @@
 		"EDAYA_API_ORIGIN": "http://localhost:9999",
 		"EDAYA_DEMO_SCHOOL_ID": "sch-edaya-ci-cocody",
 		"EDAYA_DEMO_ACADEMIC_YEAR_ID": "2025-ci",
-		"IDENTITY_ISSUER": "http://localhost:9900",
-		"CHILDREN_API_ORIGIN": "http://localhost:8787",
 		"CHILDREN_AI_RESOLVE_SECRET": "local-children-ai-resolve-secret"
 	},
 	"kv_namespaces": [

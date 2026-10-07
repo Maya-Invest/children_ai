@@ -2,7 +2,7 @@
 
 Children AI is a **student practice app** (collège Maths, programme DPFC). It is not the EDAYA staff UI and not a chatbot.
 
-Parents sign in with their **Edaya Identity** account. Students have **no Identity account**: a parent issues a revocable access code (shown once). Codes live only in Children AI, hashed. Children AI talks to Edaya with a machine key (`s2s_live_…`), never with the parent JWT.
+Parents sign in with their **Edaya account** on the unified API (`:9999`). Students have **no Edaya account**: a parent issues a revocable access code (shown once). Codes live only in Children AI, hashed. Children AI talks to Edaya with a machine key (`s2s_live_…`), never with the parent JWT.
 
 ---
 
@@ -10,9 +10,9 @@ Parents sign in with their **Edaya Identity** account. Students have **no Identi
 
 | What you want | What to do |
 |---------------|------------|
-| Your school’s students after Identity login | **Path live**: Identity + school API. Parent lists the children linked in Edaya (including a school you just created). |
-| Try Léa without a school | **Path demo**: landing button **Essayer la démo**. Fixture notes only. Not attached to Identity parents. |
-| Parent Identity with no guardian links | `/parent` shows an empty list (no Léa). |
+| Your school’s students after Edaya login | **Path live**: unified API. Parent lists the children linked in Edaya (including a school you just created). |
+| Try Léa without a school | **Path demo**: landing button **Essayer la démo**. Fixture notes only. Not attached to Edaya parents. |
+| Parent account with no guardian links | `/parent` shows an empty list (no Léa). |
 
 Children AI never writes back to EDAYA. The S2S key stays on the Children AI API; the browser never sees it.
 
@@ -43,25 +43,22 @@ CHILDREN_AI_RESOLVE_SECRET=local-children-ai-resolve-secret
 
 ```
 PUBLIC_API_URL=http://localhost:8787
-PUBLIC_AUTH_URL=http://localhost:9900
+PUBLIC_AUTH_URL=http://localhost:9999
 ```
 
-Identity must allow the Children AI API as a JWT audience and the student-web origin as a trusted cookie origin (`FIRST_PARTY_API_ORIGINS` includes `http://localhost:8787`, `TRUSTED_ORIGINS` includes `http://localhost:5175`).
+The parent JWT is issued by the unified API: issuer and audience are `EDAYA_API_ORIGIN` (`http://localhost:9999`). `apps/api/.env` `TRUSTED_ORIGINS` must include `http://127.0.0.1:5175` so the session cookie is accepted. Login is a one-time code (`POST /auth/edaya/otp/start`), not a password.
 
 ---
 
-## Path live — Identity + your school’s students
+## Path live — Edaya account + your school’s students
 
-Start Identity and the school API. Create a school in the webapp (or seed Cocody). Register-school mints a **read** S2S client `children-ai`. Locally the key is deterministic: `s2s_live_local_<schoolIdWithoutDashes>_children_ai01`. Children AI derives the same secret when the vault has no row.
+Start the unified API (accounts and school data on `:9999`). Create a school in the webapp (or seed Cocody). Register-school mints a **read** S2S client `children-ai`. Locally the key is deterministic: `s2s_live_local_<schoolIdWithoutDashes>_children_ai01`. Children AI derives the same secret when the vault has no row.
 
 ```bash
 # Terminal 1
-cd edaya_identity && bun repo dev     # :9900
-
-# Terminal 2
 cd edaya_backend && bun repo dev      # :9999
 
-# Terminal 3
+# Terminal 2
 cd children_ai
 bun test
 bun run dev
@@ -77,14 +74,14 @@ Health should look like `palier: local`, `schoolTenancy: per-school`, `contextMo
 ### What to click
 
 1. Open http://127.0.0.1:5175
-2. **Parent → Me connecter** with the Identity account that is a **linked guardian** in Edaya. You should see **your** students, never Léa unless she is actually linked.
+2. **Parent → Me connecter** with the Edaya account that is a **linked guardian**. Enter the email, then the one-time code from the API logs (`EMAIL_TRANSPORT=log`). You should see **your** students, never Léa unless she is actually linked.
 3. On the parent dashboard: **Générer un code**. Copy the `A123-B456-C789-D125` value — it is shown **once**. Hint afterwards is the last four characters.
 4. **Révoquer** invalidates that code and any student session.
 5. **J’ai un code** (or `/student`): paste the code → espace élève (accueil, génération, historique). The code’s `schoolId` + `studentId` drive live Edaya marks.
 
-A teacher Identity login is not a guardian: the live list stays empty unless that account is also linked as a guardian.
+A teacher login is not a guardian: the live list stays empty unless that account is also linked as a guardian.
 
-Staff login in EDAYA (optional): after seed, `a.kone@ecole-ci.edaya.dev` / `DevPassword1!`. Demo guardian after seed: `m.kone@mail.ci` / `DevPassword1!`.
+Seeded guardian email: `m.kone@mail.ci`. Sign-in uses the one-time code, not a password.
 
 ### Seeded Cocody (optional)
 
@@ -102,9 +99,9 @@ Local API `.env` needs `PLATFORM_BOOTSTRAP_EMAILS=a.kone@ecole-ci.edaya.dev` so 
 
 ## Path demo — landing button (Léa fixture)
 
-No Identity and no code. On the landing page, **Essayer la démo** calls `POST /auth/demo` (blocked on palier `prod`) and opens Léa’s fixture notes.
+No Edaya account and no code. On the landing page, **Essayer la démo** calls `POST /auth/demo` (blocked on palier `prod`) and opens Léa’s fixture notes.
 
-Parent `/parent/*` still uses live Edaya resolve. Léa is **not** attached to Identity parents.
+Parent `/parent/*` still uses live Edaya resolve. Léa is **not** attached to Edaya parents.
 
 There are **no** global demo logins `STUDENT-LEA` / `PARENT-LEA`.
 
@@ -133,14 +130,14 @@ curl http://localhost:8787/health
 
 | Symptom | Likely cause |
 |---------|----------------|
-| Student web cannot login / CORS | API not on 8787, or `PUBLIC_API_URL` / Identity `TRUSTED_ORIGINS` missing `:5175` |
-| Parent login cookie rejected | Identity not on `:9900`, or student-web origin not in `TRUSTED_ORIGINS` |
-| `POST /auth/edaya/access-token` 401 after a successful login | Restart student-web so the Vite `/auth` proxy is active. `127.0.0.1:5175` and `localhost:9900` are different sites; the session cookie is not sent on a cross-site POST. |
-| Parent JWT 401 on `/parent/*` | `FIRST_PARTY_API_ORIGINS` missing `http://localhost:8787`, or `CHILDREN_API_ORIGIN` mismatch |
+| Student web cannot login / CORS | API not on 8787, or `PUBLIC_API_URL` / Edaya `TRUSTED_ORIGINS` missing `:5175` |
+| Parent login cookie rejected | Unified API not on `:9999`, or `http://127.0.0.1:5175` missing from `TRUSTED_ORIGINS` |
+| `POST /auth/edaya/access-token` 401 after a successful login | Restart student-web so the Vite `/auth` proxy targets `:9999`. The session cookie is first-party on `127.0.0.1:5175`. The token `resource` must be `http://localhost:9999`. |
+| Parent JWT 401 on `/parent/*` | Children AI verifier `iss`/`aud` must both be `EDAYA_API_ORIGIN` |
 | `PALIER_ORIGIN_MISMATCH` | `EDAYA_API_ORIGIN` is staging/prod while `PALIER=local` |
 | `SCHOOL_INTEGRATION_MISSING` | New UUID school not minted, or vault cannot derive the local key |
 | Live home empty / fetch error | EDAYA not running, resolve secret mismatch, or missing `s2s_live_` for that school |
-| Empty children in live mode | Guardian Identity subject not linked in Edaya, or teacher-only login (expected) |
+| Empty children in live mode | Guardian account not linked in Edaya, or teacher-only login (expected) |
 | Parent still sees Léa | Old `EDAYA_CONTEXT=fixture` / empty origin; set `EDAYA_CONTEXT=http` and restart |
 | Generate stuck on stub | `GEMINI_API_KEY` empty or API not restarted |
 | Parent can see sets but no generate button | Expected |
@@ -161,7 +158,7 @@ bun --filter @children-ai/api cron:local
 Tenancy is two axes: **palier** (this deployment: local / staging / prod) and **school**. Demo Cocody is a **dataset**, not a palier. One read-only EDAYA `s2s_live_` **per school** in that palier’s vault. LLM key is per palier.
 
 ```
-Parent browser  →  Identity cookies  →  JWT aud=Children AI  →  /parent/*
+Parent browser  →  Edaya cookie on :9999  →  JWT iss=aud=Edaya API  →  /parent/*
 Student browser →  code or demo      →  opaque session       →  /home, /exercise-sets
 Children AI API →  resolve secret    →  Edaya POST /internal/children-ai/resolve-guardian
 Children AI API →  Bearer s2s_live_  →  Edaya /core/entities/*/list  (marks / progress)
@@ -183,7 +180,6 @@ Never point prod Children AI at staging EDAYA (or the reverse). Never forward a 
 wrangler secret put VAULT_MASTER_KEY --env staging
 wrangler secret put GEMINI_API_KEY --env staging
 wrangler secret put EDAYA_DEMO_API_KEY --env staging
-wrangler secret put IDENTITY_DIRECTORY_SECRET --env staging
 wrangler secret put CHILDREN_AI_RESOLVE_SECRET --env staging
 ```
 
@@ -195,5 +191,5 @@ package/app                 ChildrenAiApp
 package/adaptors            fixture + HTTP EDAYA, stub, Gemini, file store
 package/adaptor-cloudflare  KV + encrypted vault
 apps/api                    Hono (Bun + Worker)
-apps/student-web            SvelteKit (parent Identity + student codes)
+apps/student-web            SvelteKit (parent Edaya OTP + student codes)
 ```

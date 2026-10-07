@@ -13,7 +13,7 @@ bun run dev:web      # UI only; needs API on :8787
 
 ```
 PUBLIC_API_URL=http://localhost:8787
-PUBLIC_AUTH_URL=http://localhost:9900
+PUBLIC_AUTH_URL=http://localhost:9999
 ```
 
 Port 5175 is reserved for Children AI student-web (`edaya_web` webadmin uses 5174).

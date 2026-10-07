@@ -1,4 +1,4 @@
-import { IdentityTokenError, type IdentityClaims } from "@maya-invest/edaya-identity-client";
+import { IdentityTokenError, type IdentityClaims } from "./identity.ts";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import {

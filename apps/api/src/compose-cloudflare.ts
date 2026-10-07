@@ -41,11 +41,7 @@ export type CloudflareAdaptorEnv = {
 	EDAYA_DEMO_ACADEMIC_YEAR_ID?: string;
 	EDAYA_DEMO_API_KEY?: string;
 	EDAYA_CONTEXT?: string;
-	IDENTITY_ISSUER?: string;
 	IDENTITY_JWKS_URL?: string;
-	IDENTITY_DIRECTORY_SECRET?: string;
-	CHILDREN_API_ORIGIN?: string;
-	PUBLIC_API_URL?: string;
 	CHILDREN_AI_RESOLVE_SECRET?: string;
 };
 

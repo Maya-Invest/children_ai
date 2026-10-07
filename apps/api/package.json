@@ -17,8 +17,8 @@
 		"@children-ai/adaptors": "workspace:*",
 		"@children-ai/app": "workspace:*",
 		"@children-ai/domain": "workspace:*",
-		"@maya-invest/edaya-identity-client": "file:../../../edaya_identity/package/identity-client",
-		"hono": "^4.7.9"
+		"hono": "^4.7.9",
+		"jose": "^6.1.3"
 	},
 	"devDependencies": {
 		"@types/bun": "^1.3.14",

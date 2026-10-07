@@ -43,7 +43,7 @@
 			>
 				<p class="text-sm uppercase tracking-wide text-forest">Parent</p>
 				<p class="mt-2 text-xl">Me connecter</p>
-				<p class="mt-2 text-sm font-bold text-ink/60">Compte Edaya Identity</p>
+				<p class="mt-2 text-sm font-bold text-ink/60">Compte Edaya</p>
 			</a>
 			<a class="rounded-[1.5rem] bg-clay p-5 font-extrabold text-white shadow-card" href="/student">
 				<p class="text-sm uppercase tracking-wide text-white/80">Élève</p>
