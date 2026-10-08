@@ -1,0 +1,282 @@
+import { and, desc, eq, gt, isNull } from "drizzle-orm";
+import type { PgliteDatabase } from "drizzle-orm/pglite";
+import {
+	learnerQueryForIssuedCode,
+	type ExerciseSet,
+	type ExerciseSetRepository,
+	type LearnerAcademicSnapshot,
+	type LearnerContextQuery,
+	type PracticeSettings,
+	type PracticeSettingsRepository,
+	type SessionActor,
+	type SessionStore,
+	type SnapshotRepository,
+	type StudentAccessCode,
+	type StudentAccessCodeRepository,
+} from "@children-ai/domain";
+import * as schema from "./schema.ts";
+
+export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+export type SparkDb = PgliteDatabase<typeof schema>;
+
+export type SparkClock = {
+	now(): Date;
+};
+
+const systemClock: SparkClock = { now: () => new Date() };
+
+function readJson<T>(value: unknown): T {
+	if (typeof value === "string") return JSON.parse(value) as T;
+	return value as T;
+}
+
+export class PostgresSnapshotRepository implements SnapshotRepository {
+	constructor(private readonly db: SparkDb) {}
+
+	async getCurrent(query: LearnerContextQuery): Promise<LearnerAcademicSnapshot | null> {
+		const rows = await this.db
+			.select()
+			.from(schema.snapshots)
+			.where(
+				and(
+					eq(schema.snapshots.schoolId, query.schoolId),
+					eq(schema.snapshots.studentId, query.studentId),
+				),
+			)
+			.orderBy(desc(schema.snapshots.createdAt), desc(schema.snapshots.id))
+			.limit(1);
+		const row = rows[0];
+		return row ? readJson<LearnerAcademicSnapshot>(row.payload) : null;
+	}
+
+	async save(snapshot: LearnerAcademicSnapshot): Promise<void> {
+		await this.db
+			.insert(schema.snapshots)
+			.values({
+				id: snapshot.id,
+				schoolId: snapshot.schoolId,
+				studentId: snapshot.studentId,
+				createdAt: snapshot.createdAt,
+				payload: snapshot,
+			})
+			.onConflictDoUpdate({
+				target: schema.snapshots.id,
+				set: {
+					schoolId: snapshot.schoolId,
+					studentId: snapshot.studentId,
+					createdAt: snapshot.createdAt,
+					payload: snapshot,
+				},
+			});
+	}
+}
+
+export class PostgresExerciseSetRepository implements ExerciseSetRepository {
+	constructor(private readonly db: SparkDb) {}
+
+	async findBySnapshotId(snapshotId: string): Promise<ExerciseSet | null> {
+		const rows = await this.db
+			.select()
+			.from(schema.exerciseSets)
+			.where(eq(schema.exerciseSets.snapshotId, snapshotId))
+			.orderBy(desc(schema.exerciseSets.generatedAt))
+			.limit(1);
+		const row = rows[0];
+		return row ? readJson<ExerciseSet>(row.payload) : null;
+	}
+
+	async listByStudentId(query: LearnerContextQuery): Promise<ExerciseSet[]> {
+		const rows = await this.db
+			.select()
+			.from(schema.exerciseSets)
+			.where(
+				and(
+					eq(schema.exerciseSets.schoolId, query.schoolId),
+					eq(schema.exerciseSets.studentId, query.studentId),
+				),
+			)
+			.orderBy(desc(schema.exerciseSets.generatedAt));
+		return rows.map((row) => readJson<ExerciseSet>(row.payload));
+	}
+
+	async getById(id: string): Promise<ExerciseSet | null> {
+		const rows = await this.db
+			.select()
+			.from(schema.exerciseSets)
+			.where(eq(schema.exerciseSets.id, id))
+			.limit(1);
+		const row = rows[0];
+		return row ? readJson<ExerciseSet>(row.payload) : null;
+	}
+
+	async save(set: ExerciseSet): Promise<void> {
+		await this.db
+			.insert(schema.exerciseSets)
+			.values({
+				id: set.id,
+				snapshotId: set.snapshotId,
+				schoolId: set.schoolId,
+				studentId: set.studentId,
+				generatedAt: set.generatedAt,
+				payload: set,
+			})
+			.onConflictDoUpdate({
+				target: schema.exerciseSets.id,
+				set: {
+					snapshotId: set.snapshotId,
+					schoolId: set.schoolId,
+					studentId: set.studentId,
+					generatedAt: set.generatedAt,
+					payload: set,
+				},
+			});
+	}
+}
+
+export class PostgresPracticeSettingsRepository implements PracticeSettingsRepository {
+	constructor(private readonly db: SparkDb) {}
+
+	async get(query: LearnerContextQuery): Promise<PracticeSettings | null> {
+		const rows = await this.db
+			.select()
+			.from(schema.practiceSettings)
+			.where(
+				and(
+					eq(schema.practiceSettings.schoolId, query.schoolId),
+					eq(schema.practiceSettings.studentId, query.studentId),
+				),
+			)
+			.limit(1);
+		const row = rows[0];
+		return row ? readJson<PracticeSettings>(row.payload) : null;
+	}
+
+	async save(settings: PracticeSettings): Promise<void> {
+		await this.db
+			.insert(schema.practiceSettings)
+			.values({
+				schoolId: settings.schoolId,
+				studentId: settings.studentId,
+				payload: settings,
+			})
+			.onConflictDoUpdate({
+				target: [schema.practiceSettings.schoolId, schema.practiceSettings.studentId],
+				set: { payload: settings },
+			});
+	}
+}
+
+export class PostgresStudentAccessCodeRepository implements StudentAccessCodeRepository {
+	constructor(private readonly db: SparkDb) {}
+
+	async getById(id: string): Promise<StudentAccessCode | null> {
+		const rows = await this.db
+			.select()
+			.from(schema.accessCodes)
+			.where(eq(schema.accessCodes.id, id))
+			.limit(1);
+		const row = rows[0];
+		return row ? readJson<StudentAccessCode>(row.payload) : null;
+	}
+
+	async getByHash(codeHash: string): Promise<StudentAccessCode | null> {
+		const rows = await this.db
+			.select()
+			.from(schema.accessCodes)
+			.where(eq(schema.accessCodes.codeHash, codeHash))
+			.limit(1);
+		const row = rows[0];
+		return row ? readJson<StudentAccessCode>(row.payload) : null;
+	}
+
+	async getActiveByStudentId(studentId: string): Promise<StudentAccessCode | null> {
+		const rows = await this.db
+			.select()
+			.from(schema.accessCodes)
+			.where(
+				and(eq(schema.accessCodes.studentId, studentId), isNull(schema.accessCodes.revokedAt)),
+			)
+			.limit(1);
+		const row = rows[0];
+		return row ? readJson<StudentAccessCode>(row.payload) : null;
+	}
+
+	async listByStudentId(studentId: string): Promise<StudentAccessCode[]> {
+		const rows = await this.db
+			.select()
+			.from(schema.accessCodes)
+			.where(eq(schema.accessCodes.studentId, studentId));
+		return rows.map((row) => readJson<StudentAccessCode>(row.payload));
+	}
+
+	async listActiveLearners(): Promise<LearnerContextQuery[]> {
+		const rows = await this.db
+			.select()
+			.from(schema.accessCodes)
+			.where(isNull(schema.accessCodes.revokedAt));
+		return rows.map((row) => learnerQueryForIssuedCode(readJson<StudentAccessCode>(row.payload)));
+	}
+
+	async save(code: StudentAccessCode): Promise<void> {
+		await this.db
+			.insert(schema.accessCodes)
+			.values({
+				id: code.id,
+				schoolId: code.schoolId,
+				studentId: code.studentId,
+				codeHash: code.codeHash,
+				revokedAt: code.revokedAt,
+				payload: code,
+			})
+			.onConflictDoUpdate({
+				target: schema.accessCodes.id,
+				set: {
+					schoolId: code.schoolId,
+					studentId: code.studentId,
+					codeHash: code.codeHash,
+					revokedAt: code.revokedAt,
+					payload: code,
+				},
+			});
+	}
+}
+
+export class PostgresSessionStore implements SessionStore {
+	constructor(
+		private readonly db: SparkDb,
+		private readonly clock: SparkClock = systemClock,
+		private readonly ttlMs = SESSION_TTL_MS,
+	) {}
+
+	async get(token: string): Promise<SessionActor | null> {
+		const now = this.clock.now().toISOString();
+		const rows = await this.db
+			.select()
+			.from(schema.sessions)
+			.where(and(eq(schema.sessions.token, token), gt(schema.sessions.expiresAt, now)))
+			.limit(1);
+		const row = rows[0];
+		if (!row) {
+			await this.db.delete(schema.sessions).where(eq(schema.sessions.token, token));
+			return null;
+		}
+		return readJson<SessionActor>(row.actor);
+	}
+
+	async set(token: string, actor: SessionActor): Promise<void> {
+		const expiresAt = new Date(this.clock.now().getTime() + this.ttlMs).toISOString();
+		const studentId = actor.role === "student" ? actor.studentId : null;
+		await this.db
+			.insert(schema.sessions)
+			.values({ token, studentId, actor, expiresAt })
+			.onConflictDoUpdate({
+				target: schema.sessions.token,
+				set: { studentId, actor, expiresAt },
+			});
+	}
+
+	async deleteByStudentId(studentId: string): Promise<void> {
+		await this.db.delete(schema.sessions).where(eq(schema.sessions.studentId, studentId));
+	}
+}

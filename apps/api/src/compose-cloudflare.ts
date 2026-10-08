@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { ChildrenAiApp } from "@children-ai/app";
 import {
 	assertProdRejectsDemoSeed,
@@ -8,29 +9,21 @@ import {
 	JsonCurriculumCatalog,
 	resolveGeneratorName,
 	SystemClock,
-	type SessionStore,
 } from "@children-ai/adaptors";
-import {
-	KvExerciseSetRepository,
-	KvPracticeSettingsRepository,
-	KvSchoolIntegrationVault,
-	KvSessionStore,
-	KvSnapshotRepository,
-	KvStudentAccessCodeRepository,
-	type KvNamespaceLike,
-} from "@children-ai/adaptor-cloudflare";
+import { openSparkDatabase, PostgresSchoolIntegrationVault } from "@children-ai/adaptor-postgres";
 import {
 	parsePalier,
 	resolvePalierEdayaOrigin,
 	resolveVaultMasterKey,
 	type Palier,
+	type SessionStore,
 } from "@children-ai/domain";
 import { createIdentityVerifier } from "./identity.ts";
 import type { IdentityVerifier } from "./http.ts";
+import { assertWorkerHyperdrive } from "./runtime/boundaries.ts";
 
 export type CloudflareAdaptorEnv = {
-	STORE: KvNamespaceLike;
-	SESSIONS: KvNamespaceLike;
+	HYPERDRIVE?: { connectionString?: string };
 	GEMINI_API_KEY?: string;
 	GEMINI_MODEL?: string;
 	CORS_ORIGIN?: string;
@@ -56,6 +49,8 @@ export type WorkerRuntime = {
 	contextMode: "fixture" | "http";
 };
 
+const repoRoot = join(import.meta.dir, "../../..");
+
 export async function createCloudflareRuntime(
 	env: CloudflareAdaptorEnv,
 ): Promise<WorkerRuntime> {
@@ -66,20 +61,11 @@ export async function createCloudflareRuntime(
 	const edayaApiBaseUrl = resolvePalierEdayaOrigin(palier, env.EDAYA_API_ORIGIN);
 	const vaultMasterKey = resolveVaultMasterKey(palier, env.VAULT_MASTER_KEY);
 	assertProdRejectsDemoSeed(palier, { demoApiKey: env.EDAYA_DEMO_API_KEY });
+	const connectionString = assertWorkerHyperdrive(env.HYPERDRIVE?.connectionString);
+	const persistence = await openSparkDatabase(connectionString, { repoRoot });
+	const vault = new PostgresSchoolIntegrationVault(persistence.db, vaultMasterKey);
 
-	const vault = new KvSchoolIntegrationVault(env.STORE, vaultMasterKey);
 	const schoolId = env.EDAYA_DEMO_SCHOOL_ID?.trim() || "";
-	if (palier !== "prod" && schoolId) {
-		await vault.put(
-			demoSchoolCredentials({
-				schoolId,
-				edayaApiBaseUrl,
-				academicYearId: env.EDAYA_DEMO_ACADEMIC_YEAR_ID,
-				apiKey: env.EDAYA_DEMO_API_KEY,
-			}),
-		);
-	}
-
 	const demo = createSchoolEdayaStack({
 		palier,
 		schoolId: schoolId || undefined,
@@ -92,7 +78,17 @@ export async function createCloudflareRuntime(
 		resolveGuardianSecret: env.CHILDREN_AI_RESOLVE_SECRET,
 		deriveLocalS2sKey: palier === "local",
 	});
-	const sessions = new KvSessionStore(env.SESSIONS);
+	if (palier !== "prod" && schoolId) {
+		await vault.put(
+			demoSchoolCredentials({
+				schoolId,
+				edayaApiBaseUrl,
+				academicYearId: env.EDAYA_DEMO_ACADEMIC_YEAR_ID,
+				apiKey: env.EDAYA_DEMO_API_KEY,
+			}),
+		);
+	}
+	await demo.ready;
 
 	const app = new ChildrenAiApp({
 		edaya: demo.edaya,
@@ -103,19 +99,19 @@ export async function createCloudflareRuntime(
 			apiKey: env.GEMINI_API_KEY,
 			model: env.GEMINI_MODEL,
 		}),
-		snapshots: new KvSnapshotRepository(env.STORE),
-		sets: new KvExerciseSetRepository(env.STORE),
-		practiceSettings: new KvPracticeSettingsRepository(env.STORE),
-		codes: new KvStudentAccessCodeRepository(env.STORE),
+		snapshots: persistence.snapshots,
+		sets: persistence.sets,
+		practiceSettings: persistence.practiceSettings,
+		codes: persistence.codes,
 		children: demo.children,
-		studentSessions: sessions,
+		studentSessions: persistence.sessions,
 		clock,
 		ids,
 	});
 
 	return {
 		app,
-		sessions,
+		sessions: persistence.sessions,
 		identity: createIdentityVerifier(env),
 		generatorName,
 		corsOrigins: (env.CORS_ORIGIN ?? "")

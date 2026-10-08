@@ -113,16 +113,19 @@ export function createSchoolEdayaStack(options: CreateSchoolEdayaOptions = {}) {
 			contextMode === "fixture"
 			|| (Boolean(liveApiKey) && !isLocalFixtureApiKey(liveApiKey))
 		);
-	if (shouldPutDemoRow && mutable) {
-		innerVault.put(
-			demoSchoolCredentials({
-				schoolId,
-				edayaApiBaseUrl,
-				academicYearId: options.academicYearId ?? FIXTURE_ACADEMIC_YEAR_ID,
-				apiKey,
-			}),
-		);
-	}
+	const ready =
+		shouldPutDemoRow && mutable
+			? Promise.resolve(
+					innerVault.put(
+						demoSchoolCredentials({
+							schoolId,
+							edayaApiBaseUrl,
+							academicYearId: options.academicYearId ?? FIXTURE_ACADEMIC_YEAR_ID,
+							apiKey,
+						}),
+					),
+				)
+			: Promise.resolve();
 
 	const deriveLocalS2sKey = options.deriveLocalS2sKey ?? palier === "local";
 	const vault =
@@ -155,6 +158,7 @@ export function createSchoolEdayaStack(options: CreateSchoolEdayaOptions = {}) {
 		palier,
 		schoolId,
 		vault,
+		ready,
 		contextMode,
 		children,
 		edaya: new DualEdayaContext(

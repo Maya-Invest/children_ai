@@ -13,7 +13,7 @@
 		"test": "bun test"
 	},
 	"dependencies": {
-		"@children-ai/adaptor-cloudflare": "workspace:*",
+		"@children-ai/adaptor-postgres": "workspace:*",
 		"@children-ai/adaptors": "workspace:*",
 		"@children-ai/app": "workspace:*",
 		"@children-ai/domain": "workspace:*",

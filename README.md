@@ -143,7 +143,7 @@ curl http://localhost:8787/health
 | Parent can see sets but no generate button | Expected |
 | Demo button 403 | Palier `prod` |
 
-Local file store (snapshots/sets/codes) lives in `children_ai/.data/`. Delete that folder if you want a clean generate-once cycle.
+Local snapshots, sets, codes, sessions, and the school vault live in PGlite at `children_ai/.data/spark` (`DATABASE_URL=pglite:.data/spark`). Delete that folder if you want a clean generate-once cycle. Stop the API first: PGlite keeps a lock on the directory.
 
 Manual CRON (force-sync students that currently have an **active** access code):
 
@@ -172,9 +172,9 @@ Children AI API →  Bearer s2s_live_  →  Edaya /core/entities/*/list  (marks 
 
 Never point prod Children AI at staging EDAYA (or the reverse). Never forward a human JWT to the school API.
 
-### Cloudflare later
+### Cloudflare Worker
 
-`apps/api/wrangler.jsonc`: top-level = local, `env.staging`, `env.prod` (separate KV ids). Secrets (never git):
+`apps/api/wrangler.jsonc`: top-level, `env.staging`, and `env.prod` each bind `HYPERDRIVE`. Replace the placeholder Hyperdrive ids before deploy. `RUNTIME=local` (`bun dev`) uses PGlite and does not open Hyperdrive. Secrets (never git):
 
 ```bash
 wrangler secret put VAULT_MASTER_KEY --env staging
@@ -188,8 +188,8 @@ Do not set `EDAYA_DEMO_API_KEY` on prod. Do not enable `/auth/demo` on palier pr
 ```
 package/domain              ports and types
 package/app                 ChildrenAiApp
-package/adaptors            fixture + HTTP EDAYA, stub, Gemini, file store
-package/adaptor-cloudflare  KV + encrypted vault
-apps/api                    Hono (Bun + Worker)
+package/adaptors            fixture + HTTP EDAYA, stub, Gemini
+package/adaptor-postgres    PGlite + Postgres (Hyperdrive) repositories
+apps/api                    Hono (Bun + Worker). RUNTIME picks the driver
 apps/student-web            SvelteKit (parent Edaya OTP + student codes)
 ```

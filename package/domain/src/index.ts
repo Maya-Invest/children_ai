@@ -13,6 +13,7 @@ export type {
 	GuardianChildrenQuery,
 	StudentAccessCodeRepository,
 	StudentSessionPort,
+	SessionStore,
 	GuardianPrincipal,
 	IssuedStudentAccessCode,
 	Clock,

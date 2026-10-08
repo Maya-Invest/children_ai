@@ -11,9 +11,9 @@ import {
 	listLearnerSubjects,
 	type GuardianActor,
 	type Palier,
+	type SessionStore,
 	type StudentActor,
 } from "@children-ai/domain";
-import type { SessionStore } from "@children-ai/adaptors";
 import { learnerRef, type ChildrenAiApp } from "@children-ai/app";
 
 type Env = {

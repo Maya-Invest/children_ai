@@ -7,6 +7,7 @@ import type {
 	LearnerContext,
 	PracticeFocus,
 	PracticeSettings,
+	SessionActor,
 	StudentAccessCode,
 } from "./types.ts";
 
@@ -92,6 +93,11 @@ export interface StudentAccessCodeRepository {
 
 export interface StudentSessionPort {
 	deleteByStudentId(studentId: string): Promise<void>;
+}
+
+export interface SessionStore extends StudentSessionPort {
+	get(token: string): Promise<SessionActor | null>;
+	set(token: string, actor: SessionActor): Promise<void>;
 }
 
 export type GuardianPrincipal = Pick<GuardianActor, "subjectId"> & {

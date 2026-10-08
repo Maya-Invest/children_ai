@@ -1,12 +1,10 @@
 import { describe, expect, test } from "bun:test";
-import { MemoryKv } from "@children-ai/adaptor-cloudflare";
 import { createCloudflareRuntime } from "./compose-cloudflare.ts";
 
 describe("createCloudflareRuntime", () => {
 	test("staging seeds a per-school vault row and never uses a palier-wide key", async () => {
 		const runtime = await createCloudflareRuntime({
-			STORE: new MemoryKv(),
-			SESSIONS: new MemoryKv(),
+			HYPERDRIVE: { connectionString: "pglite" },
 			PALIER: "staging",
 			EDAYA_API_ORIGIN: "https://staging.api.edayaplus.com",
 			EDAYA_DEMO_SCHOOL_ID: "sch-edaya-ci-cocody",
@@ -23,8 +21,6 @@ describe("createCloudflareRuntime", () => {
 	test("prod refuses a demo API key in env", async () => {
 		await expect(
 			createCloudflareRuntime({
-				STORE: new MemoryKv(),
-				SESSIONS: new MemoryKv(),
 				PALIER: "prod",
 				EDAYA_API_ORIGIN: "https://api.edayaplus.com",
 				EDAYA_DEMO_API_KEY: "s2s_live_dev_edaya_ci_cocody_children_ai_key01",
@@ -36,12 +32,20 @@ describe("createCloudflareRuntime", () => {
 	test("prod refuses the local vault master default", async () => {
 		await expect(
 			createCloudflareRuntime({
-				STORE: new MemoryKv(),
-				SESSIONS: new MemoryKv(),
 				PALIER: "prod",
 				EDAYA_API_ORIGIN: "https://api.edayaplus.com",
 				VAULT_MASTER_KEY: "children-ai-local-vault-master-not-for-prod",
 			}),
 		).rejects.toThrow(/VAULT_MASTER_KEY/);
+	});
+
+	test("worker refuses to boot without Hyperdrive", async () => {
+		await expect(
+			createCloudflareRuntime({
+				PALIER: "staging",
+				EDAYA_API_ORIGIN: "https://staging.api.edayaplus.com",
+				VAULT_MASTER_KEY: "staging-vault-master-key-for-tests",
+			}),
+		).rejects.toThrow(/HYPERDRIVE/);
 	});
 });

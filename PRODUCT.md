@@ -11,7 +11,7 @@ Children AI is a **curriculum-faithful practice companion** with its own student
 5. **Own designed student web app** (child-facing). Not embedded in the EDAYA staff webapp.
 6. **LLM = Gemini Flash**, behind `ExerciseGeneratorPort`. Without `GEMINI_API_KEY` the stub adaptor is used. The key is supplied later; it is never committed.
 7. **HTTP = Hono.** The API is a Hono app (local Bun and Cloudflare Worker entry both call `createHttpApp`).
-8. **Cloudflare lives in adaptors**, not in domain. KV snapshots/sets/sessions and the Worker `scheduled()` CRON are `@children-ai/adaptor-cloudflare`. The student web deploys with `@sveltejs/adapter-cloudflare`.
+8. **Cloudflare lives in the Worker runtime**, not in the domain. Snapshots, sets, settings, codes, sessions, and the school vault are Postgres (`@children-ai/adaptor-postgres`): PGlite locally, Hyperdrive in staging and prod. The Worker `scheduled()` CRON stays on the Worker entry. The student web deploys with `@sveltejs/adapter-cloudflare`.
 
 ## EDAYA mapping
 
