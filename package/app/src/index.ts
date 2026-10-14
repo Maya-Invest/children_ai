@@ -519,7 +519,9 @@ export class ChildrenAiApp {
 	): Promise<PracticeSessionPlan> {
 		const planningDate = planningDateKey(now);
 		const stored = await this.ports.plans.get(query, planningDate);
-		if (stored?.planVersion === PRACTICE_PLAN_VERSION) return stored;
+		const promptVersion = this.ports.focus.promptVersion();
+		const samePrompt = promptVersion === "" || stored?.promptVersion === promptVersion;
+		if (stored?.planVersion === PRACTICE_PLAN_VERSION && samePrompt) return stored;
 		if ((this.ports.recommendationLoad ?? "request") === "cron") return stored ?? unreadDailyPlan();
 		const plan = await this.ports.focus.plan({
 			snapshot,

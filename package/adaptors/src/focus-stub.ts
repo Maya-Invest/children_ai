@@ -25,6 +25,10 @@ export class StubPracticeFocus implements PracticeFocusPort {
 		return SNAPSHOT_PACK_VERSION;
 	}
 
+	promptVersion(): string {
+		return "";
+	}
+
 	async recommend(input: PracticeFocusRequest): Promise<PracticeRecommendation> {
 		const plan = await this.plan(input);
 		const chosen = plan.tracks.find((track) => track.available && track.focus && track.lesson);

@@ -1,15 +1,27 @@
-import bundledPracticePrompts from "./practice-prompts.md" with { type: "text" };
+import promptV1 from "./1.0.md" with { type: "text" };
+import promptV11 from "./1.1.md" with { type: "text" };
 
-export async function loadPracticePrompts(): Promise<PracticePrompts> {
-	let source = bundledPracticePrompts;
+/** Active prompt file. A new version is a sibling markdown file, then change this value. */
+export const PRACTICE_PROMPT_VERSION = "1.1";
+
+const bundledPrompts: Record<string, string> = {
+	"1.0": promptV1,
+	"1.1": promptV11,
+};
+
+export async function loadPracticePrompts(version = PRACTICE_PROMPT_VERSION): Promise<PracticePrompts> {
+	const safe = version.trim();
+	if (!/^\d+\.\d+$/.test(safe)) throw new Error(`Version de prompt invalide : ${version}`);
+	let source = bundledPrompts[safe];
 	if (typeof Bun !== "undefined") {
-		const file = Bun.file(new URL("./practice-prompts.md", import.meta.url));
+		const file = Bun.file(new URL(`./${safe}.md`, import.meta.url));
 		if (await file.exists()) source = await file.text();
 	}
-	return parsePracticePrompts(source);
+	if (!source) throw new Error(`Version de prompt inconnue : ${safe}`);
+	return parsePracticePrompts(source, safe);
 }
 
-export function parsePracticePrompts(source: string): PracticePrompts {
+export function parsePracticePrompts(source: string, version: string): PracticePrompts {
 	const sections = new Map<string, string>();
 	let name = "";
 	let lines: string[] = [];
@@ -28,11 +40,14 @@ export function parsePracticePrompts(source: string): PracticePrompts {
 		if (name) lines.push(line);
 	}
 	flush();
-	return new PracticePrompts(sections);
+	return new PracticePrompts(version, sections);
 }
 
 export class PracticePrompts {
-	constructor(private readonly sections: Map<string, string>) {}
+	constructor(
+		readonly version: string,
+		private readonly sections: Map<string, string>,
+	) {}
 
 	fill(section: string, values: Record<string, string> = {}): string {
 		const template = this.sections.get(section);

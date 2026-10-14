@@ -34,15 +34,16 @@ import {
 	type PracticeRecommendation,
 	type PracticeSessionPlan,
 } from "@children-ai/domain";
-import { loadPracticePrompts } from "./prompts/load-practice-prompts.ts";
+import { loadPracticePrompts, PRACTICE_PROMPT_VERSION } from "./prompts/load-practice-prompts.ts";
 
-export const DEFAULT_FOCUS_MODEL = "google-ai-studio/gemini-3.6-flash";
+export const DEFAULT_FOCUS_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+//export const DEFAULT_FOCUS_MODEL = "google-ai-studio/gemini-3.6-flash";
 //export const DEFAULT_RAG_GENERATOR_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
-export const DEFAULT_RAG_GENERATOR_MODEL = "google-ai-studio/gemini-3.6-flash";
+export const DEFAULT_RAG_GENERATOR_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 export const DEFAULT_RAG_PACK_VERSION = "cloudflare-rag";
 export const AI_SEARCH_PACK_VERSION = "ai-search";
-export const RAG_FOCUS_PROMPT_VERSION = "cloudflare-focus-v1";
-export const RAG_GENERATOR_PROMPT_VERSION = "cloudflare-rag-v1";
+export const RAG_FOCUS_PROMPT_VERSION = PRACTICE_PROMPT_VERSION;
+export const RAG_GENERATOR_PROMPT_VERSION = PRACTICE_PROMPT_VERSION;
 
 export type RagHit = {
 	text: string;
@@ -109,6 +110,10 @@ export class CloudflarePracticeFocus implements PracticeFocusPort {
 		return AI_SEARCH_PACK_VERSION;
 	}
 
+	promptVersion(): string {
+		return PRACTICE_PROMPT_VERSION;
+	}
+
 	async recommend(input: PracticeFocusRequest): Promise<PracticeRecommendation> {
 		const plan = await this.plan(input);
 		const chosen = plan.tracks.find((track) => track.available && track.focus && track.lesson);
@@ -126,7 +131,7 @@ export class CloudflarePracticeFocus implements PracticeFocusPort {
 		const revisionMatches = endOfDaySnapshotLessons(window, progress, grade);
 		const homeworkMatches = upcomingSnapshotLessons(window, timetable, progress, grade);
 		if (revisionMatches.length === 0 && homeworkMatches.length === 0) {
-			return composeSessionPlan({ snapshot: input.snapshot, revision: null, homework: null });
+			return stampPromptVersion(composeSessionPlan({ snapshot: input.snapshot, revision: null, homework: null }));
 		}
 
 		const sessionMinutes = input.sessionMinutes ?? {
@@ -145,13 +150,13 @@ export class CloudflarePracticeFocus implements PracticeFocusPort {
 				throw new ExerciseGenerationError(PRACTICE_NO_PROGRAMME_MESSAGE);
 			}
 			try {
-				return acceptPracticePlan({
+				return stampPromptVersion(acceptPracticePlan({
 					payload: parseJson(reply.text, PRACTICE_UNREADABLE_MESSAGE),
 					snapshot: input.snapshot,
 					today: window.today,
 					revisionMatches,
 					homeworkMatches,
-				});
+				}));
 			} catch (error) {
 				const unreadable = (error instanceof PracticePlanError || error instanceof ExerciseGenerationError)
 					&& error.message === PRACTICE_UNREADABLE_MESSAGE;
@@ -222,6 +227,10 @@ export class CloudflareRagExerciseGenerator implements ExerciseGeneratorPort {
 			questions,
 		};
 	}
+}
+
+function stampPromptVersion(plan: PracticeSessionPlan): PracticeSessionPlan {
+	return { ...plan, promptVersion: PRACTICE_PROMPT_VERSION };
 }
 
 async function focusSystemPrompt(): Promise<string> {
@@ -300,27 +309,32 @@ function acceptPracticePlan(input: {
 	if (!revision.available && revision.minutes !== 0) throw new PracticePlanError(PRACTICE_MINUTES_MESSAGE);
 	if (!homework.available && homework.minutes !== 0) throw new PracticePlanError(PRACTICE_MINUTES_MESSAGE);
 
-	const revisionChoice = revision.available
-		? resolveTrack(revision, input.revisionMatches)
-		: null;
-	const revisions = revision.available
-		? revisionSeries(revision, revisionChoice, revisionLessonsForDay(input.revisionMatches, input.today))
+	const revisionSeriesItems = revision.available
+		? proposalsNameLessons(revision)
+			? seriesFromProposals(revision, input.revisionMatches)
+			: revisionSeries(
+				revision,
+				resolveTrack(revision, input.revisionMatches),
+				revisionLessonsForDay(input.revisionMatches, input.today),
+			)
 		: [];
-	const homeworkChoice = homework.available
-		? resolveTrack(homework, input.homeworkMatches)
-		: null;
-	const assessment = homeworkChoice
-		? input.homeworkMatches.find((match) => match.lesson.id === homeworkChoice.lesson.id)?.assessment
-		: undefined;
-	if (homeworkChoice && !assessment) throw new PracticePlanError(PRACTICE_TIMETABLE_MISMATCH_MESSAGE);
+	const homeworkSeries = homework.available
+		? proposalsNameLessons(homework)
+			? seriesFromProposals(homework, input.homeworkMatches)
+			: [resolveTrack(homework, input.homeworkMatches)]
+		: [];
+	const homeworks = homeworkSeries.flatMap((choice) => {
+		const assessment = input.homeworkMatches.find((match) => match.lesson.id === choice.lesson.id)?.assessment;
+		return assessment ? [{ ...choice, assessment }] : [];
+	});
+	if (homework.available && homeworks.length === 0) throw new PracticePlanError(PRACTICE_TIMETABLE_MISMATCH_MESSAGE);
 
 	return composeSessionPlan({
 		snapshot: input.snapshot,
-		revision: revisions[0] ?? null,
-		revisions,
-		homework: homeworkChoice && assessment
-			? { ...homeworkChoice, assessment }
-			: null,
+		revision: revisionSeriesItems[0] ?? null,
+		revisions: revisionSeriesItems,
+		homework: homeworks[0] ?? null,
+		homeworks,
 	});
 }
 
@@ -366,6 +380,11 @@ function revisionSeries(
 	});
 }
 
+type PlannedProposal = ExerciseProposal & {
+	lessonId?: string;
+	grounding?: string;
+};
+
 type ParsedTrack = {
 	available: boolean;
 	minutes: number;
@@ -373,8 +392,64 @@ type ParsedTrack = {
 	rationale: string;
 	brief: string;
 	intent: "prepare_next_day" | "upcoming_work";
-	proposals: ExerciseProposal[];
+	proposals: PlannedProposal[];
 };
+
+function proposalsNameLessons(track: ParsedTrack): boolean {
+	return track.proposals.some((proposal) => Boolean(proposal.lessonId));
+}
+
+function seriesFromProposals(
+	track: ParsedTrack,
+	matches: { lesson: CurriculumLesson }[],
+): { focus: PracticeFocus; lesson: CurriculumLesson; minutes: number }[] {
+	const groups = new Map<string, PlannedProposal[]>();
+	const order: string[] = [];
+	for (const proposal of track.proposals) {
+		const lessonId = proposal.lessonId;
+		if (!lessonId || !matches.some((match) => match.lesson.id === lessonId)) continue;
+		const group = groups.get(lessonId);
+		if (group) {
+			group.push(proposal);
+			continue;
+		}
+		groups.set(lessonId, [proposal]);
+		order.push(lessonId);
+	}
+	if (order.length === 0) throw new PracticePlanError(PRACTICE_TIMETABLE_MISMATCH_MESSAGE);
+	return order.flatMap((lessonId) => {
+		const lesson = matches.find((match) => match.lesson.id === lessonId)?.lesson;
+		const grouped = groups.get(lessonId);
+		if (!lesson || !grouped) return [];
+		const proposals = grouped.map(publishedProposal);
+		return [{
+			lesson,
+			minutes: proposals.reduce((sum, proposal) => sum + proposal.minutes, 0),
+			focus: {
+				lessonId: lesson.id,
+				subject: lesson.subject,
+				rationale: track.rationale || `Entraînement sur « ${lesson.title} ».`,
+				brief: track.brief || `Série pour « ${lesson.title} ».`,
+				intent: track.intent,
+				proposals,
+			},
+		}];
+	});
+}
+
+function publishedProposal(proposal: PlannedProposal): ExerciseProposal {
+	const promptHint = proposal.grounding === "candidate_only"
+		? `${proposal.promptHint} Reste sur les informations du candidat, sans ajouter d'objectif officiel DPFC.`
+		: proposal.promptHint;
+	return {
+		objective: proposal.objective,
+		theme: proposal.theme,
+		exerciseType: proposal.exerciseType,
+		difficulty: proposal.difficulty,
+		minutes: proposal.minutes,
+		promptHint,
+	};
+}
 
 function planRoot(payload: unknown): Record<string, unknown> | undefined {
 	const root = asRecord(payload);
@@ -446,10 +521,10 @@ function readTrack(value: unknown, intent: ParsedTrack["intent"]): ParsedTrack |
 	};
 }
 
-function readProposals(value: unknown): ExerciseProposal[] | null {
+function readProposals(value: unknown): PlannedProposal[] | null {
 	const list = Array.isArray(value) ? value : value ? [value] : [];
 	if (list.length === 0) return null;
-	const proposals: ExerciseProposal[] = [];
+	const proposals: PlannedProposal[] = [];
 	for (const item of list) {
 		const record = asRecord(item);
 		if (!record) continue;
@@ -457,6 +532,8 @@ function readProposals(value: unknown): ExerciseProposal[] | null {
 		const promptHint = firstText(record.promptHint, record.prompt, record.hint, objective);
 		const minutes = readMinutes(record.minutes);
 		if (!objective || !promptHint || minutes === undefined || minutes <= 0) continue;
+		const lessonId = firstText(record.lessonId, record.lesson);
+		const grounding = firstText(record.grounding);
 		proposals.push({
 			objective,
 			theme: firstText(record.theme, record.topic) ?? objective,
@@ -464,6 +541,8 @@ function readProposals(value: unknown): ExerciseProposal[] | null {
 			difficulty: firstText(record.difficulty) ?? "medium",
 			minutes,
 			promptHint,
+			...(lessonId ? { lessonId } : {}),
+			...(grounding ? { grounding } : {}),
 		});
 	}
 	return proposals.length > 0 ? proposals : null;

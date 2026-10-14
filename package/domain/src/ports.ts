@@ -66,6 +66,8 @@ export type PracticeFocusRequest = {
 
 export interface PracticeFocusPort {
 	packVersion(): string;
+	/** Prompt file version. Empty when this focus does not use a versioned prompt. */
+	promptVersion(): string;
 	recommend(input: PracticeFocusRequest): Promise<PracticeRecommendation>;
 	plan(input: PracticeFocusRequest): Promise<PracticeSessionPlan>;
 }

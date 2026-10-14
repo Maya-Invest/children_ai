@@ -60,18 +60,29 @@ export function composeSessionPlan(input: {
 		assessment: UpcomingAssessment;
 		minutes: number;
 	} | null;
+	homeworks?: {
+		focus: PracticeFocus;
+		lesson: CurriculumLesson;
+		assessment: UpcomingAssessment;
+		minutes: number;
+	}[];
 }): PracticeSessionPlan {
 	const revisions = input.revisions?.length
 		? input.revisions
 		: input.revision
 			? [input.revision]
 			: [];
-	if (revisions.length === 0 && !input.homework) return emptySessionPlan();
+	const homeworks = input.homeworks?.length
+		? input.homeworks
+		: input.homework
+			? [input.homework]
+			: [];
+	if (revisions.length === 0 && homeworks.length === 0) return emptySessionPlan();
 	const revision = revisions.length > 0
 		? trackPlan("revision", revisions)
 		: emptyHomework("revision");
-	const homework = input.homework
-		? trackPlan("homework", [input.homework], input.homework.assessment)
+	const homework = homeworks.length > 0
+		? trackPlan("homework", homeworks, homeworks.length === 1 ? homeworks[0]?.assessment ?? null : null)
 		: emptyHomework("homework");
 	return {
 		summary: sessionSummary(input.snapshot, revision, homework),
@@ -83,14 +94,23 @@ export function composeSessionPlan(input: {
 
 function trackPlan(
 	kind: PracticeTrackPlan["kind"],
-	chosen: { focus: PracticeFocus; lesson: CurriculumLesson; minutes: number }[],
+	chosen: {
+		focus: PracticeFocus;
+		lesson: CurriculumLesson;
+		minutes: number;
+		assessment?: UpcomingAssessment;
+	}[],
 	assessment: UpcomingAssessment | null = null,
 ): PracticeTrackPlan {
 	const items: PracticeTrackItem[] = chosen.map((item) => ({
 		minutes: item.minutes,
 		focus: item.focus,
 		lesson: item.lesson,
-		assessmentLabel: assessment ? assessmentLabel(assessment) : null,
+		assessmentLabel: item.assessment
+			? assessmentLabel(item.assessment)
+			: assessment
+				? assessmentLabel(assessment)
+				: null,
 	}));
 	const first = items[0];
 	return {

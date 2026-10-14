@@ -225,6 +225,77 @@ describe("practice focus selection", () => {
 		});
 		expect(user).toContain("Plage prévue pour l'ensemble des séries : 80 à 90 minutes.");
 		expect(plan.totalMinutes).toBe(90);
+		expect(plan.promptVersion).toBe("1.1");
+	});
+
+	test("cloudflare plan keeps only the lessons named on each proposal", async () => {
+		const focus = new CloudflarePracticeFocus({
+			rag: rag(["extrait"], JSON.stringify({
+				revision: {
+					available: true,
+					minutes: 40,
+					rationale: "Deux leçons du jour et de demain.",
+					brief: "Reste sur le titre de chaque leçon.",
+					proposals: [
+						{
+							lessonId: "math-mon",
+							subject: "Mathématiques",
+							mode: "consolidation",
+							objective: "Comparer deux fractions",
+							theme: "Fractions",
+							exerciseType: "recognition",
+							difficulty: "easy",
+							minutes: 15,
+							promptHint: "Reconnaître la plus grande de 1/2 et 1/3.",
+							grounding: "candidate_only",
+						},
+						{
+							lessonId: "math-tue",
+							subject: "Mathématiques",
+							mode: "preparation",
+							objective: "Repérer un point sur une droite",
+							theme: "Droites",
+							exerciseType: "application",
+							difficulty: "medium",
+							minutes: 25,
+							promptHint: "Placer un point sur une droite graduée.",
+							grounding: "dpfc_verified",
+						},
+						{
+							lessonId: "lecon-inventee",
+							subject: "Histoire",
+							mode: "consolidation",
+							objective: "Inventer un cours",
+							theme: "Histoire",
+							exerciseType: "comprehension",
+							difficulty: "hard",
+							minutes: 20,
+							promptHint: "Rédiger sur un chapitre absent.",
+							grounding: "dpfc_verified",
+						},
+					],
+				},
+				homework: {
+					available: false,
+					minutes: 0,
+					rationale: "Aucune évaluation dans la fenêtre.",
+					brief: "",
+					proposals: [],
+				},
+			})),
+			model: DEFAULT_FOCUS_MODEL,
+		});
+		const plan = await focus.plan({
+			snapshot: mondaySnapshot({ upcomingAssessments: [] }),
+			now: monday,
+		});
+		expect(plan.tracks[0]?.items.map((item) => [item.lesson.id, item.minutes])).toEqual([
+			["math-mon", 15],
+			["math-tue", 25],
+		]);
+		expect(plan.tracks[0]?.items[0]?.focus.proposals[0]?.promptHint).toContain("sans ajouter d'objectif officiel DPFC");
+		expect(plan.tracks[0]?.items[1]?.focus.proposals[0]?.minutes).toBe(25);
+		expect(plan.tracks[1]?.available).toBe(false);
 	});
 
 	test("cloudflare plan accepts a loose recommendation and retries an unreadable one", async () => {
@@ -571,7 +642,7 @@ describe("cloudflare exercise generator", () => {
 			plannedMinutes: 40,
 		});
 		expect(set.generator).toBe("llm");
-		expect(set.promptVersion).toContain(DEFAULT_RAG_GENERATOR_MODEL);
+		expect(set.promptVersion).toBe(`1.1:${DEFAULT_RAG_GENERATOR_MODEL}`);
 		expect(user).toContain("Durée recommandée pour cette série : 40 minutes.");
 		expect(set.questions).toHaveLength(3);
 	});

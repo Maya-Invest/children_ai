@@ -178,6 +178,8 @@ export type PracticeSessionPlan = {
 	totalMinutes: number;
 	tracks: PracticeTrackPlan[];
 	planVersion?: number;
+	/** Prompt file that produced this plan, for example "1.0". */
+	promptVersion?: string;
 };
 
 export type QuestionKind = "mcq" | "written";
