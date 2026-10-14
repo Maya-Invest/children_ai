@@ -1,6 +1,6 @@
 import { env } from "$env/dynamic/public";
 import { getToken } from "./session";
-import type { ExerciseSet, GuardianActor, HomePayload } from "./types";
+import type { ExerciseSet, GuardianActor, HomePayload, PracticeTrackKind } from "./types";
 
 const base = env.PUBLIC_API_URL ?? "http://localhost:8787";
 
@@ -45,8 +45,11 @@ export function loadHome() {
 	return request<HomePayload>("/home");
 }
 
-export function generateSet() {
-	return request<{ set: ExerciseSet }>("/exercise-sets/generate", { method: "POST" });
+export function generateSet(track: PracticeTrackKind = "revision", lessonId?: string) {
+	return request<{ set: ExerciseSet }>("/exercise-sets/generate", {
+		method: "POST",
+		body: JSON.stringify({ track, lessonId }),
+	});
 }
 
 export function loadSet(id: string) {

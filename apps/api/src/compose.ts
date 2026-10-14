@@ -2,19 +2,24 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { ChildrenAiApp } from "@children-ai/app";
 import {
+	createCloudflareRagClient,
 	createExerciseGenerator,
+	createPracticeFocus,
 	createSchoolEdayaStack,
 	CryptoIdGenerator,
-	JsonCurriculumCatalog,
+	resolveFocusName,
 	resolveGeneratorName,
-	SystemClock,
+	createRuntimeClock,
+	resolveEdayaContextMode,
+	type FocusName,
+	type GeneratorName,
 } from "@children-ai/adaptors";
 import {
 	openSparkDatabase,
 	PostgresSchoolIntegrationVault,
 	type SparkPersistence,
 } from "@children-ai/adaptor-postgres";
-import { parsePalier, resolvePalierEdayaOrigin, resolveVaultMasterKey, type Palier, type SessionStore } from "@children-ai/domain";
+import { parsePalier, parseRecommendationLoad, resolvePalierEdayaOrigin, resolveVaultMasterKey, type Palier, type RecommendationLoad, type SessionStore } from "@children-ai/domain";
 import { createIdentityVerifier } from "./identity.ts";
 import type { IdentityVerifier } from "./http.ts";
 import { assertPersistedPgliteUrl, parseRuntime, type RuntimeKind } from "./runtime/boundaries.ts";
@@ -23,11 +28,13 @@ export type LocalRuntime = {
 	app: ChildrenAiApp;
 	sessions: SessionStore;
 	identity: IdentityVerifier;
-	generatorName: "stub" | "gemini-flash";
+	generatorName: GeneratorName;
+	focusName: FocusName;
 	palier: Palier;
 	runtime: RuntimeKind;
 	schoolId: string;
 	contextMode: "fixture" | "http";
+	recommendationLoad: RecommendationLoad;
 	persistence: SparkPersistence;
 };
 
@@ -46,9 +53,32 @@ export async function createLocalRuntime(): Promise<LocalRuntime> {
 	const databaseUrl = runtime === "in-memory" ? "pglite" : assertPersistedPgliteUrl(process.env.DATABASE_URL);
 	const persistence = await openSparkDatabase(databaseUrl, { repoRoot });
 	const ids = new CryptoIdGenerator();
-	const clock = new SystemClock();
+	const contextMode = resolveEdayaContextMode(
+		palier,
+		process.env.EDAYA_CONTEXT,
+		process.env.EDAYA_DEMO_API_KEY,
+		process.env.EDAYA_API_ORIGIN,
+	);
+	const clock = createRuntimeClock({
+		contextMode,
+		fixtureToday: process.env.FIXTURE_TODAY,
+	});
 	const geminiKey = process.env.GEMINI_API_KEY;
-	const generatorName = resolveGeneratorName(geminiKey);
+	const generatorName = resolveGeneratorName({
+		generator: process.env.GENERATOR,
+		geminiApiKey: geminiKey,
+	});
+	const focusName = resolveFocusName(process.env.FOCUS);
+	const recommendationLoad = parseRecommendationLoad(process.env.RECOMMENDATION_LOAD);
+	const rag = focusName === "cloudflare" || generatorName === "rag"
+		? createCloudflareRagClient({
+			accountId: process.env.CLOUDFLARE_ACCOUNT_ID,
+			apiToken: process.env.CLOUDFLARE_API_TOKEN,
+			namespace: process.env.CLOUDFLARE_RAG_NAMESPACE,
+			instance: process.env.CLOUDFLARE_RAG_INSTANCE,
+			byokAlias: process.env.CLOUDFLARE_BYOK_ALIAS,
+		})
+		: undefined;
 	const credentials = new PostgresSchoolIntegrationVault(
 		persistence.db,
 		resolveVaultMasterKey(palier, process.env.VAULT_MASTER_KEY),
@@ -68,16 +98,26 @@ export async function createLocalRuntime(): Promise<LocalRuntime> {
 
 	const app = new ChildrenAiApp({
 		edaya: demo.edaya,
-		catalog: new JsonCurriculumCatalog(),
+		focus: createPracticeFocus({
+			focus: focusName,
+			rag,
+			model: process.env.FOCUS_MODEL,
+			packVersion: process.env.RAG_PACK_VERSION,
+		}),
 		generator: createExerciseGenerator({
 			ids,
 			clock,
+			generator: generatorName,
 			apiKey: geminiKey,
 			model: process.env.GEMINI_MODEL,
+			rag,
+			ragModel: process.env.RAG_GENERATOR_MODEL,
 		}),
 		snapshots: persistence.snapshots,
 		sets: persistence.sets,
+		plans: persistence.plans,
 		practiceSettings: persistence.practiceSettings,
+		recommendationLoad,
 		codes: persistence.codes,
 		children: demo.children,
 		studentSessions: persistence.sessions,
@@ -90,10 +130,12 @@ export async function createLocalRuntime(): Promise<LocalRuntime> {
 		sessions: persistence.sessions,
 		identity: createIdentityVerifier(),
 		generatorName,
+		focusName,
 		palier,
 		runtime,
 		schoolId: demo.schoolId,
 		contextMode: demo.contextMode,
+		recommendationLoad,
 		persistence,
 	};
 }

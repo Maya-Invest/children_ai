@@ -4,6 +4,7 @@ import { resolveSparkDatabaseTarget, type SparkDatabaseTarget } from "./database
 import { runMigrations } from "./migrate.ts";
 import {
 	PostgresExerciseSetRepository,
+	PostgresPracticePlanRepository,
 	PostgresPracticeSettingsRepository,
 	PostgresSessionStore,
 	PostgresSnapshotRepository,
@@ -17,6 +18,7 @@ export type SparkPersistence = {
 	db: SparkDb;
 	snapshots: PostgresSnapshotRepository;
 	sets: PostgresExerciseSetRepository;
+	plans: PostgresPracticePlanRepository;
 	practiceSettings: PostgresPracticeSettingsRepository;
 	codes: PostgresStudentAccessCodeRepository;
 	sessions: PostgresSessionStore;
@@ -78,6 +80,7 @@ function bundle(
 		db,
 		snapshots: new PostgresSnapshotRepository(db),
 		sets: new PostgresExerciseSetRepository(db),
+		plans: new PostgresPracticePlanRepository(db),
 		practiceSettings: new PostgresPracticeSettingsRepository(db),
 		codes: new PostgresStudentAccessCodeRepository(db),
 		sessions: new PostgresSessionStore(db),

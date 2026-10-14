@@ -4,17 +4,18 @@ import {
 	createDemoEdayaContext,
 	createSchoolEdayaStack,
 	CryptoIdGenerator,
+	FIXTURE_LEA_READING,
 	FIXTURE_TIMETABLE,
 	EmptyGuardianChildrenPort,
 	FixtureGuardianChildrenPort,
 	InMemoryExerciseSetRepository,
+	InMemoryPracticePlanRepository,
 	InMemoryPracticeSettingsRepository,
 	InMemorySnapshotRepository,
 	InMemoryStudentAccessCodeRepository,
-	JsonCurriculumCatalog,
+	StubPracticeFocus,
 	MemorySessionStore,
 	StubExerciseGenerator,
-	SystemClock,
 } from "@children-ai/adaptors";
 import { verifyIdentityToken } from "./identity.ts";
 import { createTestIdentityKeys, signTestIdentityToken } from "./identity-testing.ts";
@@ -33,15 +34,16 @@ async function createRuntime(
 	const sessions = new MemorySessionStore();
 	const app = new ChildrenAiApp({
 		edaya: demo.edaya,
-		catalog: new JsonCurriculumCatalog(),
+		focus: new StubPracticeFocus(),
 		generator: new StubExerciseGenerator(ids),
 		snapshots: new InMemorySnapshotRepository(),
 		sets: new InMemoryExerciseSetRepository(),
+		plans: new InMemoryPracticePlanRepository(),
 		practiceSettings: new InMemoryPracticeSettingsRepository(),
 		codes: new InMemoryStudentAccessCodeRepository(),
 		children,
 		studentSessions: sessions,
-		clock: new SystemClock(),
+		clock: { nowIso: () => "2026-10-05T18:00:00.000Z" },
 		ids,
 		syncDebounceMs: 0,
 	});
@@ -133,13 +135,13 @@ describe("Hono API", () => {
 			timetable: unknown[];
 			child?: { studentId: string };
 		};
-		expect(childBody.lessonTitle).toBe("Fractions");
+		expect(childBody.lessonTitle).toBe(FIXTURE_LEA_READING);
 		expect(childBody.child?.studentId).toBe("ci-s1");
 		expect(childBody.timetable).toHaveLength(FIXTURE_TIMETABLE.length);
 		expect(childBody.timetable[0]).toMatchObject({
-			id: "sch-ci-6a-math-mon",
+			id: FIXTURE_TIMETABLE[0]?.id,
 			dayOfWeek: "monday",
-			title: "Mathématiques — fractions",
+			title: FIXTURE_TIMETABLE[0]?.title,
 		});
 
 		const issued = await http.request("http://localhost/parent/children/ci-s1/access-codes", {
@@ -176,22 +178,21 @@ describe("Hono API", () => {
 			timetable: unknown[];
 			attendance?: { presentRate: number };
 		};
-		expect(homeBody.lessonTitle).toBe("Fractions");
+		expect(homeBody.lessonTitle).toBe(FIXTURE_LEA_READING);
 		expect(homeBody.programmeLine).toContain("6ème 1");
-		expect(homeBody.programmeLine).toContain("Français");
-		expect(homeBody.programmeLine).not.toMatch(/6ème 1 · Mathématiques · Programme/);
+		expect(homeBody.programmeLine).toContain("Toutes les matières");
 		expect(homeBody.subjects).toEqual(
-			expect.arrayContaining(["Mathématiques", "Français", "Histoire-Géographie", "SVT"]),
+			expect.arrayContaining(["Mathématiques", "Français", "Physique-Chimie", "Sciences de la Vie et de la Terre", "Anglais"]),
 		);
 		expect(homeBody.marks.map((mark) => mark.subject)).toEqual(
-			expect.arrayContaining(["Mathématiques", "Français", "Histoire-Géographie"]),
+			expect.arrayContaining(["Mathématiques", "Français", "Sciences de la Vie et de la Terre"]),
 		);
 		expect(homeBody.attendance?.presentRate).toBe(0.92);
 		expect(homeBody.timetable).toHaveLength(FIXTURE_TIMETABLE.length);
 		expect(homeBody.timetable[0]).toMatchObject({
-			id: "sch-ci-6a-math-mon",
+			id: FIXTURE_TIMETABLE[0]?.id,
 			dayOfWeek: "monday",
-			title: "Mathématiques — fractions",
+			title: FIXTURE_TIMETABLE[0]?.title,
 		});
 	});
 
@@ -313,8 +314,8 @@ describe("Hono API", () => {
 			subjects?: string[];
 			timetable: unknown[];
 		};
-		expect(homeBody.lessonTitle).toBe("Fractions");
-		expect(homeBody.programmeLine).toContain("Français");
+		expect(homeBody.lessonTitle).toBe(FIXTURE_LEA_READING);
+		expect(homeBody.programmeLine).toContain("Toutes les matières");
 		expect(homeBody.subjects).toEqual(
 			expect.arrayContaining(["Mathématiques", "Français"]),
 		);
@@ -341,15 +342,16 @@ describe("Hono API", () => {
 		const sessions = new MemorySessionStore();
 		const app = new ChildrenAiApp({
 			edaya: stack.edaya,
-			catalog: new JsonCurriculumCatalog(),
+			focus: new StubPracticeFocus(),
 			generator: new StubExerciseGenerator(ids),
 			snapshots: new InMemorySnapshotRepository(),
 			sets: new InMemoryExerciseSetRepository(),
+			plans: new InMemoryPracticePlanRepository(),
 			practiceSettings: new InMemoryPracticeSettingsRepository(),
 			codes: new InMemoryStudentAccessCodeRepository(),
 			children: stack.children,
 			studentSessions: sessions,
-			clock: new SystemClock(),
+			clock: { nowIso: () => "2026-10-05T18:00:00.000Z" },
 			ids,
 			syncDebounceMs: 0,
 		});
@@ -395,7 +397,7 @@ describe("Hono API", () => {
 		});
 		expect(home.status).toBe(200);
 		const homeBody = (await home.json()) as { lessonTitle: string };
-		expect(homeBody.lessonTitle).toBe("Fractions");
+		expect(homeBody.lessonTitle).toBe(FIXTURE_LEA_READING);
 	});
 
 	test("demo login is blocked on palier prod", async () => {

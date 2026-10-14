@@ -1,5 +1,7 @@
 export type PracticeIntent = 'upcoming_work' | 'improve_results' | 'prepare_next_day';
 
+export type PracticeTrackKind = 'revision' | 'homework';
+
 export type StudentActor = {
 	role: 'student';
 	studentId: string;
@@ -51,6 +53,8 @@ export type ExerciseSet = {
 	submittedAt?: string;
 	score?: { correct: number; total: number };
 	correctionReleasedAt?: string | null;
+	track?: PracticeTrackKind;
+	plannedMinutes?: number;
 };
 
 export type GuardianChildView = {
@@ -69,6 +73,30 @@ export type ParentChildrenPayload = {
 	displayName: string;
 	children: GuardianChildView[];
 	emptyMessage?: string;
+};
+
+export type HomeTrackItem = {
+	lessonId: string;
+	lessonTitle: string;
+	subjectLabel: string | null;
+	minutes: number;
+	assessmentLabel: string | null;
+	questionTarget: number;
+	canGenerate: boolean;
+	currentSet: ExerciseSet | null;
+};
+
+export type HomeTrack = {
+	kind: PracticeTrackKind;
+	minutes: number;
+	available: boolean;
+	lessonTitle: string | null;
+	subjectLabel: string | null;
+	assessmentLabel: string | null;
+	currentSet: ExerciseSet | null;
+	questionTarget: number;
+	canGenerate: boolean;
+	items?: HomeTrackItem[];
 };
 
 export type HomePayload = {
@@ -99,10 +127,16 @@ export type HomePayload = {
 	observations: string[];
 	subjects: string[];
 	programmeLine: string;
-	focus: { lessonId: string; rationale: string; brief?: string; subject?: string; intent?: PracticeIntent };
+	focus: { lessonId: string; rationale: string; brief?: string; subject?: string; intent?: PracticeIntent } | null;
 	focusSubject?: string;
-	focusIntent?: PracticeIntent;
+	focusIntent?: PracticeIntent | null;
+	planningDate?: string;
 	lessonTitle: string;
+	session: {
+		summary: string;
+		totalMinutes: number;
+		tracks: HomeTrack[];
+	};
 	canGenerate: boolean;
 	currentSet: ExerciseSet | null;
 	history: ExerciseSet[];

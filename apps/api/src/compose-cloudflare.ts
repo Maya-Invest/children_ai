@@ -2,17 +2,23 @@ import { join } from "node:path";
 import { ChildrenAiApp } from "@children-ai/app";
 import {
 	assertProdRejectsDemoSeed,
+	createCloudflareRagClient,
 	createExerciseGenerator,
+	createPracticeFocus,
 	createSchoolEdayaStack,
 	CryptoIdGenerator,
 	demoSchoolCredentials,
-	JsonCurriculumCatalog,
+	resolveFocusName,
 	resolveGeneratorName,
-	SystemClock,
+	createRuntimeClock,
+	resolveEdayaContextMode,
+	type FocusName,
+	type GeneratorName,
 } from "@children-ai/adaptors";
 import { openSparkDatabase, PostgresSchoolIntegrationVault } from "@children-ai/adaptor-postgres";
 import {
 	parsePalier,
+	parseRecommendationLoad,
 	resolvePalierEdayaOrigin,
 	resolveVaultMasterKey,
 	type Palier,
@@ -24,6 +30,17 @@ import { assertWorkerHyperdrive } from "./runtime/boundaries.ts";
 
 export type CloudflareAdaptorEnv = {
 	HYPERDRIVE?: { connectionString?: string };
+	FOCUS?: string;
+	RECOMMENDATION_LOAD?: string;
+	GENERATOR?: string;
+	CLOUDFLARE_ACCOUNT_ID?: string;
+	CLOUDFLARE_API_TOKEN?: string;
+	CLOUDFLARE_RAG_NAMESPACE?: string;
+	CLOUDFLARE_RAG_INSTANCE?: string;
+	CLOUDFLARE_BYOK_ALIAS?: string;
+	FOCUS_MODEL?: string;
+	RAG_GENERATOR_MODEL?: string;
+	RAG_PACK_VERSION?: string;
 	GEMINI_API_KEY?: string;
 	GEMINI_MODEL?: string;
 	CORS_ORIGIN?: string;
@@ -36,13 +53,15 @@ export type CloudflareAdaptorEnv = {
 	EDAYA_CONTEXT?: string;
 	IDENTITY_JWKS_URL?: string;
 	CHILDREN_AI_RESOLVE_SECRET?: string;
+	FIXTURE_TODAY?: string;
 };
 
 export type WorkerRuntime = {
 	app: ChildrenAiApp;
 	sessions: SessionStore;
 	identity: IdentityVerifier;
-	generatorName: "stub" | "gemini-flash";
+	generatorName: GeneratorName;
+	focusName: FocusName;
 	corsOrigins: string[];
 	palier: Palier;
 	schoolId: string;
@@ -55,9 +74,31 @@ export async function createCloudflareRuntime(
 	env: CloudflareAdaptorEnv,
 ): Promise<WorkerRuntime> {
 	const ids = new CryptoIdGenerator();
-	const clock = new SystemClock();
-	const generatorName = resolveGeneratorName(env.GEMINI_API_KEY);
 	const palier = parsePalier(env.PALIER, "local");
+	const contextMode = resolveEdayaContextMode(
+		palier,
+		env.EDAYA_CONTEXT,
+		env.EDAYA_DEMO_API_KEY,
+		env.EDAYA_API_ORIGIN,
+	);
+	const clock = createRuntimeClock({
+		contextMode,
+		fixtureToday: env.FIXTURE_TODAY,
+	});
+	const generatorName = resolveGeneratorName({
+		generator: env.GENERATOR,
+		geminiApiKey: env.GEMINI_API_KEY,
+	});
+	const focusName = resolveFocusName(env.FOCUS);
+	const rag = focusName === "cloudflare" || generatorName === "rag"
+		? createCloudflareRagClient({
+			accountId: env.CLOUDFLARE_ACCOUNT_ID,
+			apiToken: env.CLOUDFLARE_API_TOKEN,
+			namespace: env.CLOUDFLARE_RAG_NAMESPACE,
+			instance: env.CLOUDFLARE_RAG_INSTANCE,
+			byokAlias: env.CLOUDFLARE_BYOK_ALIAS,
+		})
+		: undefined;
 	const edayaApiBaseUrl = resolvePalierEdayaOrigin(palier, env.EDAYA_API_ORIGIN);
 	const vaultMasterKey = resolveVaultMasterKey(palier, env.VAULT_MASTER_KEY);
 	assertProdRejectsDemoSeed(palier, { demoApiKey: env.EDAYA_DEMO_API_KEY });
@@ -92,16 +133,26 @@ export async function createCloudflareRuntime(
 
 	const app = new ChildrenAiApp({
 		edaya: demo.edaya,
-		catalog: new JsonCurriculumCatalog(),
+		focus: createPracticeFocus({
+			focus: focusName,
+			rag,
+			model: env.FOCUS_MODEL,
+			packVersion: env.RAG_PACK_VERSION,
+		}),
 		generator: createExerciseGenerator({
 			ids,
 			clock,
+			generator: generatorName,
 			apiKey: env.GEMINI_API_KEY,
 			model: env.GEMINI_MODEL,
+			rag,
+			ragModel: env.RAG_GENERATOR_MODEL,
 		}),
 		snapshots: persistence.snapshots,
 		sets: persistence.sets,
+		plans: persistence.plans,
 		practiceSettings: persistence.practiceSettings,
+		recommendationLoad: parseRecommendationLoad(env.RECOMMENDATION_LOAD),
 		codes: persistence.codes,
 		children: demo.children,
 		studentSessions: persistence.sessions,
@@ -114,6 +165,7 @@ export async function createCloudflareRuntime(
 		sessions: persistence.sessions,
 		identity: createIdentityVerifier(env),
 		generatorName,
+		focusName,
 		corsOrigins: (env.CORS_ORIGIN ?? "")
 			.split(",")
 			.map((item) => item.trim())

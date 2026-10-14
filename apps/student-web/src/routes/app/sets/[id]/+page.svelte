@@ -43,8 +43,20 @@
 		draft = { ...draft, [questionId]: value };
 	}
 
+	function choiceList(item: Question): string[] {
+		const seen: Record<string, true> = {};
+		const choices: string[] = [];
+		for (const choice of item.choices ?? []) {
+			const trimmed = choice.trim();
+			if (!trimmed || seen[trimmed]) continue;
+			seen[trimmed] = true;
+			choices.push(trimmed);
+		}
+		return choices;
+	}
+
 	function isMcq(item: Question): boolean {
-		return item.kind === 'mcq' && (item.choices?.length ?? 0) >= 2;
+		return item.kind === 'mcq' && choiceList(item).length >= 2;
 	}
 
 	function studentAnswer(questionId: string): string {
@@ -202,7 +214,7 @@
 		{#if isMcq(question)}
 			<fieldset class="mt-6 space-y-3">
 				<legend class="sr-only">Choisis une réponse</legend>
-				{#each question.choices ?? [] as choice (choice)}
+				{#each choiceList(question) as choice, index (index)}
 					<label
 						class="flex cursor-pointer items-start gap-3 rounded-2xl bg-cream px-4 py-3 font-bold"
 					>

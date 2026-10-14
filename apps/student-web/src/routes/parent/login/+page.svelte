@@ -3,12 +3,15 @@
 	import { authClient, type AuthPayload } from '$lib/auth/client';
 	import { clearDemoFamily } from '$lib/session';
 
+	let { data }: { data: { otpFlag: boolean } } = $props();
+
 	let email = $state('m.kone@mail.ci');
 	let code = $state('');
 	let challenge = $state('');
 	let step = $state<'email' | 'otp' | 'totp'>('email');
 	let error = $state('');
 	let pending = $state(false);
+	let revealedOtp = $state('');
 
 	function challengeFrom(payload: AuthPayload | null): string {
 		return payload && 'challenge' in payload && payload.challenge ? payload.challenge : '';
@@ -28,6 +31,7 @@
 				}
 				challenge = nextChallenge;
 				code = '';
+				revealedOtp = '';
 				step = 'otp';
 				return;
 			}
@@ -63,6 +67,23 @@
 			pending = false;
 		}
 	}
+
+	async function showOtp() {
+		error = '';
+		revealedOtp = '';
+		pending = true;
+		try {
+			const { data: payload, error: revealError } = await authClient.revealOtp(challenge);
+			if (revealError || !payload?.otp) {
+				error = 'Code indisponible. Demande-en un nouveau : il ne reste lisible que quelques minutes.';
+				return;
+			}
+			revealedOtp = payload.otp;
+			code = payload.otp;
+		} finally {
+			pending = false;
+		}
+	}
 </script>
 
 <main class="mx-auto flex min-h-screen max-w-xl flex-col justify-center px-6 py-12">
@@ -71,9 +92,12 @@
 		<h1 class="mt-4 text-3xl font-extrabold text-ink">Espace parent</h1>
 		<p class="mt-3 text-ink/70">
 			{#if step === 'email'}
-				Saisis l’email de ton compte Edaya. Un code à usage unique est envoyé (en local, il apparaît dans les logs de l’API).
+				Saisis l’email de ton compte Edaya. Un code à usage unique est envoyé.
 			{:else if step === 'otp'}
 				Entre le code reçu pour <span class="font-extrabold">{email}</span>.
+				{#if data.otpFlag}
+					En local, tu peux l’afficher ci-dessous.
+				{/if}
 			{:else}
 				Entre le code de ton application d’authentification.
 			{/if}
@@ -103,6 +127,22 @@
 						required
 					/>
 				</label>
+			{/if}
+			{#if step === 'otp' && data.otpFlag}
+				<div class="rounded-2xl border border-dashed border-ink/20 p-4">
+					<p class="text-xs font-bold uppercase tracking-wide text-ink/50">Local uniquement</p>
+					<button
+						class="mt-3 rounded-full border border-forest px-4 py-2 text-sm font-extrabold text-forest disabled:opacity-60"
+						disabled={pending}
+						type="button"
+						onclick={showOtp}
+					>
+						Afficher le code
+					</button>
+					{#if revealedOtp}
+						<p class="mt-3 text-2xl font-extrabold tracking-widest text-ink">{revealedOtp}</p>
+					{/if}
+				</div>
 			{/if}
 			{#if error}
 				<p class="text-sm font-bold text-clay">{error}</p>

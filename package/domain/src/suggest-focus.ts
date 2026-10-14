@@ -106,7 +106,32 @@ function focusFor(
 		rationale,
 		brief,
 		intent,
+		proposals: [],
 	};
+}
+
+export function matchOfficialLesson(
+	text: string,
+	gradeLessons: CurriculumLesson[],
+): CurriculumLesson | undefined {
+	return matchLesson(text, gradeLessons);
+}
+
+export function officialLessonsForSubject(
+	gradeLessons: CurriculumLesson[],
+	subject: string,
+): CurriculumLesson[] {
+	return lessonsForSubject(gradeLessons, subject);
+}
+
+export function calendarDaysUntil(dueAt: string, now: Date): number | null {
+	const today = dateKey(now);
+	const due = dateKey(dueAt);
+	if (!today || !due) return null;
+	const start = Date.parse(`${today}T00:00:00.000Z`);
+	const end = Date.parse(`${due}T00:00:00.000Z`);
+	if (Number.isNaN(start) || Number.isNaN(end)) return null;
+	return Math.round((end - start) / 86_400_000);
 }
 
 function dateKey(value: string | Date): string {
@@ -169,7 +194,7 @@ export function suggestFocus(
 
 	if (intent === "upcoming_work") {
 		const upcoming = pickUpcoming(snapshot, gradeLessons, now);
-		if (upcoming) return upcoming;
+		if (upcoming) return upcoming.focus;
 	}
 
 	if (intent === "prepare_next_day") {
@@ -258,29 +283,74 @@ function pickClassProgress(
 	return undefined;
 }
 
+function progressLesson(
+	snapshot: LearnerAcademicSnapshot,
+	pool: CurriculumLesson[],
+	subject: string,
+): { lesson: CurriculumLesson; matter: string; percentage: number } | undefined {
+	const matched = snapshot.context.classProgress
+		.filter((item) => item.completedPercentage < 100)
+		.filter((item) => !item.subject || subjectsMatch(item.subject, subject))
+		.flatMap((item) => {
+			const lesson = matchLesson(item.subjectMatter, pool);
+			return lesson
+				? [{ lesson, matter: item.subjectMatter, percentage: item.completedPercentage }]
+				: [];
+		})
+		.sort((a, b) => b.lesson.sequence - a.lesson.sequence || b.percentage - a.percentage);
+	return matched[0];
+}
+
+export function suggestHomeworkWithinHorizon(
+	snapshot: LearnerAcademicSnapshot,
+	lessons: CurriculumLesson[],
+	now: Date,
+	horizonDays: number,
+): { focus: PracticeFocus; assessment: UpcomingAssessment } | undefined {
+	const gradeLessons = lessons
+		.filter((lesson) => lesson.grade === snapshot.context.student.grade)
+		.sort((a, b) => a.sequence - b.sequence);
+	return pickUpcoming(snapshot, gradeLessons, now, horizonDays);
+}
+
 function pickUpcoming(
 	snapshot: LearnerAcademicSnapshot,
 	gradeLessons: CurriculumLesson[],
 	now: Date,
-): PracticeFocus | undefined {
+	horizonDays?: number,
+): { focus: PracticeFocus; assessment: UpcomingAssessment } | undefined {
 	const today = dateKey(now);
 	const upcoming = [...(snapshot.context.upcomingAssessments ?? [])]
-		.filter((item) => dateKey(item.dueAt) >= today)
+		.filter((item) => {
+			if (dateKey(item.dueAt) < today) return false;
+			if (horizonDays === undefined) return true;
+			const days = calendarDaysUntil(item.dueAt, now);
+			return days !== null && days <= horizonDays;
+		})
 		.sort((a, b) => dateKey(a.dueAt).localeCompare(dateKey(b.dueAt)));
 
 	for (const item of upcoming) {
 		const pool = lessonsForSubject(gradeLessons, item.subject);
 		if (pool.length === 0) continue;
-		const lesson = matchLesson(item.title, pool) ?? matchLesson(item.subject, pool);
+		const named = matchLesson(item.title, pool);
+		const fromProgress = named ? undefined : progressLesson(snapshot, pool, item.subject);
+		const lesson = named ?? fromProgress?.lesson;
 		if (!lesson) continue;
 		const subject = subjectLabel(item.subject, lesson);
 		const when = formatDue(item.dueAt);
-		return focusFor(
-			lesson,
-			"upcoming_work",
-			`${assessmentPhrase(item.kind)} ${subject} « ${item.title} » prévu le ${when}. Entraînement sur « ${lesson.title} ».`,
-			`Compte tenu que tu as bientôt ${assessmentPhrase(item.kind)} de ${subject} (« ${item.title} », le ${when}), voici la série d'exercices suggérée.`,
-		);
+		const phrase = assessmentPhrase(item.kind);
+		const rationale = fromProgress
+			? `${phrase} ${subject} « ${item.title} » prévu le ${when}. La classe avance sur « ${fromProgress.matter} » (${fromProgress.percentage} %) — entraînement sur « ${lesson.title} ».`
+			: `${phrase} ${subject} « ${item.title} » prévu le ${when}. Entraînement sur « ${lesson.title} ».`;
+		return {
+			assessment: item,
+			focus: focusFor(
+				lesson,
+				"upcoming_work",
+				rationale,
+				`Compte tenu que tu as bientôt ${phrase} de ${subject} (« ${item.title} », le ${when}), voici la série d'exercices suggérée.`,
+			),
+		};
 	}
 
 	return undefined;

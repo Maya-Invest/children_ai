@@ -39,6 +39,8 @@ export type ClassProgressItem = {
 	subject?: string;
 	subjectMatter: string;
 	completedPercentage: number;
+	/** Fixture-only link from a timetable slot to this chapter. Live payloads omit it. */
+	slotId?: string;
 };
 
 export type TimetableDay =
@@ -118,12 +120,64 @@ export type LearnerAcademicSnapshot = {
 	context: LearnerContext;
 };
 
+export type ExerciseProposal = {
+	objective: string;
+	theme: string;
+	exerciseType: string;
+	difficulty: string;
+	minutes: number;
+	promptHint: string;
+};
+
 export type PracticeFocus = {
 	lessonId: string;
 	subject: string;
 	rationale: string;
 	brief: string;
 	intent: PracticeIntent;
+	proposals: ExerciseProposal[];
+};
+
+export const PRACTICE_TRACKS = ["revision", "homework"] as const;
+
+export type PracticeTrackKind = (typeof PRACTICE_TRACKS)[number];
+
+export function isPracticeTrack(value: unknown): value is PracticeTrackKind {
+	return PRACTICE_TRACKS.some((track) => track === value);
+}
+
+/** Sets saved before tracks existed stay on the revision list. */
+export function exerciseTrack(set: { track?: PracticeTrackKind | null }): PracticeTrackKind {
+	return set.track === "homework" ? "homework" : "revision";
+}
+
+export type PracticeTrackItem = {
+	minutes: number;
+	focus: PracticeFocus;
+	lesson: CurriculumLesson;
+	assessmentLabel: string | null;
+};
+
+export type PracticeTrackPlan = {
+	kind: PracticeTrackKind;
+	minutes: number;
+	available: boolean;
+	focus: PracticeFocus | null;
+	lesson: CurriculumLesson | null;
+	/** Short label of the targeted assessment, when this track prepares one. */
+	assessmentLabel: string | null;
+	/** One entry per timetable subject kept on this track. */
+	items: PracticeTrackItem[];
+};
+
+/** Stored plans from before several subjects per day are planned again. */
+export const PRACTICE_PLAN_VERSION = 4;
+
+export type PracticeSessionPlan = {
+	summary: string;
+	totalMinutes: number;
+	tracks: PracticeTrackPlan[];
+	planVersion?: number;
 };
 
 export type QuestionKind = "mcq" | "written";
@@ -165,6 +219,10 @@ export type ExerciseSet = {
 	submittedAt?: string;
 	score?: ExerciseScore;
 	correctionReleasedAt?: string | null;
+	/** Revision or upcoming-homework series. Missing values count as revision. */
+	track?: PracticeTrackKind;
+	/** Minutes assigned from the 2 h contract when the series was prepared. */
+	plannedMinutes?: number;
 };
 
 export type PracticeSettings = {
@@ -254,6 +312,36 @@ export class NoSnapshotError extends DomainError {
 			"NO_SNAPSHOT",
 			"Aucun snapshot académique n'est disponible pour cet élève.",
 		);
+	}
+}
+
+export const NOTHING_TO_PRACTICE_MESSAGE =
+	"Aucune leçon n'est prévue aujourd'hui ni demain, et aucune évaluation n'arrive dans les deux prochaines semaines.";
+
+export const PRACTICE_MINUTES_MESSAGE = "La séance proposée doit durer entre 1 h 50 et 2 h 10.";
+
+export const PRACTICE_UNREADABLE_MESSAGE = "La recommandation n'est pas un plan lisible.";
+
+export const PRACTICE_NO_PROGRAMME_MESSAGE =
+	"Aucun extrait du programme n'a été trouvé pour préparer la séance.";
+
+export const PRACTICE_NO_PROPOSALS_MESSAGE = "La recommandation ne propose aucun exercice.";
+
+export const PRACTICE_TIMETABLE_MISMATCH_MESSAGE =
+	"La leçon retenue ne correspond pas à l'emploi du temps.";
+
+export const PRACTICE_INTENT_MESSAGE =
+	"La fin de journée et l'évaluation à venir ne sont pas correctement séparées.";
+
+export class NothingToPracticeError extends DomainError {
+	constructor() {
+		super("NOTHING_TO_PRACTICE", NOTHING_TO_PRACTICE_MESSAGE);
+	}
+}
+
+export class PracticePlanError extends DomainError {
+	constructor(message: string) {
+		super("PRACTICE_PLAN_INVALID", message);
 	}
 }
 

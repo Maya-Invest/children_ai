@@ -1,10 +1,11 @@
-import type { EdayaContextPort, LearnerContext, TimetableSlot } from "@children-ai/domain";
+import type { EdayaContextPort, LearnerContext, TimetableDay, TimetableSlot } from "@children-ai/domain";
 import {
 	DEMO_FIXTURE_SCHOOL_ID,
 	DEMO_FIXTURE_STUDENT_ID,
 	DEMO_FIXTURE_STUDENT_ID_BROU,
 	EdayaContextFetchError,
 } from "@children-ai/domain";
+import { GRADE_5E_MATTERS, GRADE_6E_MATTERS, gradeProgress } from "./fixture-grade-matters.ts";
 
 /** demo-ci École Cocody — same school id as EDAYA seed, isolated per palier DB. */
 export const FIXTURE_SCHOOL_ID = DEMO_FIXTURE_SCHOOL_ID;
@@ -15,96 +16,58 @@ export const FIXTURE_STUDENT_ID_BROU = DEMO_FIXTURE_STUDENT_ID_BROU;
 export const FIXTURE_ACADEMIC_YEAR_ID = "2025-ci";
 export const FIXTURE_PERIOD_ID = "ci-2025-t1";
 
-/** Same 6ème 1 week as demo-ci seed (`ci-6a` / Léa). */
+const FRANCAIS = "Français";
+const MATHEMATIQUES = "Mathématiques";
+const ANGLAIS = "Anglais";
+const PHYSIQUE = "Physique-Chimie";
+const SVT = "Sciences de la Vie et de la Terre";
+
+const LEA_ARITHMETIC = "Arithmétique : PGCD, PPCM, division euclidienne, nombres premiers";
+const LEA_RELATIVES = "Nombres relatifs : addition, soustraction, repérage sur un axe";
+export const FIXTURE_LEA_CHAPTER = "Fractions : opérations simples, fractions équivalentes";
+export const FIXTURE_LEA_READING = "Lecture et compréhension de textes narratifs et documentaires";
+const LEA_ORAL = "Compréhension orale et expression orale";
+const LEA_SOLIDS = "Solides, liquides et gaz : propriétés physiques";
+const LEA_CELL = "Organisation du vivant : cellule et organismes";
+const LEA_CIRCUITS = "Circuits électriques simples : générateur, récepteur, conducteurs";
+
+export const FIXTURE_THOMAS_CHAPTER = "Introduction aux forces et au mouvement";
+const THOMAS_ECO = "Environnement et écosystèmes de base";
+
+function slot(
+	id: string,
+	dayOfWeek: TimetableDay,
+	startTime: string,
+	endTime: string,
+	title: string,
+	kind: TimetableSlot["kind"] = "lesson",
+): TimetableSlot {
+	return { id, dayOfWeek, startTime, endTime, title, kind };
+}
+
+/** Léa, 6ème — the week shows subjects. The open chapter comes from progression. */
 export const FIXTURE_TIMETABLE: TimetableSlot[] = [
-	{
-		id: "sch-ci-6a-math-mon",
-		dayOfWeek: "monday",
-		startTime: "08:15",
-		endTime: "09:00",
-		title: "Mathématiques — fractions",
-		kind: "lesson",
-	},
-	{
-		id: "sch-ci-6a-fr-mon",
-		dayOfWeek: "monday",
-		startTime: "09:15",
-		endTime: "10:00",
-		title: "Français — lecture",
-		kind: "lesson",
-	},
-	{
-		id: "sch-ci-6a-anglais-mon",
-		dayOfWeek: "monday",
-		startTime: "13:00",
-		endTime: "14:00",
-		title: "Conversation anglaise",
-		kind: "activity",
-	},
-	{
-		id: "sch-ci-6a-hg-tue",
-		dayOfWeek: "tuesday",
-		startTime: "08:15",
-		endTime: "09:00",
-		title: "Histoire-Géographie",
-		kind: "lesson",
-	},
-	{
-		id: "sch-ci-6a-svt-tue",
-		dayOfWeek: "tuesday",
-		startTime: "10:00",
-		endTime: "10:45",
-		title: "SVT",
-		kind: "lesson",
-	},
-	{
-		id: "sch-ci-6a-math-wed",
-		dayOfWeek: "wednesday",
-		startTime: "09:15",
-		endTime: "10:00",
-		title: "Mathématiques — géométrie",
-		kind: "lesson",
-	},
-	{
-		id: "sch-ci-6a-edhc-wed",
-		dayOfWeek: "wednesday",
-		startTime: "10:15",
-		endTime: "11:00",
-		title: "EDHC",
-		kind: "lesson",
-	},
-	{
-		id: "sch-ci-6a-ang-thu",
-		dayOfWeek: "thursday",
-		startTime: "08:15",
-		endTime: "09:00",
-		title: "Anglais",
-		kind: "lesson",
-	},
-	{
-		id: "sch-ci-6a-fr-thu",
-		dayOfWeek: "thursday",
-		startTime: "10:00",
-		endTime: "10:45",
-		title: "Français — expression",
-		kind: "lesson",
-	},
-	{
-		id: "sch-ci-6a-eps-fri",
-		dayOfWeek: "friday",
-		startTime: "08:15",
-		endTime: "09:00",
-		title: "EPS",
-		kind: "lesson",
-	},
-	{
-		id: "sch-ci-6a-svt-fri",
-		dayOfWeek: "friday",
-		startTime: "10:00",
-		endTime: "10:45",
-		title: "SVT",
-		kind: "lesson",
-	},
+	slot("sch-ci-6a-fr-mon", "monday", "08:00", "08:55", FRANCAIS),
+	slot("sch-ci-6a-math-mon", "monday", "09:00", "09:55", MATHEMATIQUES),
+	slot("sch-ci-6a-ang-mon", "monday", "10:05", "11:00", ANGLAIS),
+	slot("sch-ci-6a-club-mon", "monday", "15:00", "16:00", "Club de lecture", "activity"),
+	slot("sch-ci-6a-pc-tue", "tuesday", "08:00", "08:55", PHYSIQUE),
+	slot("sch-ci-6a-svt-tue", "tuesday", "09:00", "09:55", SVT),
+	slot("sch-ci-6a-fr-tue", "tuesday", "10:05", "11:00", FRANCAIS),
+	slot("sch-ci-6a-math-tue", "tuesday", "14:00", "14:55", MATHEMATIQUES),
+	slot("sch-ci-6a-ang-wed", "wednesday", "08:00", "08:55", ANGLAIS),
+	slot("sch-ci-6a-pc-wed", "wednesday", "09:00", "09:55", PHYSIQUE),
+	slot("sch-ci-6a-svt-wed", "wednesday", "10:05", "11:00", SVT),
+	slot("sch-ci-6a-math-wed", "wednesday", "14:00", "14:55", MATHEMATIQUES),
+	slot("sch-ci-6a-fr-thu", "thursday", "08:00", "08:55", FRANCAIS),
+	slot("sch-ci-6a-ang-thu", "thursday", "09:00", "09:55", ANGLAIS),
+	slot("sch-ci-6a-pc-thu", "thursday", "10:05", "11:00", PHYSIQUE),
+	slot("sch-ci-6a-svt-thu", "thursday", "14:00", "14:55", SVT),
+	slot("sch-ci-6a-math-fri", "friday", "08:00", "08:55", MATHEMATIQUES),
+	slot("sch-ci-6a-fr-fri", "friday", "09:00", "09:55", FRANCAIS),
+	slot("sch-ci-6a-ang-fri", "friday", "10:05", "11:00", ANGLAIS),
+	slot("sch-ci-6a-pc-fri", "friday", "14:00", "14:55", PHYSIQUE),
+	slot("sch-ci-6a-svt-fri", "friday", "15:00", "15:55", SVT),
 ];
 
 const LEA: LearnerContext = {
@@ -119,17 +82,9 @@ const LEA: LearnerContext = {
 	periodId: FIXTURE_PERIOD_ID,
 	marks: [
 		{
-			id: "asmt-entiers",
-			subject: "Mathématiques",
-			title: "Contrôle Nombres entiers naturels",
-			score: 14,
-			maxScore: 20,
-			date: "2025-10-12",
-		},
-		{
 			id: "asmt-fractions",
 			subject: "Mathématiques",
-			title: "Contrôle Fractions",
+			title: FIXTURE_LEA_CHAPTER,
 			score: 7,
 			maxScore: 20,
 			date: "2025-11-03",
@@ -137,15 +92,15 @@ const LEA: LearnerContext = {
 		{
 			id: "asmt-lecture",
 			subject: "Français",
-			title: "Contrôle Lecture",
+			title: FIXTURE_LEA_READING,
 			score: 12,
 			maxScore: 20,
 			date: "2025-11-05",
 		},
 		{
-			id: "asmt-afrique",
-			subject: "Histoire-Géographie",
-			title: "Contrôle L’Afrique",
+			id: "asmt-cell",
+			subject: "Sciences de la Vie et de la Terre",
+			title: LEA_CELL,
 			score: 11,
 			maxScore: 20,
 			date: "2025-11-07",
@@ -156,111 +111,56 @@ const LEA: LearnerContext = {
 		classSize: 42,
 		overallAverage: 11.4,
 	},
-	classProgress: [
-		{ subject: "Mathématiques", subjectMatter: "Nombres entiers naturels", completedPercentage: 80 },
-		{ subject: "Mathématiques", subjectMatter: "Fractions", completedPercentage: 45 },
-		{ subject: "Mathématiques", subjectMatter: "Proportionnalité", completedPercentage: 10 },
-		{ subject: "Français", subjectMatter: "Lecture", completedPercentage: 35 },
-		{ subject: "Histoire-Géographie", subjectMatter: "L’Afrique", completedPercentage: 20 },
-		{ subject: "SVT", subjectMatter: "Le vivant", completedPercentage: 25 },
-	],
+	classProgress: gradeProgress(GRADE_6E_MATTERS, {
+		[LEA_ARITHMETIC]: { completedPercentage: 100 },
+		[LEA_RELATIVES]: { completedPercentage: 100 },
+		[FIXTURE_LEA_CHAPTER]: { completedPercentage: 45 },
+		[FIXTURE_LEA_READING]: { completedPercentage: 55 },
+		[LEA_ORAL]: { completedPercentage: 30 },
+		[LEA_SOLIDS]: { completedPercentage: 20 },
+		[LEA_CELL]: { completedPercentage: 25 },
+	}),
 	timetable: FIXTURE_TIMETABLE,
 	attendance: { presentRate: 0.92 },
 	observations: [
-		"Bon engagement en classe. Fractions encore fragiles ; lecture et cartes d’Afrique à consolider.",
+		"Bon engagement. Les fractions restent fragiles ; la lecture et les circuits avancent.",
 	],
 	upcomingAssessments: [
 		{
-			id: "up-lea-fractions",
-			subject: "Mathématiques",
-			title: "Devoir Fractions",
-			kind: "homework",
-			dueAt: "2026-10-08",
-		},
-		{
 			id: "up-lea-lecture",
 			subject: "Français",
-			title: "Examen de lecture",
+			title: FIXTURE_LEA_READING,
+			kind: "homework",
+			dueAt: "2026-10-16",
+		},
+		{
+			id: "up-lea-circuits",
+			subject: "Physique-Chimie",
+			title: LEA_CIRCUITS,
 			kind: "exam",
-			dueAt: "2026-10-15",
+			dueAt: "2026-11-20",
 		},
 	],
 };
 
-/** Same 5ème 1 week as demo-ci seed (`ci-5a` / Thomas). */
+/** Thomas, 5ème — same subjects. His open physics chapter is not Léa's. */
 export const FIXTURE_TIMETABLE_BROU: TimetableSlot[] = [
-	{
-		id: "sch-ci-5a-fr-mon",
-		dayOfWeek: "monday",
-		startTime: "08:15",
-		endTime: "09:00",
-		title: "Français — dissertation",
-		kind: "lesson",
-	},
-	{
-		id: "sch-ci-5a-ang-mon",
-		dayOfWeek: "monday",
-		startTime: "09:15",
-		endTime: "10:00",
-		title: "Anglais",
-		kind: "lesson",
-	},
-	{
-		id: "sch-ci-5a-math-tue",
-		dayOfWeek: "tuesday",
-		startTime: "08:15",
-		endTime: "09:00",
-		title: "Mathématiques — équations",
-		kind: "lesson",
-	},
-	{
-		id: "sch-ci-5a-svt-tue",
-		dayOfWeek: "tuesday",
-		startTime: "10:00",
-		endTime: "10:45",
-		title: "SVT",
-		kind: "lesson",
-	},
-	{
-		id: "sch-ci-5a-hg-wed",
-		dayOfWeek: "wednesday",
-		startTime: "08:15",
-		endTime: "09:00",
-		title: "Histoire-Géographie",
-		kind: "lesson",
-	},
-	{
-		id: "sch-ci-5a-pc-wed",
-		dayOfWeek: "wednesday",
-		startTime: "10:15",
-		endTime: "11:00",
-		title: "Physique-Chimie",
-		kind: "lesson",
-	},
-	{
-		id: "sch-ci-5a-math-thu",
-		dayOfWeek: "thursday",
-		startTime: "10:00",
-		endTime: "10:45",
-		title: "Mathématiques — nombres relatifs",
-		kind: "lesson",
-	},
-	{
-		id: "sch-ci-5a-eps-fri",
-		dayOfWeek: "friday",
-		startTime: "08:15",
-		endTime: "09:00",
-		title: "EPS",
-		kind: "lesson",
-	},
-	{
-		id: "sch-ci-5a-club-fri",
-		dayOfWeek: "friday",
-		startTime: "13:00",
-		endTime: "14:00",
-		title: "Club sciences",
-		kind: "activity",
-	},
+	slot("sch-ci-5a-pc-mon", "monday", "08:00", "08:55", PHYSIQUE),
+	slot("sch-ci-5a-fr-mon", "monday", "09:00", "09:55", FRANCAIS),
+	slot("sch-ci-5a-ang-mon", "monday", "10:05", "11:00", ANGLAIS),
+	slot("sch-ci-5a-math-tue", "tuesday", "08:00", "08:55", MATHEMATIQUES),
+	slot("sch-ci-5a-svt-tue", "tuesday", "09:00", "09:55", SVT),
+	slot("sch-ci-5a-fr-tue", "tuesday", "10:05", "11:00", FRANCAIS),
+	slot("sch-ci-5a-ang-wed", "wednesday", "08:00", "08:55", ANGLAIS),
+	slot("sch-ci-5a-pc-wed", "wednesday", "09:00", "09:55", PHYSIQUE),
+	slot("sch-ci-5a-svt-wed", "wednesday", "10:05", "11:00", SVT),
+	slot("sch-ci-5a-math-thu", "thursday", "08:00", "08:55", MATHEMATIQUES),
+	slot("sch-ci-5a-fr-thu", "thursday", "09:00", "09:55", FRANCAIS),
+	slot("sch-ci-5a-ang-thu", "thursday", "10:05", "11:00", ANGLAIS),
+	slot("sch-ci-5a-pc-fri", "friday", "08:00", "08:55", PHYSIQUE),
+	slot("sch-ci-5a-svt-fri", "friday", "09:00", "09:55", SVT),
+	slot("sch-ci-5a-math-fri", "friday", "10:05", "11:00", MATHEMATIQUES),
+	slot("sch-ci-5a-club-fri", "friday", "15:00", "16:00", "Club sciences", "activity"),
 ];
 
 const THOMAS: LearnerContext = {
@@ -275,36 +175,20 @@ const THOMAS: LearnerContext = {
 	periodId: FIXTURE_PERIOD_ID,
 	marks: [
 		{
-			id: "asmt-brou-premiers",
-			subject: "Mathématiques",
-			title: "Contrôle Nombres premiers",
-			score: 13,
-			maxScore: 20,
-			date: "2025-10-14",
-		},
-		{
-			id: "asmt-brou-relatifs",
-			subject: "Mathématiques",
-			title: "Contrôle Nombres décimaux relatifs",
-			score: 6,
+			id: "asmt-brou-forces",
+			subject: "Physique-Chimie",
+			title: FIXTURE_THOMAS_CHAPTER,
+			score: 8,
 			maxScore: 20,
 			date: "2025-11-04",
 		},
 		{
-			id: "asmt-brou-dissertation",
+			id: "asmt-brou-lecture",
 			subject: "Français",
-			title: "Dissertation",
+			title: FIXTURE_LEA_READING,
 			score: 12,
 			maxScore: 20,
 			date: "2025-11-06",
-		},
-		{
-			id: "asmt-brou-hg",
-			subject: "Histoire-Géographie",
-			title: "Analyse documentaire",
-			score: 11,
-			maxScore: 20,
-			date: "2025-11-08",
 		},
 	],
 	rank: {
@@ -312,26 +196,33 @@ const THOMAS: LearnerContext = {
 		classSize: 38,
 		overallAverage: 12.1,
 	},
-	classProgress: [
-		{ subject: "Mathématiques", subjectMatter: "Nombres premiers", completedPercentage: 70 },
-		{ subject: "Mathématiques", subjectMatter: "Nombres décimaux relatifs", completedPercentage: 30 },
-		{ subject: "Mathématiques", subjectMatter: "Équations", completedPercentage: 15 },
-		{ subject: "Français", subjectMatter: "Dissertation", completedPercentage: 40 },
-		{ subject: "Histoire-Géographie", subjectMatter: "Analyse documentaire", completedPercentage: 25 },
-		{ subject: "SVT", subjectMatter: "Génétique", completedPercentage: 20 },
-	],
+	classProgress: gradeProgress(GRADE_5E_MATTERS, {
+		[LEA_ARITHMETIC]: { completedPercentage: 100 },
+		[LEA_RELATIVES]: { completedPercentage: 30 },
+		[FIXTURE_LEA_READING]: { completedPercentage: 50 },
+		[LEA_ORAL]: { completedPercentage: 40 },
+		[FIXTURE_THOMAS_CHAPTER]: { completedPercentage: 35 },
+		[THOMAS_ECO]: { completedPercentage: 20 },
+	}),
 	timetable: FIXTURE_TIMETABLE_BROU,
 	attendance: { presentRate: 0.96 },
 	observations: [
-		"Bon niveau en calcul. Les nombres relatifs restent fragiles ; à retravailler avant les équations.",
+		"Les forces et le mouvement demandent encore de l'entraînement.",
 	],
 	upcomingAssessments: [
 		{
-			id: "up-thomas-relatifs",
-			subject: "Mathématiques",
-			title: "Devoir Nombres décimaux relatifs",
+			id: "up-thomas-forces",
+			subject: "Physique-Chimie",
+			title: FIXTURE_THOMAS_CHAPTER,
 			kind: "homework",
-			dueAt: "2026-10-09",
+			dueAt: "2026-10-16",
+		},
+		{
+			id: "up-thomas-eco",
+			subject: "Sciences de la Vie et de la Terre",
+			title: THOMAS_ECO,
+			kind: "exam",
+			dueAt: "2026-11-20",
 		},
 	],
 };

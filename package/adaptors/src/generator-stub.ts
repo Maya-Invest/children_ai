@@ -1,11 +1,13 @@
-import type {
-	CurriculumLesson,
-	ExerciseGeneratorPort,
-	ExerciseQuestion,
-	ExerciseSet,
-	IdGenerator,
-	LearnerAcademicSnapshot,
-	PracticeFocus,
+import {
+	ExerciseGenerationError,
+	PRACTICE_NO_PROPOSALS_MESSAGE,
+	type CurriculumLesson,
+	type ExerciseGeneratorPort,
+	type ExerciseQuestion,
+	type ExerciseSet,
+	type IdGenerator,
+	type LearnerAcademicSnapshot,
+	type PracticeFocus,
 } from "@children-ai/domain";
 
 export class StubExerciseGenerator implements ExerciseGeneratorPort {
@@ -15,11 +17,15 @@ export class StubExerciseGenerator implements ExerciseGeneratorPort {
 		snapshot: LearnerAcademicSnapshot;
 		lesson: CurriculumLesson;
 		focus: PracticeFocus;
+		plannedMinutes: number;
 	}): Promise<ExerciseSet> {
 		const { snapshot, lesson } = input;
+		const proposals = input.focus.proposals;
+		if (proposals.length === 0) {
+			throw new ExerciseGenerationError(PRACTICE_NO_PROPOSALS_MESSAGE);
+		}
 		const name = snapshot.context.student.firstName;
-		const skills = lesson.skills.slice(0, 5);
-		if (skills.length === 0) skills.push(lesson.title);
+		const skills = proposals.map((proposal) => proposal.promptHint || lesson.title);
 
 		const questions: ExerciseQuestion[] = skills.map((skill, index) =>
 			index % 2 === 1

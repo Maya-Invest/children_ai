@@ -1,11 +1,14 @@
 import {
 	ExerciseGenerationError,
 	displaySubjectLabel,
-	normalizeAnswer,
+	PRACTICE_NO_PROPOSALS_MESSAGE,
+	exerciseProposalInstruction,
+	distinctMcqChoices,
 	questionKind,
 	type Clock,
 	type CurriculumLesson,
 	type ExerciseGeneratorPort,
+	type ExerciseProposal,
 	type ExerciseQuestion,
 	type ExerciseSet,
 	type IdGenerator,
@@ -90,8 +93,12 @@ export class GeminiFlashExerciseGenerator implements ExerciseGeneratorPort {
 		snapshot: LearnerAcademicSnapshot;
 		lesson: CurriculumLesson;
 		focus: PracticeFocus;
+		plannedMinutes: number;
 	}): Promise<ExerciseSet> {
 		const { snapshot, lesson, focus } = input;
+		if (focus.proposals.length === 0) {
+			throw new ExerciseGenerationError(PRACTICE_NO_PROPOSALS_MESSAGE);
+		}
 		const url = `https://generativelanguage.googleapis.com/v1beta/models/${this.model}:generateContent`;
 		const response = await this.fetchImpl(url, {
 			method: "POST",
@@ -101,12 +108,12 @@ export class GeminiFlashExerciseGenerator implements ExerciseGeneratorPort {
 			},
 			body: JSON.stringify({
 				systemInstruction: {
-					parts: [{ text: systemPrompt(lesson) }],
+					parts: [{ text: systemPrompt(lesson, focus) }],
 				},
 				contents: [
 					{
 						role: "user",
-						parts: [{ text: userPrompt(snapshot, lesson, focus) }],
+						parts: [{ text: userPrompt(snapshot, lesson, focus, input.plannedMinutes) }],
 					},
 				],
 				generationConfig: {
@@ -143,8 +150,8 @@ export class GeminiFlashExerciseGenerator implements ExerciseGeneratorPort {
 		}
 
 		const payload = parsePayload(text);
-		const questions = mapQuestions(payload, this.options.ids);
-		if (questions.length < 3) {
+		const questions = mapQuestions(payload, this.options.ids, focus.proposals.length);
+		if (questions.length < focus.proposals.length) {
 			throw new ExerciseGenerationError(
 				"Gemini Flash n'a pas produit assez d'exercices.",
 			);
@@ -164,15 +171,20 @@ export class GeminiFlashExerciseGenerator implements ExerciseGeneratorPort {
 	}
 }
 
-function systemPrompt(lesson: CurriculumLesson): string {
+function systemPrompt(lesson: CurriculumLesson, focus: { proposals: ExerciseProposal[] }): string {
 	const subject = displaySubjectLabel(lesson.subject) || "la matière visée";
 	return [
 		`Tu génères des exercices de ${subject} pour le collège ivoirien, fidèles au programme DPFC.`,
 		"Tu n'inventes pas de leçon hors du thème et des habiletés fournis.",
+		"Rédige en français, avec des situations contextualisées en Côte d'Ivoire.",
 		"Deux types seulement : QCM (kind=mcq) et réponse rédigée (kind=written).",
 		"Fournis expectedAnswer pour le scoring interne. Ce n'est jamais montré à l'élève tant qu'un parent n'a pas ouvert le corrigé.",
+		"QCM : 3 ou 4 choices, et expectedAnswer identique à l'un des choix.",
+		"Réponse rédigée : expectedAnswer courte (une phrase ou une égalité).",
 		"Ne mets pas de champ solution ni correction.",
 		"Réponds uniquement en JSON avec le champ questions.",
+		'JSON attendu: {"questions":[{"prompt":"","kind":"written","expectedAnswer":""},{"prompt":"","kind":"mcq","choices":["",""],"expectedAnswer":""}]}',
+		exerciseProposalInstruction(focus.proposals),
 	].join(" ");
 }
 
@@ -180,28 +192,27 @@ function userPrompt(
 	snapshot: LearnerAcademicSnapshot,
 	lesson: CurriculumLesson,
 	focus: PracticeFocus,
+	plannedMinutes: number,
 ): string {
 	const name = snapshot.context.student.firstName;
 	return [
 		`Élève : ${name}, classe ${snapshot.context.student.classLabel} (${lesson.grade}).`,
 		`Matière : ${displaySubjectLabel(lesson.subject) || lesson.subject}.`,
 		`Leçon officielle : ${lesson.title} (${lesson.theme.title}).`,
+		`Durée recommandée pour cette série : ${plannedMinutes} minutes.`,
 		`Pourquoi cette leçon : ${focus.rationale}`,
+		exerciseProposalInstruction(focus.proposals),
 		`Situation d'apprentissage : ${lesson.exampleSituation}`,
 		`Habiletés : ${lesson.skills.join(" | ")}`,
 		`Contenus : ${lesson.contents.join(" | ")}`,
-		"Produis 4 à 6 questions en français, contextualisées en Côte d'Ivoire.",
-		"Mélange QCM et réponses rédigées : au moins 2 kind=mcq et 2 kind=written.",
-		"QCM : 3 ou 4 choices, et expectedAnswer identique à l'un des choix.",
-		"Réponse rédigée : expectedAnswer courte (une phrase ou une égalité), pour le scoring.",
-		"Aucun champ solution ou correction.",
 	].join("\n");
 }
 
 function parsePayload(text: string): GeminiPayload {
-	const stripped = text
-		.replace(/^```(?:json)?\s*/i, "")
-		.replace(/\s*```$/i, "")
+	const fenced = text.match(/```[ \t]*json\b[ \t]*\r?\n?([\s\S]*?)```/i);
+	const stripped = (fenced?.[1] ?? text)
+		.replace(/```[ \t]*json\b/gi, "")
+		.replace(/```/g, "")
 		.trim();
 	try {
 		return JSON.parse(stripped) as GeminiPayload;
@@ -210,11 +221,10 @@ function parsePayload(text: string): GeminiPayload {
 	}
 }
 
-function mapQuestions(payload: GeminiPayload, ids: IdGenerator): ExerciseQuestion[] {
+function mapQuestions(payload: GeminiPayload, ids: IdGenerator, max: number): ExerciseQuestion[] {
 	if (!Array.isArray(payload.questions)) {
 		throw new ExerciseGenerationError("Le JSON Gemini n'a pas de questions.");
 	}
-
 	const questions: ExerciseQuestion[] = [];
 	for (const item of payload.questions) {
 		const raw = item as GeminiQuestion;
@@ -229,21 +239,18 @@ function mapQuestions(payload: GeminiPayload, ids: IdGenerator): ExerciseQuestio
 			expectedAnswer: expected,
 		};
 		if (kind === "mcq") {
-			const choices = Array.isArray(raw.choices)
-				? raw.choices.filter(
-					(choice): choice is string =>
-						typeof choice === "string" && choice.trim() !== "",
-				)
-				: [];
-			const match = choices.find(
-				(choice) => normalizeAnswer(choice) === normalizeAnswer(expected),
-			);
-			if (!match || choices.length < 2) continue;
-			question.choices = choices;
-			question.expectedAnswer = match;
+			const accepted = Array.isArray(raw.choices)
+				? distinctMcqChoices(raw.choices, expected)
+				: undefined;
+			if (!accepted) {
+				question.kind = "written";
+			} else {
+				question.choices = accepted.choices;
+				question.expectedAnswer = accepted.expectedAnswer;
+			}
 		}
 		questions.push(question);
-		if (questions.length >= 6) break;
+		if (questions.length >= max) break;
 	}
 	return questions;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { suggestFocus } from "./suggest-focus.ts";
+import { suggestFocus, suggestHomeworkWithinHorizon } from "./suggest-focus.ts";
 import type { CurriculumLesson, LearnerAcademicSnapshot } from "./types.ts";
 
 function lesson(
@@ -133,6 +133,74 @@ describe("suggestFocus", () => {
 		expect(focus.brief).toContain("devoir");
 		expect(focus.brief).toContain("série d'exercices suggérée");
 		expect(focus.brief).not.toContain("Nombres entiers");
+	});
+
+	test("uses class progress when the assessment title is not a lesson title", () => {
+		const picked = suggestHomeworkWithinHorizon(
+			snapshot({
+				classProgress: [
+					{ subject: "Mathématiques", subjectMatter: "Nombres entiers naturels", completedPercentage: 80 },
+					{ subject: "Mathématiques", subjectMatter: "Fractions", completedPercentage: 45 },
+					{ subject: "Français", subjectMatter: "Lecture", completedPercentage: 35 },
+				],
+				upcomingAssessments: [
+					{
+						id: "fr",
+						subject: "Français",
+						title: "Examen de lecture",
+						kind: "exam",
+						dueAt: "2026-10-12",
+					},
+					{
+						id: "math",
+						subject: "Mathématiques",
+						title: "Interrogation n°2",
+						kind: "quiz",
+						dueAt: "2026-10-15",
+					},
+				],
+			}),
+			[entiers, fractions],
+			new Date("2026-10-05T08:00:00.000Z"),
+			21,
+		);
+		expect(picked?.assessment.id).toBe("math");
+		expect(picked?.focus.lessonId).toBe("l-frac");
+		expect(picked?.focus.rationale).toContain("Fractions");
+		expect(picked?.focus.rationale).toContain("45 %");
+	});
+
+	test("keeps only homework due within two weeks for the homework track", () => {
+		const soon = {
+			id: "hw",
+			subject: "MATH",
+			title: "Devoir Fractions",
+			kind: "homework" as const,
+			dueAt: "2026-10-08",
+		};
+		const later = {
+			id: "late",
+			subject: "MATH",
+			title: "Devoir Fractions",
+			kind: "homework" as const,
+			dueAt: "2026-10-20",
+		};
+		const now = new Date("2026-10-05T08:00:00.000Z");
+		const picked = suggestHomeworkWithinHorizon(
+			snapshot({ upcomingAssessments: [later, soon] }),
+			[entiers, fractions],
+			now,
+			14,
+		);
+		expect(picked?.assessment.id).toBe("hw");
+		expect(
+			suggestHomeworkWithinHorizon(
+				snapshot({ upcomingAssessments: [later] }),
+				[entiers, fractions],
+				now,
+				14,
+			),
+		).toBeUndefined();
 	});
 
 	test("revises the next official lesson on the timetable", () => {

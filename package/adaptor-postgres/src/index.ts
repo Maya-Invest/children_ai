@@ -10,6 +10,7 @@ export { getMigrationsFolder, runMigrations } from "./migrate.ts";
 export { openSparkDatabase, type SparkPersistence } from "./open.ts";
 export {
 	PostgresExerciseSetRepository,
+	PostgresPracticePlanRepository,
 	PostgresPracticeSettingsRepository,
 	PostgresSessionStore,
 	PostgresSnapshotRepository,

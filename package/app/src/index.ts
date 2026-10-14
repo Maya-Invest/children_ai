@@ -7,23 +7,27 @@ import {
 	EmptySubmissionError,
 	ExerciseSetNotFoundError,
 	GuardianCannotGenerateError,
-	LessonNotInPackError,
 	NoSnapshotError,
 	SetNotSubmittedError,
 	StudentOnlyActionError,
 	UnknownAccessCodeError,
+	DAILY_PRACTICE_MAX_MINUTES,
+	DAILY_PRACTICE_MIN_MINUTES,
+	displaySubjectLabel,
+	exerciseTrack,
 	formatStudentAccessCode,
 	generateStudentAccessCode,
 	hashStudentAccessCode,
 	isCompleteStudentAccessCode,
 	normalizeAnswer,
+	NothingToPracticeError,
+	PRACTICE_PLAN_VERSION,
+	planningDateKey,
 	presentExerciseSet,
 	scoreExerciseSet,
 	snapshotFingerprint,
 	studentAccessCodeHint,
-	suggestFocus,
 	type Clock,
-	type CurriculumCatalogPort,
 	type EdayaContextPort,
 	type ExerciseAudience,
 	type ExerciseGeneratorPort,
@@ -38,9 +42,16 @@ import {
 	type LearnerAcademicSnapshot,
 	type LearnerContextQuery,
 	type PracticeFocus,
+	type PracticeFocusPort,
 	type PracticeIntent,
+	type PracticeSessionPlan,
 	type PracticeSettings,
+	type PracticeTrackKind,
+	type PracticeTrackItem,
+	type PracticeTrackPlan,
+	type PracticePlanRepository,
 	type PracticeSettingsRepository,
+	type RecommendationLoad,
 	type SessionActor,
 	type SnapshotRepository,
 	type StudentAccessCode,
@@ -59,11 +70,13 @@ import {
 
 export type AppPorts = {
 	edaya: EdayaContextPort;
-	catalog: CurriculumCatalogPort;
+	focus: PracticeFocusPort;
 	generator: ExerciseGeneratorPort;
 	snapshots: SnapshotRepository;
 	sets: ExerciseSetRepository;
+	plans: PracticePlanRepository;
 	practiceSettings: PracticeSettingsRepository;
+	recommendationLoad?: RecommendationLoad;
 	children: GuardianChildrenPort;
 	codes: StudentAccessCodeRepository;
 	studentSessions: StudentSessionPort;
@@ -219,7 +232,7 @@ export class ChildrenAiApp {
 		}
 
 		const context = await this.ports.edaya.pullLearnerContext(query);
-		const packVersion = this.ports.catalog.packVersion();
+		const packVersion = this.ports.focus.packVersion();
 		const fingerprint = snapshotFingerprint(context, packVersion);
 		if (current?.fingerprint === fingerprint) return current;
 
@@ -241,43 +254,86 @@ export class ChildrenAiApp {
 		audience: ExerciseAudience = "student",
 	): Promise<{
 		snapshot: LearnerAcademicSnapshot;
-		focus: PracticeFocus;
+		focus: PracticeFocus | null;
 		lessonTitle: string;
 		currentSet: ExerciseSet | null;
 		history: ExerciseSet[];
 		autoReleaseCorrection: boolean;
-		focusIntent: PracticeIntent;
+		focusIntent: PracticeIntent | null;
+		planningDate: string;
 		exerciseUpgradeAvailable: boolean;
+		session: HomeSession;
 	}> {
+		const now = this.now();
 		const snapshot = await this.syncSnapshot(query);
-		const { focus, lesson, settings } = await this.resolveFocus(query, snapshot);
-		const currentSet = await this.ports.sets.findBySnapshotId(snapshot.id);
+		const plan = await this.resolveDailyPlan(query, snapshot, now);
+		const settings = await this.ports.practiceSettings.get(query);
 		const history = await this.ports.sets.listByStudentId(query);
+		const primary = primaryTrack(plan);
+		const tracks = await Promise.all(
+			plan.tracks.map((track) => this.presentTrack(snapshot.id, track, audience, history)),
+		);
+		const revisionSet = tracks.find((track) => track.kind === "revision")?.currentSet ?? null;
 		return {
 			snapshot,
-			focus,
-			lessonTitle: lesson.title,
-			currentSet: currentSet ? presentExerciseSet(currentSet, audience) : null,
+			focus: primary?.focus ?? null,
+			lessonTitle: primary?.lesson.title ?? "",
+			currentSet: revisionSet,
 			history: history.map((set) => presentExerciseSet(set, audience)),
 			autoReleaseCorrection: settings?.autoReleaseCorrection ?? false,
-			focusIntent: focus.intent,
-			exerciseUpgradeAvailable: isUpgradableSet(currentSet),
+			focusIntent: primary?.focus.intent ?? null,
+			planningDate: planningDateKey(now),
+			exerciseUpgradeAvailable: isUpgradableSet(revisionSet),
+			session: {
+				summary: plan.summary,
+				totalMinutes: plan.totalMinutes,
+				tracks,
+			},
 		};
 	}
 
-	async generate(actor: SessionActor): Promise<ExerciseSet> {
+	async generate(
+		actor: SessionActor,
+		track: PracticeTrackKind = "revision",
+		lessonId?: string,
+	): Promise<ExerciseSet> {
 		if (actor.role !== "student") throw new GuardianCannotGenerateError();
 		const query = learnerRef(actor);
 		const snapshot = await this.ensureSnapshot(query);
-		const existing = await this.ports.sets.findBySnapshotId(snapshot.id);
-		if (existing && !isUpgradableSet(existing)) {
+		const plan = await this.resolveDailyPlan(query, snapshot, this.now());
+		const chosen = plan.tracks.find((item) => item.kind === track);
+		const item = trackItem(chosen, lessonId);
+		if (!chosen?.available || !item) {
+			if (plan.tracks.every((entry) => !entry.available)) throw new NothingToPracticeError();
+			throw new DomainError("TRACK_UNAVAILABLE", "Cette piste n'a pas de série à préparer.");
+		}
+		const plannedIds = new Set(trackItems(chosen).map((entry) => entry.lesson.id));
+		const onTrack = (await this.ports.sets.listByStudentId(query)).filter((set) =>
+			set.snapshotId === snapshot.id && exerciseTrack(set) === track
+		);
+		const existing = onTrack.find((set) => set.lessonId === item.lesson.id)
+			?? onTrack.find((set) =>
+				!plannedIds.has(set.lessonId)
+				&& !set.submittedAt
+				&& !hasStarted(set)
+			)
+			?? null;
+		const replace = existing !== null && !blocksRegeneration(existing, item.lesson.id);
+		if (existing && !replace) {
 			throw new AlreadyGeneratedError(existing.id);
 		}
 
-		const { focus, lesson } = await this.resolveFocus(query, snapshot);
-
-		const generated = await this.ports.generator.generate({ snapshot, lesson, focus });
-		const set = existing ? { ...generated, id: existing.id } : generated;
+		const generated = await this.ports.generator.generate({
+			snapshot,
+			lesson: item.lesson,
+			focus: item.focus,
+			plannedMinutes: item.minutes,
+		});
+		const set: ExerciseSet = {
+			...(replace && existing ? { ...generated, id: existing.id } : generated),
+			track,
+			plannedMinutes: item.minutes,
+		};
 		await this.ports.sets.save(set);
 		return presentExerciseSet(set, "student");
 	}
@@ -456,17 +512,69 @@ export class ChildrenAiApp {
 		return results;
 	}
 
-	private async resolveFocus(query: LearnerContextQuery, snapshot: LearnerAcademicSnapshot) {
-		const settings = await this.ports.practiceSettings.get(query);
-		const lessons = this.ports.catalog.listLessons(snapshot.context.student.grade);
-		const now = new Date(this.ports.clock.nowIso());
-		const focus = suggestFocus(snapshot, lessons, {
-			intent: settings?.focusIntent,
-			now: Number.isNaN(now.getTime()) ? new Date() : now,
+	private async resolveDailyPlan(
+		query: LearnerContextQuery,
+		snapshot: LearnerAcademicSnapshot,
+		now: Date,
+	): Promise<PracticeSessionPlan> {
+		const planningDate = planningDateKey(now);
+		const stored = await this.ports.plans.get(query, planningDate);
+		if (stored?.planVersion === PRACTICE_PLAN_VERSION) return stored;
+		if ((this.ports.recommendationLoad ?? "request") === "cron") return stored ?? unreadDailyPlan();
+		const plan = await this.ports.focus.plan({
+			snapshot,
+			now,
+			sessionMinutes: {
+				min: DAILY_PRACTICE_MIN_MINUTES,
+				max: DAILY_PRACTICE_MAX_MINUTES,
+			},
 		});
-		const lesson = this.ports.catalog.getLesson(focus.lessonId);
-		if (!lesson) throw new LessonNotInPackError(focus.lessonId);
-		return { focus, lesson, settings };
+		await this.ports.plans.save(query, planningDate, plan);
+		return plan;
+	}
+
+	private now(): Date {
+		const now = new Date(this.ports.clock.nowIso());
+		return Number.isNaN(now.getTime()) ? new Date() : now;
+	}
+
+	private async presentTrack(
+		snapshotId: string,
+		track: PracticeTrackPlan,
+		audience: ExerciseAudience,
+		sets: ExerciseSet[],
+	): Promise<HomeTrack> {
+		const items = trackItems(track).map((item) => {
+			const stored = sets.find((set) =>
+				set.snapshotId === snapshotId
+				&& exerciseTrack(set) === track.kind
+				&& set.lessonId === item.lesson.id
+			) ?? null;
+			const current = shownSet(stored, item.lesson.id);
+			return {
+				lessonId: item.lesson.id,
+				lessonTitle: item.lesson.title,
+				subjectLabel: displaySubjectLabel(item.lesson.subject) || item.lesson.subject,
+				minutes: item.minutes,
+				assessmentLabel: item.assessmentLabel,
+				questionTarget: item.focus.proposals.length,
+				canGenerate: track.available && (stored === null || !blocksRegeneration(stored, item.lesson.id)),
+				currentSet: current ? presentExerciseSet(current, audience) : null,
+			};
+		});
+		const first = items[0];
+		return {
+			kind: track.kind,
+			minutes: track.minutes,
+			available: track.available,
+			lessonTitle: first?.lessonTitle ?? null,
+			subjectLabel: first?.subjectLabel ?? null,
+			assessmentLabel: track.assessmentLabel ?? first?.assessmentLabel ?? null,
+			currentSet: first?.currentSet ?? null,
+			questionTarget: first?.questionTarget ?? 0,
+			canGenerate: items.some((item) => item.canGenerate),
+			items,
+		};
 	}
 
 	private async requireOwnedSet(
@@ -524,6 +632,77 @@ export class ChildrenAiApp {
 	}
 }
 
+export type HomeTrackItem = {
+	lessonId: string;
+	lessonTitle: string;
+	subjectLabel: string | null;
+	minutes: number;
+	assessmentLabel: string | null;
+	questionTarget: number;
+	canGenerate: boolean;
+	currentSet: ExerciseSet | null;
+};
+
+export type HomeTrack = {
+	kind: PracticeTrackKind;
+	minutes: number;
+	available: boolean;
+	lessonTitle: string | null;
+	subjectLabel: string | null;
+	assessmentLabel: string | null;
+	currentSet: ExerciseSet | null;
+	questionTarget: number;
+	canGenerate: boolean;
+	items: HomeTrackItem[];
+};
+
+export type HomeSession = {
+	summary: string;
+	totalMinutes: number;
+	tracks: HomeTrack[];
+};
+
+function unreadDailyPlan(): PracticeSessionPlan {
+	return {
+		summary: "",
+		totalMinutes: 0,
+		planVersion: PRACTICE_PLAN_VERSION,
+		tracks: [
+			{ kind: "revision", minutes: 0, available: false, focus: null, lesson: null, assessmentLabel: null, items: [] },
+			{ kind: "homework", minutes: 0, available: false, focus: null, lesson: null, assessmentLabel: null, items: [] },
+		],
+	};
+}
+
+function trackItems(track: PracticeTrackPlan): PracticeTrackItem[] {
+	if (track.items.length > 0) return track.items;
+	if (!track.focus || !track.lesson) return [];
+	return [{
+		minutes: track.minutes,
+		focus: track.focus,
+		lesson: track.lesson,
+		assessmentLabel: track.assessmentLabel,
+	}];
+}
+
+function trackItem(
+	track: PracticeTrackPlan | undefined,
+	lessonId: string | undefined,
+): PracticeTrackItem | undefined {
+	const items = track ? trackItems(track) : [];
+	if (!lessonId) return items[0];
+	return items.find((item) => item.lesson.id === lessonId);
+}
+
+function primaryTrack(plan: PracticeSessionPlan): (PracticeTrackPlan & {
+	focus: PracticeFocus;
+	lesson: NonNullable<PracticeTrackPlan["lesson"]>;
+}) | null {
+	const chosen = plan.tracks.find((track) => track.available && track.focus && track.lesson);
+	if (!chosen?.focus || !chosen.lesson) return null;
+	return { ...chosen, focus: chosen.focus, lesson: chosen.lesson };
+}
+
 export function learnerRef(actor: StudentActor): LearnerContextQuery {
 	return learnerQueryForIssuedCode(actor);
 }
@@ -534,4 +713,20 @@ function isUpgradableSet(set: ExerciseSet | null): boolean {
 		&& !set.submittedAt
 		&& set.questions.every((question) => !question.expectedAnswer),
 	);
+}
+
+function hasStarted(set: ExerciseSet): boolean {
+	return (set.answers ?? []).some((answer) => answer.value.trim() !== "");
+}
+
+function blocksRegeneration(existing: ExerciseSet, lessonId: string): boolean {
+	if (isUpgradableSet(existing)) return false;
+	if (!existing.submittedAt && existing.lessonId !== lessonId && !hasStarted(existing)) return false;
+	return true;
+}
+
+function shownSet(stored: ExerciseSet | null, lessonId: string): ExerciseSet | null {
+	if (!stored || !lessonId) return stored;
+	if (stored.submittedAt || stored.lessonId === lessonId || hasStarted(stored)) return stored;
+	return null;
 }

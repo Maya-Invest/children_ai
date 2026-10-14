@@ -33,7 +33,8 @@ export type HttpOptions = {
 	sessions: SessionStore;
 	identity: IdentityVerifier;
 	corsOrigins?: string[];
-	generatorName?: "stub" | "gemini-flash";
+	generatorName?: "stub" | "gemini-flash" | "rag";
+	focusName?: "stub" | "cloudflare";
 	palier?: Palier;
 	contextMode?: "fixture" | "http";
 };
@@ -123,6 +124,7 @@ export function createHttpApp(app: ChildrenAiApp, options: HttpOptions) {
 			schoolTenancy: "per-school",
 			contextMode: options.contextMode ?? "fixture",
 			generator: options.generatorName ?? "stub",
+			focus: options.focusName ?? "stub",
 			keysRequired: palier === "prod" || palier === "staging",
 		});
 	});
@@ -168,7 +170,15 @@ export function createHttpApp(app: ChildrenAiApp, options: HttpOptions) {
 
 	http.post("/exercise-sets/generate", async (c) => {
 		const actor = requireStudent(c.get("actor"));
-		const set = await app.generate(actor);
+		const body = await c.req.json().catch(() => ({})) as { track?: unknown; lessonId?: unknown };
+		const track = body.track === undefined ? "revision" : body.track;
+		if (track !== "revision" && track !== "homework") {
+			throw new DomainError("INVALID_TRACK", "Cette piste n'est pas reconnue.");
+		}
+		const lessonId = typeof body.lessonId === "string" && body.lessonId.trim()
+			? body.lessonId.trim()
+			: undefined;
+		const set = await app.generate(actor, track, lessonId);
 		return c.json({ set }, 201);
 	});
 
@@ -361,13 +371,15 @@ function serializeHome(
 			subjects,
 		),
 		focus: home.focus,
-		focusSubject: displaySubjectLabel(home.focus.subject),
+		focusSubject: home.focus ? displaySubjectLabel(home.focus.subject) : "",
 		focusIntent: home.focusIntent,
+		planningDate: home.planningDate,
 		lessonTitle: home.lessonTitle,
+		session: home.session,
 		canGenerate:
 			studentCanGenerate
 			&& actor.role === "student"
-			&& (home.currentSet === null || home.exerciseUpgradeAvailable),
+			&& home.session.tracks.some((track) => track.canGenerate),
 		currentSet: home.currentSet,
 		history: home.history,
 		autoReleaseCorrection: home.autoReleaseCorrection,

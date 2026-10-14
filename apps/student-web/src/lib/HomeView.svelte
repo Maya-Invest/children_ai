@@ -6,30 +6,15 @@
 	import { summarizePractice } from '$lib/revision-stats';
 	import { filterByResult, resultCounts, type ResultFilter } from '$lib/result-filter';
 	import { formatMarkDate, groupClassProgress, groupMarksBySubject, groupTimetable } from '$lib/timetable';
-	import type { ExerciseSet, HomePayload, PracticeIntent, Question } from '$lib/types';
-
-	const FOCUS_CHOICES: { id: PracticeIntent; label: string; hint: string }[] = [
-		{
-			id: 'upcoming_work',
-			label: 'Devoirs à venir',
-			hint: 'Préparer les devoirs et les évaluations annoncés',
-		},
-		{
-			id: 'improve_results',
-			label: 'Amélioration des résultats',
-			hint: 'Renforcer les matières où les notes sont les plus faibles',
-		},
-		{
-			id: 'prepare_next_day',
-			label: 'Préparation de cours',
-			hint: 'Réviser les matières du prochain cours',
-		},
-	];
+	import type { ExerciseSet, HomePayload, HomeTrack, HomeTrackItem, PracticeTrackKind, Question } from '$lib/types';
 
 	type ListedExercise = {
 		id: string;
+		lessonId: string;
 		title: string;
 		detail: string;
+		minutes: number;
+		assessmentLabel: string | null;
 		status: string;
 		setId: string | null;
 		submitted: boolean;
@@ -37,24 +22,31 @@
 		hasCorrection: boolean;
 		hasAnyAnswer: boolean;
 		set: ExerciseSet | null;
+		track: PracticeTrackKind;
+		canGenerate: boolean;
 	};
 
 	let {
 		home,
 		onGenerate,
+		onGenerateAll,
 		onReleaseCorrection,
 		onToggleAutoRelease,
-		onChangeFocusIntent,
 	}: {
 		home: HomePayload;
-		onGenerate?: () => Promise<void> | void;
+		onGenerate?: (track: PracticeTrackKind, lessonId: string) => Promise<void> | void;
+		onGenerateAll?: () => Promise<void> | void;
 		onReleaseCorrection?: (setId: string) => Promise<void> | void;
 		onToggleAutoRelease?: (checked: boolean) => Promise<void> | void;
-		onChangeFocusIntent?: (intent: PracticeIntent) => Promise<void> | void;
 	} = $props();
 
-	let student = $derived(home.student);
-	let pending = $state(false);
+	let student = $derived(
+		home?.student ?? { firstName: '', lastName: '', grade: '', classLabel: '' },
+	);
+	let pendingTrack = $state<'' | PracticeTrackKind | 'all'>('');
+	let pendingLesson = $state('');
+	let progress = $state(0);
+	let progressLabel = $state('Lecture du programme');
 	let settingsPending = $state(false);
 	let settingsError = $state('');
 	let releasingId = $state('');
@@ -62,25 +54,25 @@
 	let viewingSetId = $state<string | null>(null);
 	let resultFilter = $state<ResultFilter>('all');
 	let error = $state('');
-	let isGuardian = $derived(home.actor.role === 'guardian');
-	let timetable = $derived(home.timetable ?? []);
-	let classProgress = $derived(home.classProgress ?? []);
+	let isGuardian = $derived(home?.actor?.role === 'guardian');
+	let timetable = $derived(home?.timetable ?? []);
+	let classProgress = $derived(home?.classProgress ?? []);
 	let progressGroups = $derived(groupClassProgress(classProgress));
 	let programmeLine = $derived(
-		home.programmeLine || `${student.classLabel} · Programme officiel DPFC`,
+		home?.programmeLine || `${student.classLabel} · Programme officiel DPFC`,
 	);
-	let weekDays = $derived(groupTimetable(timetable));
+	let weekDays = $derived(groupTimetable(timetable, home?.planningDate));
 	let attendanceLabel = $derived(
-		home.attendance ? `${Math.round(home.attendance.presentRate * 100)} %` : '—',
+		home?.attendance ? `${Math.round(home.attendance.presentRate * 100)} %` : '—',
 	);
-	let markGroups = $derived(groupMarksBySubject(home.marks ?? []));
-	let rankLabel = $derived(home.rank ? `${home.rank.rank}e / ${home.rank.classSize}` : '—');
+	let markGroups = $derived(groupMarksBySubject(home?.marks ?? []));
+	let rankLabel = $derived(home?.rank ? `${home.rank.rank}e / ${home.rank.classSize}` : '—');
 	let averageLabel = $derived(
-		home.rank
+		home?.rank
 			? home.rank.overallAverage.toLocaleString('fr-CI', { maximumFractionDigits: 1 })
 			: '—',
 	);
-	let practice = $derived(summarizePractice(home.history, home.currentSet));
+	let practice = $derived(summarizePractice(home?.history, home?.currentSet));
 	let questionTotal = $derived(practice.questionsWorked + practice.questionsOpen);
 	let revisionsHint = $derived(
 		practice.seriesCount === 0 ? 'Pas encore commencé' : 'séries terminées',
@@ -139,44 +131,36 @@
 			? `Dernière série commencée ou terminée le ${lastActivityValue}.`
 			: 'Aucune activité enregistrée sur la plateforme.',
 	);
-	let currentSet = $derived(home.currentSet);
-	let practiceBrief = $derived(home.focus.brief || home.focus.rationale);
-	let selectedFocus = $derived(home.focusIntent ?? home.focus.intent ?? 'improve_results');
+	let session = $derived(home?.session ?? { summary: '', totalMinutes: 0, tracks: [] });
 	let canStudentGenerate = $derived(!isGuardian && Boolean(onGenerate));
-	let generateEnabled = $derived(canStudentGenerate && home.canGenerate);
-	let listedExercises = $derived.by((): ListedExercise[] => {
-		const title = home.focusSubject
-			? `${home.focusSubject} · ${home.lessonTitle}`
-			: home.lessonTitle;
-		const items: ListedExercise[] = [];
-		const seen: Record<string, true> = {};
+	let busy = $derived(pendingTrack !== '');
+	let progressTimer: ReturnType<typeof setInterval> | undefined;
 
-		if (currentSet) {
-			items.push(toListedExercise(currentSet, title));
-			seen[currentSet.id] = true;
-		} else {
-			items.push({
-				id: `new-${home.focus.lessonId}`,
-				title,
-				detail: questionDetail(0),
-				status: 'À préparer',
-				setId: null,
-				submitted: false,
-				correctionReleased: false,
-				hasCorrection: false,
-				hasAnyAnswer: false,
-				set: null,
-			});
-		}
+	function startProgress() {
+		progress = 8;
+		progressLabel = 'Lecture du programme';
+		const started = Date.now();
+		clearInterval(progressTimer);
+		progressTimer = setInterval(() => {
+			const elapsed = Date.now() - started;
+			const next = Math.min(92, Math.round(8 + elapsed / 220));
+			progress = next;
+			progressLabel = next < 42 ? 'Lecture du programme' : 'Rédaction des exercices';
+		}, 200);
+	}
 
-		for (const set of home.history ?? []) {
-			if (seen[set.id]) continue;
-			seen[set.id] = true;
-			items.push(toListedExercise(set, `Série du ${formatMarkDate(set.generatedAt)}`));
-		}
-
-		return items;
-	});
+	function stopProgress(done: boolean) {
+		clearInterval(progressTimer);
+		progressTimer = undefined;
+		if (!done) return;
+		progress = 100;
+		progressLabel = pendingTrack === 'all' ? 'Séries prêtes' : 'Série prête';
+	}
+	let generateAllEnabled = $derived(
+		canStudentGenerate && Boolean(onGenerateAll) && session.tracks.some((track) => track.canGenerate),
+	);
+	let trackLists = $derived(session.tracks.map((track) => ({ track, exercises: exercisesFor(track) })));
+	let listedExercises = $derived(trackLists.flatMap((item) => item.exercises));
 	let viewingExercise = $derived(
 		listedExercises.find((item) => item.setId === viewingSetId) ?? null,
 	);
@@ -208,11 +192,10 @@
 		return `${count} questions ${plural}`;
 	}
 
-	function questionDetail(count: number) {
-		if (count > 0) {
-			return `${count} question${count > 1 ? 's' : ''} · QCM et réponses rédigées`;
-		}
-		return '4 à 6 questions · QCM et réponses rédigées';
+	function questionDetail(count: number, planned: number) {
+		const shown = count > 0 ? count : planned;
+		const noun = shown > 1 ? 'questions' : 'question';
+		return `${shown} ${noun} · QCM et réponses rédigées`;
 	}
 
 	function hasCompleteCorrection(set: ExerciseSet): boolean {
@@ -234,13 +217,119 @@
 		});
 	}
 
-	function toListedExercise(set: ExerciseSet, title: string, archived = false): ListedExercise {
+	function setTrack(set: ExerciseSet): PracticeTrackKind {
+		return set.track === 'homework' ? 'homework' : 'revision';
+	}
+
+	function formatDuration(minutes: number): string {
+		if (minutes <= 0) return '';
+		const hours = Math.floor(minutes / 60);
+		const rest = minutes % 60;
+		if (hours <= 0) return `${rest} min`;
+		if (rest === 0) return `${hours} h`;
+		return `${hours} h ${rest}`;
+	}
+
+	function blockTitle(kind: PracticeTrackKind): string {
+		return kind === 'revision' ? 'Exercices de révision' : 'Préparation des devoirs';
+	}
+
+	function exercisesFor(track: HomeTrack): ListedExercise[] {
+		const items: ListedExercise[] = [];
+		const seen: Record<string, true> = {};
+		const planned = plannedItems(track);
+
+		for (const item of planned) {
+			const title =
+				item.subjectLabel && item.lessonTitle
+					? `${item.subjectLabel} · ${item.lessonTitle}`
+					: (item.lessonTitle ?? 'Série à préparer');
+			if (item.currentSet) {
+				items.push(
+					toListedExercise(
+						item.currentSet,
+						title,
+						false,
+						item.minutes,
+						item.assessmentLabel,
+						item.canGenerate,
+						item.lessonId,
+					),
+				);
+				seen[item.currentSet.id] = true;
+			} else if (track.available) {
+				items.push({
+					id: `new-${track.kind}-${item.lessonId}`,
+					lessonId: item.lessonId,
+					title,
+					detail: questionDetail(0, item.questionTarget),
+					minutes: item.minutes,
+					assessmentLabel: item.assessmentLabel,
+					status: 'À préparer',
+					setId: null,
+					submitted: false,
+					correctionReleased: false,
+					hasCorrection: false,
+					hasAnyAnswer: false,
+					set: null,
+					track: track.kind,
+					canGenerate: item.canGenerate,
+				});
+			}
+		}
+
+		for (const set of home?.history ?? []) {
+			if (seen[set.id] || setTrack(set) !== track.kind) continue;
+			seen[set.id] = true;
+			items.push(
+				toListedExercise(
+					set,
+					`Série du ${formatMarkDate(set.generatedAt)}`,
+					false,
+					set.plannedMinutes ?? track.minutes,
+					null,
+					false,
+					set.lessonId,
+				),
+			);
+		}
+
+		return items;
+	}
+
+	function plannedItems(track: HomeTrack): HomeTrackItem[] {
+		if (track.items && track.items.length > 0) return track.items;
+		if (!track.available || !track.lessonTitle) return [];
+		return [{
+			lessonId: track.currentSet?.lessonId ?? track.kind,
+			lessonTitle: track.lessonTitle,
+			subjectLabel: track.subjectLabel,
+			minutes: track.minutes,
+			assessmentLabel: track.assessmentLabel,
+			questionTarget: track.questionTarget,
+			canGenerate: track.canGenerate,
+			currentSet: track.currentSet,
+		}];
+	}
+
+	function toListedExercise(
+		set: ExerciseSet,
+		title: string,
+		archived = false,
+		minutes = 0,
+		assessmentLabel: string | null = null,
+		canGenerate = false,
+		lessonId = set.lessonId,
+	): ListedExercise {
 		const hasCorrection = hasCompleteCorrection(set);
 		const hasAnswer = hasAnyAnswer(set);
 		return {
 			id: set.id,
+			lessonId,
 			title,
-			detail: questionDetail(set.questions.length),
+			detail: questionDetail(set.questions.length, 0),
+			minutes,
+			assessmentLabel,
 			status: setStatus(set, archived),
 			setId: set.id,
 			submitted: Boolean(set.submittedAt),
@@ -248,6 +337,8 @@
 			hasCorrection,
 			hasAnyAnswer: hasAnswer,
 			set,
+			track: setTrack(set),
+			canGenerate,
 		};
 	}
 
@@ -280,20 +371,6 @@
 		else openTip = '';
 	}
 
-	async function changeFocus(intent: PracticeIntent) {
-		if (!onChangeFocusIntent || intent === selectedFocus) return;
-		settingsPending = true;
-		settingsError = '';
-		try {
-			await onChangeFocusIntent(intent);
-		} catch (caught) {
-			settingsError =
-				caught instanceof Error ? caught.message : 'Impossible d’enregistrer ce réglage.';
-		} finally {
-			settingsPending = false;
-		}
-	}
-
 	async function toggleAutoRelease(event: Event) {
 		if (!onToggleAutoRelease) return;
 		const input = event.currentTarget as HTMLInputElement;
@@ -303,7 +380,7 @@
 		try {
 			await onToggleAutoRelease(checked);
 		} catch (caught) {
-			input.checked = home.autoReleaseCorrection;
+			input.checked = home?.autoReleaseCorrection ?? false;
 			settingsError =
 				caught instanceof Error ? caught.message : 'Impossible d’enregistrer ce réglage.';
 		} finally {
@@ -311,16 +388,40 @@
 		}
 	}
 
-	async function generate() {
-		if (!home.canGenerate || !onGenerate) return;
-		pending = true;
+	async function generate(track: PracticeTrackKind, lessonId: string) {
+		const chosen = session.tracks.find((item) => item.kind === track);
+		const lesson = chosen?.items?.find((item) => item.lessonId === lessonId) ?? chosen;
+		if (!lesson?.canGenerate || !onGenerate) return;
+		pendingTrack = track;
+		pendingLesson = lessonId;
 		error = '';
+		startProgress();
 		try {
-			await onGenerate();
+			await onGenerate(track, lessonId);
+			stopProgress(true);
 		} catch (caught) {
+			stopProgress(false);
 			error = caught instanceof Error ? caught.message : 'Génération impossible';
 		} finally {
-			pending = false;
+			pendingTrack = '';
+			pendingLesson = '';
+		}
+	}
+
+	async function generateAll() {
+		if (!generateAllEnabled || !onGenerateAll) return;
+		pendingTrack = 'all';
+		error = '';
+		startProgress();
+		try {
+			await onGenerateAll();
+			stopProgress(true);
+			await new Promise((resolve) => setTimeout(resolve, 400));
+		} catch (caught) {
+			stopProgress(false);
+			error = caught instanceof Error ? caught.message : 'Génération impossible';
+		} finally {
+			pendingTrack = '';
 		}
 	}
 
@@ -446,45 +547,26 @@
 		)}
 	</div>
 
-	{#if !isGuardian}
-		<p class="mt-6 rounded-2xl bg-forest/10 px-4 py-4 text-lg text-ink/80">{practiceBrief}</p>
-	{/if}
-
-	{#if isGuardian && onChangeFocusIntent}
-		<fieldset class="mt-6 rounded-2xl bg-cream px-4 py-4" disabled={settingsPending}>
-			<legend class="text-xs font-extrabold uppercase tracking-[0.14em] text-forest">
-				Focus des exercices
-			</legend>
-			<div class="mt-3 space-y-2">
-				{#each FOCUS_CHOICES as choice (choice.id)}
-					<label class="flex cursor-pointer items-start gap-3 rounded-xl bg-paper px-3 py-3">
-						<input
-							class="mt-1"
-							type="radio"
-							name="practice-focus"
-							value={choice.id}
-							checked={selectedFocus === choice.id}
-							onchange={() => changeFocus(choice.id)}
-						/>
-						<span>
-							<span class="block font-extrabold">{choice.label}</span>
-							<span class="mt-0.5 block text-sm font-bold text-ink/60">{choice.hint}</span>
-						</span>
-					</label>
-				{/each}
-			</div>
-			<p class="mt-3 text-sm text-ink/70">
-				<span class="font-extrabold text-ink">Message pour l’élève. </span>{practiceBrief}
-			</p>
-		</fieldset>
-	{/if}
+	<div class="mt-6 rounded-2xl border-2 border-clay bg-paper px-4 py-4">
+		<p class="text-xs font-extrabold uppercase tracking-[0.16em] text-clay">Résumé du focus</p>
+		<p class="mt-2 text-lg text-ink/80">{session.summary}</p>
+		<div class="mt-3 flex flex-wrap gap-2">
+			{#each session.tracks as track (track.kind)}
+				{#if track.minutes > 0}
+					<span class="rounded-full bg-clay/15 px-3 py-1 text-sm font-extrabold text-clay">
+						{formatDuration(track.minutes)} · {track.kind === 'revision' ? 'Révision' : 'Devoir'}
+					</span>
+				{/if}
+			{/each}
+		</div>
+	</div>
 
 	{#if isGuardian && onToggleAutoRelease}
 		<label class="mt-3 flex cursor-pointer items-center gap-3 rounded-2xl bg-cream px-4 py-3">
 			<input
 				class="shrink-0"
 				type="checkbox"
-				checked={home.autoReleaseCorrection}
+				checked={home?.autoReleaseCorrection ?? false}
 				disabled={settingsPending}
 				onchange={toggleAutoRelease}
 			/>
@@ -503,11 +585,11 @@
 			{#if canStudentGenerate}
 				<button
 					class="rounded-full bg-clay px-6 py-3 text-lg font-extrabold text-white disabled:opacity-60"
-					onclick={generate}
-					disabled={!generateEnabled || pending}
+					onclick={generateAll}
+					disabled={!generateAllEnabled || busy}
 					type="button"
 				>
-					{pending ? 'Préparation…' : 'Tout générer'}
+					{pendingTrack === 'all' ? 'Préparation…' : 'Tout générer'}
 				</button>
 			{/if}
 			{#if !isGuardian}
@@ -520,33 +602,60 @@
 			{/if}
 		</div>
 	{/if}
-	{#if isGuardian && !home.currentSet}
+	{#if busy}
+		<div class="mt-4" role="status" aria-live="polite">
+			<div class="flex items-center justify-between gap-3 text-xs font-extrabold text-ink/70">
+				<span>{progressLabel}</span>
+				<span>{progress} %</span>
+			</div>
+			<div
+				class="mt-2 h-2 overflow-hidden rounded-full bg-ink/10"
+				role="progressbar"
+				aria-valuemin={0}
+				aria-valuemax={100}
+				aria-valuenow={progress}
+				aria-label={progressLabel}
+			>
+				<div
+					class="h-full rounded-full bg-clay transition-[width] duration-200 ease-out"
+					style:width="{progress}%"
+				></div>
+			</div>
+		</div>
+	{/if}
+	{#if isGuardian && !session.tracks.some((track) => track.currentSet)}
 		<p class="mt-4 text-sm font-bold text-ink/60">
 			Aucun ensemble pour le moment. Seul {student.firstName} peut en demander un.
 		</p>
 	{/if}
 
-	<div
-		class={[
-			'relative mt-8 overflow-hidden rounded-[1.75rem] bg-forest/[0.06] p-4 ring-1 ring-forest/10 sm:p-5',
-			viewingSet ? 'min-h-[28rem]' : '',
-		]}
-	>
-		<div class="flex flex-wrap items-center justify-between gap-3">
-			<p class="text-xs font-extrabold uppercase tracking-[0.16em] text-forest">Exercices de révision</p>
-			{#if isGuardian && pendingCorrectionIds.length > 0}
-				<button
-					class="shrink-0 rounded-full bg-clay px-3 py-2 text-xs font-extrabold text-white disabled:opacity-50"
-					type="button"
-					disabled={!onReleaseCorrection || releasingAll || Boolean(releasingId)}
-					onclick={generateAllCorrections}
-				>
-					{releasingAll ? 'Ouverture…' : 'Ouvrir tous les corrigés'}
-				</button>
-			{/if}
-		</div>
-		<ul class="mt-4 space-y-2">
-			{#each listedExercises as exercise, index (exercise.id)}
+	<div class={['relative mt-8 space-y-4', viewingSet ? 'min-h-[28rem]' : '']}>
+		{#each trackLists as block (block.track.kind)}
+			<div class="overflow-hidden rounded-[1.75rem] bg-forest/[0.06] p-4 ring-1 ring-forest/10 sm:p-5">
+				<div class="flex flex-wrap items-center justify-between gap-3">
+					<p class="text-xs font-extrabold uppercase tracking-[0.16em] text-forest">
+						{blockTitle(block.track.kind)}
+					</p>
+					{#if block.track.kind === 'revision' && isGuardian && pendingCorrectionIds.length > 0}
+						<button
+							class="shrink-0 rounded-full bg-clay px-3 py-2 text-xs font-extrabold text-white disabled:opacity-50"
+							type="button"
+							disabled={!onReleaseCorrection || releasingAll || Boolean(releasingId)}
+							onclick={generateAllCorrections}
+						>
+							{releasingAll ? 'Ouverture…' : 'Ouvrir tous les corrigés'}
+						</button>
+					{/if}
+				</div>
+				{#if block.exercises.length === 0}
+					<p class="mt-4 text-sm font-bold text-ink/60">
+						{block.track.kind === 'homework'
+							? 'Aucun devoir à préparer.'
+							: 'Aucune série pour le moment.'}
+					</p>
+				{:else}
+					<ul class="mt-4 space-y-2">
+						{#each block.exercises as exercise, index (exercise.id)}
 				<li class="flex items-center gap-3 rounded-2xl bg-paper px-3 py-3 shadow-sm">
 					<span
 						class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-forest text-sm font-extrabold text-white"
@@ -555,7 +664,12 @@
 					</span>
 					<div class="min-w-0 flex-1">
 						<p class="text-sm font-extrabold text-ink">{exercise.title}</p>
-						<p class="mt-0.5 text-xs font-bold text-ink/45">{exercise.detail}</p>
+						<p class="mt-0.5 text-xs font-bold text-ink/45">
+							{#if exercise.minutes > 0}{formatDuration(exercise.minutes)} · {/if}{exercise.detail}
+						</p>
+						{#if exercise.assessmentLabel}
+							<p class="mt-0.5 text-xs font-bold text-ink/45">{exercise.assessmentLabel}</p>
+						{/if}
 						<p class="mt-0.5 text-xs font-extrabold text-forest">{exercise.status}</p>
 					</div>
 					<div class="flex shrink-0 flex-wrap items-center justify-end gap-2">
@@ -581,11 +695,11 @@
 							{:else}
 								<button
 									class="rounded-full bg-clay px-3 py-2 text-xs font-extrabold text-white disabled:opacity-60"
-									onclick={generate}
-									disabled={!generateEnabled || pending}
+									onclick={() => generate(exercise.track, exercise.lessonId)}
+									disabled={!exercise.canGenerate || busy}
 									type="button"
 								>
-									{pending ? 'Préparation…' : 'Générer'}
+									{pendingLesson === exercise.lessonId ? 'Préparation…' : 'Générer'}
 								</button>
 							{/if}
 						{/if}
@@ -618,8 +732,11 @@
 						{/if}
 					</div>
 				</li>
-			{/each}
-		</ul>
+						{/each}
+					</ul>
+				{/if}
+			</div>
+		{/each}
 		{#if viewingSet}
 			{@const openSet = viewingSet}
 			<div

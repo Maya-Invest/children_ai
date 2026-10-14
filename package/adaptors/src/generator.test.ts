@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { CurriculumLesson, LearnerAcademicSnapshot } from "@children-ai/domain";
 import { CryptoIdGenerator, SystemClock } from "./runtime.ts";
+import { CloudflareRagExerciseGenerator } from "./cloudflare-rag.ts";
 import { createExerciseGenerator, resolveGeneratorName } from "./generator.ts";
 import { GeminiFlashExerciseGenerator, type GeminiFetch } from "./generator-gemini.ts";
 import { StubExerciseGenerator } from "./generator-stub.ts";
@@ -48,8 +49,9 @@ const snapshot: LearnerAcademicSnapshot = {
 
 describe("exercise generator selection", () => {
 	test("uses the stub when no Gemini key is set", () => {
-		expect(resolveGeneratorName(undefined)).toBe("stub");
-		expect(resolveGeneratorName("")).toBe("stub");
+		expect(resolveGeneratorName()).toBe("stub");
+		expect(resolveGeneratorName({ geminiApiKey: "" })).toBe("stub");
+		expect(resolveGeneratorName({ generator: "stub", geminiApiKey: "test-key" })).toBe("stub");
 		const generator = createExerciseGenerator({
 			ids: new CryptoIdGenerator(),
 			clock: new SystemClock(),
@@ -58,7 +60,8 @@ describe("exercise generator selection", () => {
 	});
 
 	test("uses Gemini Flash when a key is present", () => {
-		expect(resolveGeneratorName("test-key")).toBe("gemini-flash");
+		expect(resolveGeneratorName({ geminiApiKey: "test-key" })).toBe("gemini-flash");
+		expect(resolveGeneratorName({ generator: "gemini" })).toBe("gemini-flash");
 		const generator = createExerciseGenerator({
 			ids: new CryptoIdGenerator(),
 			clock: new SystemClock(),
@@ -66,6 +69,22 @@ describe("exercise generator selection", () => {
 			fetchImpl: async () => new Response("{}"),
 		});
 		expect(generator).toBeInstanceOf(GeminiFlashExerciseGenerator);
+	});
+
+	test("selects the RAG generator without using the Gemini key", () => {
+		expect(resolveGeneratorName({ generator: "rag", geminiApiKey: "test-key" })).toBe("rag");
+		const generator = createExerciseGenerator({
+			ids: new CryptoIdGenerator(),
+			clock: new SystemClock(),
+			generator: "rag",
+			apiKey: "test-key",
+			rag: {
+				async chat() {
+					return { text: "{}", hits: [] };
+				},
+			},
+		});
+		expect(generator).toBeInstanceOf(CloudflareRagExerciseGenerator);
 	});
 
 	test("maps Gemini JSON to an llm set with expected answers and no solution field", async () => {
@@ -116,10 +135,37 @@ describe("exercise generator selection", () => {
 			focus: {
 				lessonId: lesson.id,
 				subject: lesson.subject,
-				rationale: "note faible",
+				rationale: "Emploi du temps.",
 				brief: "Voici la série d'exercices suggérée.",
-				intent: "improve_results",
+				intent: "prepare_next_day",
+				proposals: [
+					{
+						objective: "Comparer",
+						theme: "Nombres",
+						exerciseType: "comprehension",
+						difficulty: "medium",
+						minutes: 15,
+						promptHint: "Compare 1/2 et 1/3.",
+					},
+					{
+						objective: "Additionner",
+						theme: "Nombres",
+						exerciseType: "problem_solving",
+						difficulty: "medium",
+						minutes: 15,
+						promptHint: "Calcule 1/4 + 1/4.",
+					},
+					{
+						objective: "Reconnaître",
+						theme: "Nombres",
+						exerciseType: "recognition",
+						difficulty: "easy",
+						minutes: 10,
+						promptHint: "Quelle fraction est la plus grande ?",
+					},
+				],
 			},
+			plannedMinutes: 40,
 		});
 
 		expect(set.generator).toBe("llm");

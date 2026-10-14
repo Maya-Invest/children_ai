@@ -1,4 +1,15 @@
-export { JsonCurriculumCatalog } from "./curriculum-catalog.ts";
+export { JsonCurriculumCatalog, COLLEGE_MATHS_PACK_VERSION } from "./curriculum-catalog.ts";
+export { StubPracticeFocus } from "./focus-stub.ts";
+export { createPracticeFocus, resolveFocusName, type FocusName } from "./focus.ts";
+export {
+	CloudflarePracticeFocus,
+	CloudflareRagExerciseGenerator,
+	createCloudflareRagClient,
+	AI_SEARCH_PACK_VERSION,
+	DEFAULT_FOCUS_MODEL,
+	DEFAULT_RAG_GENERATOR_MODEL,
+	type RagClient,
+} from "./cloudflare-rag.ts";
 export { FixtureGuardianChildrenPort, EmptyGuardianChildrenPort } from "./access-fixture.ts";
 export {
 	FixtureEdayaContext,
@@ -6,6 +17,9 @@ export {
 	FIXTURE_SCHOOL_ID,
 	FIXTURE_STUDENT_ID,
 	FIXTURE_STUDENT_ID_BROU,
+	FIXTURE_LEA_CHAPTER,
+	FIXTURE_LEA_READING,
+	FIXTURE_THOMAS_CHAPTER,
 	FIXTURE_TIMETABLE,
 	FIXTURE_TIMETABLE_BROU,
 } from "./edaya-fixture.ts";
@@ -36,12 +50,13 @@ export {
 	GEMINI_PROMPT_VERSION,
 	GeminiFlashExerciseGenerator,
 } from "./generator-gemini.ts";
-export { createExerciseGenerator, resolveGeneratorName } from "./generator.ts";
+export { createExerciseGenerator, resolveGeneratorName, type GeneratorName } from "./generator.ts";
 export { MemorySessionStore, type SessionStore } from "./session-store.ts";
 export {
 	InMemoryExerciseSetRepository,
+	InMemoryPracticePlanRepository,
 	InMemoryPracticeSettingsRepository,
 	InMemorySnapshotRepository,
 	InMemoryStudentAccessCodeRepository,
 } from "./memory-store.ts";
-export { CryptoIdGenerator, SystemClock } from "./runtime.ts";
+export { CryptoIdGenerator, SystemClock, createRuntimeClock } from "./runtime.ts";

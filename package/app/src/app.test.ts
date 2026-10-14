@@ -9,28 +9,43 @@ import {
 	FixtureGuardianChildrenPort,
 	FIXTURE_STUDENT_ID as LEA_ID,
 	InMemoryExerciseSetRepository,
+	InMemoryPracticePlanRepository,
 	InMemoryPracticeSettingsRepository,
 	InMemorySnapshotRepository,
 	InMemoryStudentAccessCodeRepository,
-	JsonCurriculumCatalog,
+	FIXTURE_LEA_READING,
+	FIXTURE_THOMAS_CHAPTER,
+	FIXTURE_TIMETABLE,
+	FIXTURE_TIMETABLE_BROU,
+	StubPracticeFocus,
 	MemorySessionStore,
 	StubExerciseGenerator,
-	SystemClock,
 } from "@children-ai/adaptors";
 import {
 	AlreadyGeneratedError,
 	ChildNotLinkedError,
 	EdayaContextFetchError,
 	GuardianCannotGenerateError,
+	NOTHING_TO_PRACTICE_MESSAGE,
+	NothingToPracticeError,
 	UnknownAccessCodeError,
 	type EdayaContextPort,
 	type GuardianChildrenPort,
+	type PracticeFocusPort,
+	type PracticeFocusRequest,
+	type RecommendationLoad,
 } from "@children-ai/domain";
+
+const fixtureMonday = { nowIso: () => "2026-10-05T18:00:00.000Z" };
 
 function createAppWithSets(
 	children: GuardianChildrenPort = new FixtureGuardianChildrenPort(),
 	edaya?: EdayaContextPort,
-	clock: { nowIso(): string } = new SystemClock(),
+	clock: { nowIso(): string } = fixtureMonday,
+	options: {
+		focus?: PracticeFocusPort;
+		recommendationLoad?: RecommendationLoad;
+	} = {},
 ) {
 	const ids = new CryptoIdGenerator();
 	const demo = createDemoEdayaContext({ palier: "in-memory" });
@@ -38,10 +53,11 @@ function createAppWithSets(
 	const sets = new InMemoryExerciseSetRepository();
 	const app = new ChildrenAiApp({
 		edaya: edaya ?? demo.edaya,
-		catalog: new JsonCurriculumCatalog(),
+		focus: options.focus ?? new StubPracticeFocus(),
 		generator: new StubExerciseGenerator(ids),
 		snapshots: new InMemorySnapshotRepository(),
 		sets,
+		plans: new InMemoryPracticePlanRepository(),
 		practiceSettings: new InMemoryPracticeSettingsRepository(),
 		codes: new InMemoryStudentAccessCodeRepository(),
 		children,
@@ -49,6 +65,7 @@ function createAppWithSets(
 		clock,
 		ids,
 		syncDebounceMs: 0,
+		recommendationLoad: options.recommendationLoad,
 	});
 	return { app, sessions, sets };
 }
@@ -56,10 +73,23 @@ function createAppWithSets(
 function createApp(
 	children: GuardianChildrenPort = new FixtureGuardianChildrenPort(),
 	edaya?: EdayaContextPort,
-	clock: { nowIso(): string } = new SystemClock(),
+	clock: { nowIso(): string } = fixtureMonday,
+	options: {
+		focus?: PracticeFocusPort;
+		recommendationLoad?: RecommendationLoad;
+	} = {},
 ) {
-	const { app, sessions } = createAppWithSets(children, edaya, clock);
+	const { app, sessions } = createAppWithSets(children, edaya, clock, options);
 	return { app, sessions };
+}
+
+class CountingFocus extends StubPracticeFocus {
+	calls = 0;
+
+	override async plan(input: PracticeFocusRequest) {
+		this.calls += 1;
+		return super.plan(input);
+	}
 }
 
 class ThrowingGuardianChildrenPort implements GuardianChildrenPort {
@@ -87,21 +117,103 @@ async function fixtureStudent(app: ChildrenAiApp) {
 }
 
 describe("ChildrenAiApp", () => {
-	test("suggests fractions from the weakest mark that has an official pack", async () => {
+	test("prepares today's timetable lesson at the end of the day", async () => {
 		const { app } = createApp();
 		const { student } = await fixtureStudent(app);
 		const home = await app.getHome(learnerRef(student));
-		expect(home.lessonTitle).toBe("Fractions");
-		expect(home.focus.subject).toBe("MATH");
-		expect(home.focus.rationale).toContain("Mathématiques");
-		expect(home.focus.rationale).not.toMatch(/MATH «/);
-		expect(home.focus.brief).toContain("série d'exercices suggérée");
-		expect(home.focus.brief).toContain("Fractions");
-		expect(home.focusIntent).toBe("improve_results");
+		expect(home.planningDate).toBe("2026-10-05");
+		expect(FIXTURE_TIMETABLE[0]?.title).toBe("Français");
+		expect(home.lessonTitle).toBe(FIXTURE_LEA_READING);
+		expect(home.focus?.subject).toBe("Français");
+		expect(home.focus?.rationale).toContain("Français");
+		expect(home.focus?.brief).toContain("série d'exercices suggérée");
+		expect(home.focus?.brief).toContain(FIXTURE_LEA_READING);
+		expect(home.focus?.proposals.length).toBeGreaterThan(0);
+		expect(home.focusIntent).toBe("prepare_next_day");
 		expect(home.currentSet).toBeNull();
 	});
 
-	test("keeps the parent exercise focus and uses it for the child brief", async () => {
+	test("keeps at least three subjects from the day's timetable", async () => {
+		const { app } = createApp(new FixtureGuardianChildrenPort(), undefined, {
+			nowIso: () => "2026-10-13T18:00:00.000Z",
+		});
+		const { student } = await fixtureStudent(app);
+		const home = await app.getHome(learnerRef(student));
+		const revision = home.session.tracks.find((track) => track.kind === "revision");
+		expect(revision?.items.map((item) => item.subjectLabel)).toEqual([
+			"Physique-Chimie",
+			"Sciences de la Vie et de la Terre",
+			"Français",
+			"Mathématiques",
+		]);
+		expect(revision?.items.length).toBeGreaterThanOrEqual(3);
+	});
+
+	test("plans once per day, then refresh and generate reuse that plan", async () => {
+		const focus = new CountingFocus();
+		const { app } = createApp(new FixtureGuardianChildrenPort(), undefined, fixtureMonday, { focus });
+		const { student } = await fixtureStudent(app);
+		const first = await app.getHome(learnerRef(student));
+		const second = await app.getHome(learnerRef(student));
+		expect(focus.calls).toBe(1);
+		expect(second.lessonTitle).toBe(first.lessonTitle);
+		expect(second.focus?.subject).toBe(first.focus?.subject);
+
+		const generated = await app.generate(student, "revision");
+		expect(focus.calls).toBe(1);
+		expect(generated.lessonId).toBe(FIXTURE_TIMETABLE[0]?.id);
+	});
+
+	test("cron load does not plan when no row is stored", async () => {
+		const focus = new CountingFocus();
+		const { app } = createApp(new FixtureGuardianChildrenPort(), undefined, fixtureMonday, {
+			focus,
+			recommendationLoad: "cron",
+		});
+		const { student } = await fixtureStudent(app);
+		const home = await app.getHome(learnerRef(student));
+		expect(focus.calls).toBe(0);
+		expect(home.focus).toBeNull();
+		expect(home.lessonTitle).toBe("");
+		await expect(app.generate(student, "revision")).rejects.toBeInstanceOf(NothingToPracticeError);
+		expect(focus.calls).toBe(0);
+	});
+
+	test("shows a sentence when the timetable and the next two weeks are empty", async () => {
+		const edaya: EdayaContextPort = {
+			async pullLearnerContext() {
+				const context = await new FixtureEdayaContext().pullLearnerContext({
+					schoolId: "sch-edaya-ci-cocody",
+					studentId: LEA_ID,
+				});
+				return { ...context, timetable: [], upcomingAssessments: [] };
+			},
+		};
+		const { app } = createApp(new FixtureGuardianChildrenPort(), edaya);
+		const { student } = await fixtureStudent(app);
+		const home = await app.getHome(learnerRef(student));
+		expect(home.session.summary).toBe(NOTHING_TO_PRACTICE_MESSAGE);
+		expect(home.lessonTitle).toBe("");
+		expect(home.focus).toBeNull();
+		expect(home.session.tracks.every((track) => track.available === false)).toBe(true);
+		await expect(app.generate(student, "revision")).rejects.toMatchObject({
+			message: NOTHING_TO_PRACTICE_MESSAGE,
+		});
+		await expect(app.generate(student, "revision")).rejects.toBeInstanceOf(NothingToPracticeError);
+	});
+
+	test("saturday after the near evaluation has nothing to prepare", async () => {
+		const { app } = createApp(new FixtureGuardianChildrenPort(), undefined, {
+			nowIso: () => "2026-10-17T18:00:00.000Z",
+		});
+		const { student } = await fixtureStudent(app);
+		const home = await app.getHome(learnerRef(student));
+		expect(home.planningDate).toBe("2026-10-17");
+		expect(home.session.summary).toBe(NOTHING_TO_PRACTICE_MESSAGE);
+		expect(home.focus).toBeNull();
+	});
+
+	test("keeps both tracks when a parent focus choice is stored", async () => {
 		const { app } = createApp(new FixtureGuardianChildrenPort(), undefined, {
 			nowIso: () => "2026-10-05T08:00:00.000Z",
 		});
@@ -113,10 +225,80 @@ describe("ChildrenAiApp", () => {
 		expect(settings.autoReleaseCorrection).toBe(false);
 
 		const home = await app.getHome(learnerRef(student));
-		expect(home.focusIntent).toBe("upcoming_work");
-		expect(home.focus.brief).toContain("devoir");
-		expect(home.focus.brief).toContain("série d'exercices suggérée");
-		expect(home.lessonTitle).toBe("Fractions");
+		expect(home.focusIntent).toBe("prepare_next_day");
+		expect(home.lessonTitle).toBe(FIXTURE_LEA_READING);
+		expect(home.session.totalMinutes).toBe(120);
+		expect(home.session.summary).toContain("Fin de journée : 2 h");
+		expect(home.session.summary).toContain("devoir");
+		expect(home.session.tracks.find((track) => track.kind === "revision")).toMatchObject({
+			minutes: 80,
+			available: true,
+			lessonTitle: FIXTURE_LEA_READING,
+		});
+		expect(home.session.tracks.find((track) => track.kind === "homework")).toMatchObject({
+			minutes: 40,
+			available: true,
+		});
+	});
+
+	test("generates one series per track on the same snapshot", async () => {
+		const { app } = createApp(new FixtureGuardianChildrenPort(), undefined, {
+			nowIso: () => "2026-10-05T08:00:00.000Z",
+		});
+		const { student } = await fixtureStudent(app);
+		const revision = await app.generate(student, "revision");
+		const homework = await app.generate(student, "homework");
+		expect(revision.track).toBe("revision");
+		expect(revision.plannedMinutes).toBe(27);
+		expect(homework.track).toBe("homework");
+		expect(homework.plannedMinutes).toBe(40);
+		expect(homework.id).not.toBe(revision.id);
+
+		const home = await app.getHome(learnerRef(student));
+		const revisionTrack = home.session.tracks.find((track) => track.kind === "revision");
+		expect(revisionTrack?.minutes).toBe(80);
+		expect(revisionTrack?.items.reduce((sum, item) => sum + item.minutes, 0)).toBe(80);
+		expect(home.currentSet?.id).toBe(revision.id);
+		expect(home.session.tracks.find((track) => track.kind === "homework")?.currentSet?.id).toBe(
+			homework.id,
+		);
+		expect(revisionTrack?.items[0]?.canGenerate).toBe(false);
+		expect(home.session.tracks.find((track) => track.kind === "homework")?.canGenerate).toBe(false);
+
+		await expect(app.generate(student, "revision")).rejects.toBeInstanceOf(AlreadyGeneratedError);
+		await expect(app.generate(student, "homework")).rejects.toBeInstanceOf(AlreadyGeneratedError);
+	});
+
+	test("replaces an unstarted series whose lesson is not the official one", async () => {
+		const { app, sets } = createAppWithSets();
+		const { student } = await fixtureStudent(app);
+		const snapshot = await app.syncSnapshot(learnerRef(student));
+		await sets.save({
+			id: "set-invented",
+			snapshotId: snapshot.id,
+			schoolId: student.schoolId,
+			studentId: student.studentId,
+			lessonId: "Leçon 1",
+			generatedAt: "2026-10-09T19:14:04.686Z",
+			generator: "llm",
+			promptVersion: "cloudflare-rag-v1:test",
+			track: "revision",
+			plannedMinutes: 60,
+			questions: [
+				{ id: "q1", prompt: "Pourquoi le calcul littéral ?", kind: "written", expectedAnswer: "parce que" },
+			],
+		});
+
+		const before = await app.getHome(learnerRef(student));
+		expect(before.lessonTitle).toBe(FIXTURE_LEA_READING);
+		expect(before.currentSet).toBeNull();
+		expect(before.session.tracks.find((track) => track.kind === "revision")?.canGenerate).toBe(true);
+
+		const replaced = await app.generate(student, "revision");
+		expect(replaced.id).toBe("set-invented");
+		expect(replaced.lessonId).toBe(FIXTURE_TIMETABLE[0]?.id);
+		const after = await app.getHome(learnerRef(student));
+		expect(after.currentSet?.lessonId).toBe(FIXTURE_TIMETABLE[0]?.id);
 	});
 
 	test("allows generate once per snapshot then rejects regenerate", async () => {
@@ -125,7 +307,7 @@ describe("ChildrenAiApp", () => {
 		const first = await app.generate(student);
 		expect(first.questions.length).toBeGreaterThan(0);
 		expect(first.schoolId).toBe(student.schoolId);
-		expect(first.lessonId).toBe("ci.college.6e.math.c1.t1.l3");
+		expect(first.lessonId).toBe(FIXTURE_TIMETABLE[0]?.id);
 
 		const home = await app.getHome(learnerRef(student));
 		expect(home.currentSet?.id).toBe(first.id);
@@ -206,7 +388,7 @@ describe("ChildrenAiApp", () => {
 		expect(student.studentId).toBe("ci-s1");
 		expect(student.sessionKind).toBe("demo");
 		const home = await app.getHome(learnerRef(student));
-		expect(home.lessonTitle).toBe("Fractions");
+		expect(home.lessonTitle).toBe(FIXTURE_LEA_READING);
 	});
 
 	test("demo guardian lists Léa even when Identity children are empty", async () => {
@@ -235,7 +417,7 @@ describe("ChildrenAiApp", () => {
 		expect(demoStudent.displayName).toBe("Léa Tremblay");
 		expect(learnerRef(demoStudent).contextSource).toBe("fixture");
 		const home = await demoApp.getHome(learnerRef(demoStudent));
-		expect(home.lessonTitle).toBe("Fractions");
+		expect(home.lessonTitle).toBe(FIXTURE_LEA_READING);
 		const synced = await demoApp.syncLinkedSnapshots();
 		expect(synced.map((item) => item.studentId)).toEqual(["ci-s1"]);
 		const brouIssued = await demoApp.issueAccessCode(guardian, "ci-s31");
@@ -243,7 +425,10 @@ describe("ChildrenAiApp", () => {
 		expect(brouStudent.displayName).toBe("Thomas Tremblay");
 		expect(learnerRef(brouStudent).contextSource).toBe("fixture");
 		const brouHome = await demoApp.getHome(learnerRef(brouStudent));
-		expect(brouHome.lessonTitle).toBe("Nombres décimaux relatifs");
+		expect(FIXTURE_TIMETABLE_BROU[0]?.title).toBe("Physique-Chimie");
+		expect(brouHome.lessonTitle).toBe(FIXTURE_THOMAS_CHAPTER);
+		expect(brouHome.focusIntent).toBe("prepare_next_day");
+		expect(brouHome.session.tracks.find((track) => track.kind === "homework")?.available).toBe(true);
 		expect(brouHome.snapshot.context.student.classLabel).toBe("5ème 1");
 
 		const { app: liveApp } = createApp(new FixtureGuardianChildrenPort(), edaya);
@@ -427,7 +612,7 @@ describe("ChildrenAiApp", () => {
 			snapshotId: snapshot.id,
 			schoolId: student.schoolId,
 			studentId: student.studentId,
-			lessonId: "ci.college.6e.math.c1.t1.l3",
+			lessonId: FIXTURE_TIMETABLE[0]?.id ?? "",
 			generatedAt: "2026-09-13T00:00:00.000Z",
 			generator: "stub",
 			promptVersion: "stub-v1",

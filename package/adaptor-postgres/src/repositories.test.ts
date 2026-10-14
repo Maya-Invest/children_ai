@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { ExerciseSet, LearnerAcademicSnapshot, SessionActor, StudentAccessCode } from "@children-ai/domain";
+import type { ExerciseSet, LearnerAcademicSnapshot, PracticeSessionPlan, SessionActor, StudentAccessCode } from "@children-ai/domain";
 import { demoSchoolCredentials } from "@children-ai/adaptors";
 import { openSparkDatabase } from "./open.ts";
 import { PostgresSessionStore } from "./repositories.ts";
@@ -54,6 +54,13 @@ describe("postgres repositories", () => {
 		await db.sets.save(exercise);
 		expect((await db.sets.getById("set-1"))?.submittedAt).toBe("2026-09-07T11:00:00.000Z");
 		expect(await db.sets.findBySnapshotId("snap-new")).toMatchObject({ id: "set-1" });
+		await db.sets.save({
+			...set("set-2", "snap-new"),
+			track: "homework",
+			generatedAt: "2026-09-07T12:00:00.000Z",
+		});
+		expect((await db.sets.findBySnapshotTrack("snap-new", "revision"))?.id).toBe("set-1");
+		expect((await db.sets.findBySnapshotTrack("snap-new", "homework"))?.id).toBe("set-2");
 
 		await db.practiceSettings.save({
 			schoolId: "school",
@@ -63,6 +70,16 @@ describe("postgres repositories", () => {
 		expect(
 			(await db.practiceSettings.get({ schoolId: "school", studentId: "student-1" }))?.autoReleaseCorrection,
 		).toBe(true);
+
+		const plan: PracticeSessionPlan = {
+			summary: "Fin de journée",
+			totalMinutes: 120,
+			tracks: [],
+		};
+		const learner = { schoolId: "school", studentId: "student-1" };
+		await db.plans.save(learner, "2026-10-13", plan);
+		expect((await db.plans.get(learner, "2026-10-13"))?.summary).toBe("Fin de journée");
+		expect(await db.plans.get(learner, "2026-10-14")).toBeNull();
 
 		const code: StudentAccessCode = {
 			id: "code-1",

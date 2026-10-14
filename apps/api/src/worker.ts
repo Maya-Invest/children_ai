@@ -13,6 +13,7 @@ export default {
 			identity: runtime.identity,
 			corsOrigins: runtime.corsOrigins,
 			generatorName: runtime.generatorName,
+			focusName: runtime.focusName,
 			palier: runtime.palier,
 			contextMode: runtime.contextMode,
 		});

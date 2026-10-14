@@ -2,6 +2,7 @@ import { index, jsonb, pgTable, primaryKey, text } from "drizzle-orm/pg-core";
 import type {
 	ExerciseSet,
 	LearnerAcademicSnapshot,
+	PracticeSessionPlan,
 	PracticeSettings,
 	SchoolIntegration,
 	SessionActor,
@@ -46,6 +47,17 @@ export const practiceSettings = pgTable(
 		payload: jsonb("payload").$type<PracticeSettings>().notNull(),
 	},
 	(table) => [primaryKey({ columns: [table.schoolId, table.studentId] })],
+);
+
+export const practicePlans = pgTable(
+	"practice_plans",
+	{
+		schoolId: text("school_id").notNull(),
+		studentId: text("student_id").notNull(),
+		planningDate: text("planning_date").notNull(),
+		payload: jsonb("payload").$type<PracticeSessionPlan>().notNull(),
+	},
+	(table) => [primaryKey({ columns: [table.schoolId, table.studentId, table.planningDate] })],
 );
 
 export const accessCodes = pgTable(

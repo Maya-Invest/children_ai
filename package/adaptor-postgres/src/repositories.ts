@@ -1,13 +1,17 @@
 import { and, desc, eq, gt, isNull } from "drizzle-orm";
 import type { PgliteDatabase } from "drizzle-orm/pglite";
 import {
+	exerciseTrack,
 	learnerQueryForIssuedCode,
 	type ExerciseSet,
 	type ExerciseSetRepository,
 	type LearnerAcademicSnapshot,
 	type LearnerContextQuery,
+	type PracticePlanRepository,
+	type PracticeSessionPlan,
 	type PracticeSettings,
 	type PracticeSettingsRepository,
+	type PracticeTrackKind,
 	type SessionActor,
 	type SessionStore,
 	type SnapshotRepository,
@@ -84,6 +88,22 @@ export class PostgresExerciseSetRepository implements ExerciseSetRepository {
 			.limit(1);
 		const row = rows[0];
 		return row ? readJson<ExerciseSet>(row.payload) : null;
+	}
+
+	async findBySnapshotTrack(
+		snapshotId: string,
+		track: PracticeTrackKind,
+	): Promise<ExerciseSet | null> {
+		const rows = await this.db
+			.select()
+			.from(schema.exerciseSets)
+			.where(eq(schema.exerciseSets.snapshotId, snapshotId))
+			.orderBy(desc(schema.exerciseSets.generatedAt));
+		for (const row of rows) {
+			const set = readJson<ExerciseSet>(row.payload);
+			if (exerciseTrack(set) === track) return set;
+		}
+		return null;
 	}
 
 	async listByStudentId(query: LearnerContextQuery): Promise<ExerciseSet[]> {
@@ -163,6 +183,49 @@ export class PostgresPracticeSettingsRepository implements PracticeSettingsRepos
 			.onConflictDoUpdate({
 				target: [schema.practiceSettings.schoolId, schema.practiceSettings.studentId],
 				set: { payload: settings },
+			});
+	}
+}
+
+export class PostgresPracticePlanRepository implements PracticePlanRepository {
+	constructor(private readonly db: SparkDb) {}
+
+	async get(query: LearnerContextQuery, planningDate: string): Promise<PracticeSessionPlan | null> {
+		const rows = await this.db
+			.select()
+			.from(schema.practicePlans)
+			.where(
+				and(
+					eq(schema.practicePlans.schoolId, query.schoolId),
+					eq(schema.practicePlans.studentId, query.studentId),
+					eq(schema.practicePlans.planningDate, planningDate),
+				),
+			)
+			.limit(1);
+		const row = rows[0];
+		return row ? readJson<PracticeSessionPlan>(row.payload) : null;
+	}
+
+	async save(
+		query: LearnerContextQuery,
+		planningDate: string,
+		plan: PracticeSessionPlan,
+	): Promise<void> {
+		await this.db
+			.insert(schema.practicePlans)
+			.values({
+				schoolId: query.schoolId,
+				studentId: query.studentId,
+				planningDate,
+				payload: plan,
+			})
+			.onConflictDoUpdate({
+				target: [
+					schema.practicePlans.schoolId,
+					schema.practicePlans.studentId,
+					schema.practicePlans.planningDate,
+				],
+				set: { payload: plan },
 			});
 	}
 }

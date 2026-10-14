@@ -5,10 +5,15 @@ export type {
 	SchoolCredentials,
 	SchoolIntegration,
 	CurriculumCatalogPort,
+	PracticeFocusPort,
+	PracticeFocusRequest,
+	PracticeRecommendation,
 	ExerciseGeneratorPort,
 	SnapshotRepository,
 	ExerciseSetRepository,
 	PracticeSettingsRepository,
+	PracticePlanRepository,
+	RecommendationLoad,
 	GuardianChildrenPort,
 	GuardianChildrenQuery,
 	StudentAccessCodeRepository,
@@ -19,7 +24,7 @@ export type {
 	Clock,
 	IdGenerator,
 } from "./ports.ts";
-export { CHILDREN_AI_SERVICE_ID } from "./ports.ts";
+export { CHILDREN_AI_SERVICE_ID, parseRecommendationLoad } from "./ports.ts";
 export * from "./types.ts";
 export {
 	formatStudentAccessCode,
@@ -60,8 +65,35 @@ export {
 	listLearnerSubjects,
 	subjectsMatch,
 } from "./display-subject.ts";
-export { suggestFocus } from "./suggest-focus.ts";
+export { calendarDaysUntil, matchOfficialLesson, officialLessonsForSubject, suggestFocus, suggestHomeworkWithinHorizon } from "./suggest-focus.ts";
 export {
+	DAILY_PRACTICE_MAX_MINUTES,
+	DAILY_PRACTICE_MINUTES,
+	DAILY_PRACTICE_MIN_MINUTES,
+	isDailyPracticeDuration,
+	UPCOMING_EVALUATION_HORIZON_DAYS,
+	MIN_DAILY_SUBJECTS,
+	SNAPSHOT_PACK_VERSION,
+	endOfDayCandidates,
+	endOfDaySnapshotLessons,
+	matchTimetableLesson,
+	planningDateKey,
+	resolveSnapshotLesson,
+	revisionLessonsForDay,
+	scanPracticeWindow,
+	splitMinutes,
+	upcomingCandidates,
+	upcomingSnapshotLessons,
+} from "./practice-window.ts";
+export {
+	composeSessionPlan,
+	emptySessionPlan,
+	exerciseProposalInstruction,
+	formatPracticeDuration,
+	questionTargetForMinutes,
+} from "./session-plan.ts";
+export {
+	distinctMcqChoices,
 	isAnswerCorrect,
 	normalizeAnswer,
 	questionKind,

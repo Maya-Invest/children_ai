@@ -188,8 +188,8 @@ Do not set `EDAYA_DEMO_API_KEY` on prod. Do not enable `/auth/demo` on palier pr
 ```
 package/domain              ports and types
 package/app                 ChildrenAiApp
-package/adaptors            fixture + HTTP EDAYA, stub, Gemini
+package/adaptors            fixture + HTTP EDAYA, focus stub, Gemini, Cloudflare RAG
 package/adaptor-postgres    PGlite + Postgres (Hyperdrive) repositories
-apps/api                    Hono (Bun + Worker). RUNTIME picks the driver
+apps/api                    Hono (Bun + Worker). RUNTIME, FOCUS, and GENERATOR pick adapters
 apps/student-web            SvelteKit (parent Edaya OTP + student codes)
 ```

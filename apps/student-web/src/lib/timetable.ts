@@ -20,11 +20,11 @@ const JS_DAY_TO_TIMETABLE = [
 	'saturday',
 ] as const;
 
-export function groupTimetable(slots: HomePayload['timetable']) {
+export function groupTimetable(slots: HomePayload['timetable'], planningDate?: string) {
 	if (slots.length === 0) return [];
 	const used = new Set(slots.map((slot) => slot.dayOfWeek));
 	const includeWeekend = used.has('saturday') || used.has('sunday');
-	const today = JS_DAY_TO_TIMETABLE[new Date().getDay()] ?? 'monday';
+	const today = weekdayFromPlanningDate(planningDate) ?? JS_DAY_TO_TIMETABLE[new Date().getDay()] ?? 'monday';
 	const days = WEEKDAY_LABELS.filter(
 		(day) => includeWeekend || (day.id !== 'saturday' && day.id !== 'sunday'),
 	);
@@ -36,6 +36,13 @@ export function groupTimetable(slots: HomePayload['timetable']) {
 			.slice()
 			.sort((left, right) => left.startTime.localeCompare(right.startTime)),
 	}));
+}
+
+function weekdayFromPlanningDate(value: string | undefined) {
+	if (!value || !/^\d{4}-\d{2}-\d{2}/.test(value)) return undefined;
+	const date = new Date(`${value.slice(0, 10)}T12:00:00.000Z`);
+	if (Number.isNaN(date.getTime())) return undefined;
+	return JS_DAY_TO_TIMETABLE[date.getUTCDay()];
 }
 
 export function formatMarkDate(value: string) {

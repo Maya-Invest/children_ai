@@ -1,11 +1,15 @@
 import {
+	exerciseTrack,
 	learnerQueryForIssuedCode,
 	type ExerciseSet,
 	type ExerciseSetRepository,
 	type LearnerAcademicSnapshot,
 	type LearnerContextQuery,
+	type PracticePlanRepository,
+	type PracticeSessionPlan,
 	type PracticeSettings,
 	type PracticeSettingsRepository,
+	type PracticeTrackKind,
 	type SnapshotRepository,
 	type StudentAccessCode,
 	type StudentAccessCodeRepository,
@@ -36,6 +40,17 @@ export class InMemoryExerciseSetRepository implements ExerciseSetRepository {
 
 	async findBySnapshotId(snapshotId: string): Promise<ExerciseSet | null> {
 		return this.items.find((item) => item.snapshotId === snapshotId) ?? null;
+	}
+
+	async findBySnapshotTrack(
+		snapshotId: string,
+		track: PracticeTrackKind,
+	): Promise<ExerciseSet | null> {
+		return latestSet(
+			this.items.filter(
+				(item) => item.snapshotId === snapshotId && exerciseTrack(item) === track,
+			),
+		);
 	}
 
 	async listByStudentId(query: LearnerContextQuery): Promise<ExerciseSet[]> {
@@ -71,8 +86,32 @@ export class InMemoryPracticeSettingsRepository implements PracticeSettingsRepos
 	}
 }
 
+function latestSet(sets: ExerciseSet[]): ExerciseSet | null {
+	return [...sets].sort((left, right) => right.generatedAt.localeCompare(left.generatedAt))[0] ?? null;
+}
+
 function practiceKey(query: { schoolId: string; studentId: string }): string {
 	return `${query.schoolId}:${query.studentId}`;
+}
+
+export class InMemoryPracticePlanRepository implements PracticePlanRepository {
+	private readonly items = new Map<string, PracticeSessionPlan>();
+
+	async get(query: LearnerContextQuery, planningDate: string): Promise<PracticeSessionPlan | null> {
+		return this.items.get(planKey(query, planningDate)) ?? null;
+	}
+
+	async save(
+		query: LearnerContextQuery,
+		planningDate: string,
+		plan: PracticeSessionPlan,
+	): Promise<void> {
+		this.items.set(planKey(query, planningDate), plan);
+	}
+}
+
+function planKey(query: { schoolId: string; studentId: string }, planningDate: string): string {
+	return `${query.schoolId}:${query.studentId}:${planningDate}`;
 }
 
 export class InMemoryStudentAccessCodeRepository implements StudentAccessCodeRepository {

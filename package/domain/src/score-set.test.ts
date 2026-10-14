@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { isAnswerCorrect, scoreExerciseSet } from "./score-set.ts";
+import { distinctMcqChoices, isAnswerCorrect, scoreExerciseSet } from "./score-set.ts";
 import type { ExerciseSet } from "./types.ts";
 
 const set: ExerciseSet = {
@@ -37,5 +37,23 @@ describe("scoreExerciseSet", () => {
 			{ questionId: "q-mcq", value: "1" },
 			{ questionId: "q-written", value: "Donc MA = MB." },
 		])).toEqual({ correct: 2, total: 2 });
+	});
+});
+
+describe("distinctMcqChoices", () => {
+	test("keeps the first copy of a repeated choice", () => {
+		const codes = "Le code historique, le code gestuel";
+		expect(distinctMcqChoices(
+			[codes, "Un seul code", `  ${codes}  `, "Aucun code"],
+			codes,
+		)).toEqual({
+			choices: [codes, "Un seul code", "Aucun code"],
+			expectedAnswer: codes,
+		});
+	});
+
+	test("rejects a QCM that collapses to one choice", () => {
+		const codes = "Le code historique, le code gestuel";
+		expect(distinctMcqChoices([codes, codes, ` ${codes}`], codes)).toBeUndefined();
 	});
 });
