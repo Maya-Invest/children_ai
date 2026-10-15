@@ -13,7 +13,6 @@ export type {
 	ExerciseSetRepository,
 	PracticeSettingsRepository,
 	PracticePlanRepository,
-	RecommendationLoad,
 	GuardianChildrenPort,
 	GuardianChildrenQuery,
 	StudentAccessCodeRepository,
@@ -24,7 +23,7 @@ export type {
 	Clock,
 	IdGenerator,
 } from "./ports.ts";
-export { CHILDREN_AI_SERVICE_ID, parseRecommendationLoad } from "./ports.ts";
+export { CHILDREN_AI_SERVICE_ID } from "./ports.ts";
 export * from "./types.ts";
 export {
 	formatStudentAccessCode,

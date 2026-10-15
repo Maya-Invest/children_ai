@@ -19,7 +19,7 @@ import {
 	PostgresSchoolIntegrationVault,
 	type SparkPersistence,
 } from "@children-ai/adaptor-postgres";
-import { parsePalier, parseRecommendationLoad, resolvePalierEdayaOrigin, resolveVaultMasterKey, type Palier, type RecommendationLoad, type SessionStore } from "@children-ai/domain";
+import { parsePalier, resolvePalierEdayaOrigin, resolveVaultMasterKey, type Palier, type SessionStore } from "@children-ai/domain";
 import { createIdentityVerifier } from "./identity.ts";
 import type { IdentityVerifier } from "./http.ts";
 import { assertPersistedPgliteUrl, parseRuntime, type RuntimeKind } from "./runtime/boundaries.ts";
@@ -34,7 +34,6 @@ export type LocalRuntime = {
 	runtime: RuntimeKind;
 	schoolId: string;
 	contextMode: "fixture" | "http";
-	recommendationLoad: RecommendationLoad;
 	persistence: SparkPersistence;
 };
 
@@ -69,7 +68,6 @@ export async function createLocalRuntime(): Promise<LocalRuntime> {
 		geminiApiKey: geminiKey,
 	});
 	const focusName = resolveFocusName(process.env.FOCUS);
-	const recommendationLoad = parseRecommendationLoad(process.env.RECOMMENDATION_LOAD);
 	const rag = focusName === "cloudflare" || generatorName === "rag"
 		? createCloudflareRagClient({
 			accountId: process.env.CLOUDFLARE_ACCOUNT_ID,
@@ -117,7 +115,6 @@ export async function createLocalRuntime(): Promise<LocalRuntime> {
 		sets: persistence.sets,
 		plans: persistence.plans,
 		practiceSettings: persistence.practiceSettings,
-		recommendationLoad,
 		codes: persistence.codes,
 		children: demo.children,
 		studentSessions: persistence.sessions,
@@ -135,13 +132,8 @@ export async function createLocalRuntime(): Promise<LocalRuntime> {
 		runtime,
 		schoolId: demo.schoolId,
 		contextMode: demo.contextMode,
-		recommendationLoad,
 		persistence,
 	};
-}
-
-export async function createApp(): Promise<ChildrenAiApp> {
-	return (await createLocalRuntime()).app;
 }
 
 function loadRepoEnvFile() {

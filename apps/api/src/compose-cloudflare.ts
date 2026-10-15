@@ -18,7 +18,6 @@ import {
 import { openSparkDatabase, PostgresSchoolIntegrationVault } from "@children-ai/adaptor-postgres";
 import {
 	parsePalier,
-	parseRecommendationLoad,
 	resolvePalierEdayaOrigin,
 	resolveVaultMasterKey,
 	type Palier,
@@ -31,7 +30,6 @@ import { assertWorkerHyperdrive } from "./runtime/boundaries.ts";
 export type CloudflareAdaptorEnv = {
 	HYPERDRIVE?: { connectionString?: string };
 	FOCUS?: string;
-	RECOMMENDATION_LOAD?: string;
 	GENERATOR?: string;
 	CLOUDFLARE_ACCOUNT_ID?: string;
 	CLOUDFLARE_API_TOKEN?: string;
@@ -152,7 +150,6 @@ export async function createCloudflareRuntime(
 		sets: persistence.sets,
 		plans: persistence.plans,
 		practiceSettings: persistence.practiceSettings,
-		recommendationLoad: parseRecommendationLoad(env.RECOMMENDATION_LOAD),
 		codes: persistence.codes,
 		children: demo.children,
 		studentSessions: persistence.sessions,

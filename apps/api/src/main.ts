@@ -25,5 +25,5 @@ export default {
 };
 
 console.log(
-	`Edaya Spark API (Hono) runtime=${runtime.runtime} palier=${runtime.palier} school=${runtime.schoolId} context=${runtime.contextMode} on http://localhost:${port} — focus=${runtime.focusName} generator=${runtime.generatorName} recommendation=${runtime.recommendationLoad}`,
+	`Edaya Spark API (Hono) runtime=${runtime.runtime} palier=${runtime.palier} school=${runtime.schoolId} context=${runtime.contextMode} on http://localhost:${port} — focus=${runtime.focusName} generator=${runtime.generatorName}`,
 );

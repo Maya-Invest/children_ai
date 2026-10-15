@@ -33,7 +33,6 @@ import {
 	type GuardianChildrenPort,
 	type PracticeFocusPort,
 	type PracticeFocusRequest,
-	type RecommendationLoad,
 } from "@children-ai/domain";
 
 const fixtureMonday = { nowIso: () => "2026-10-05T18:00:00.000Z" };
@@ -44,7 +43,6 @@ function createAppWithSets(
 	clock: { nowIso(): string } = fixtureMonday,
 	options: {
 		focus?: PracticeFocusPort;
-		recommendationLoad?: RecommendationLoad;
 	} = {},
 ) {
 	const ids = new CryptoIdGenerator();
@@ -65,7 +63,6 @@ function createAppWithSets(
 		clock,
 		ids,
 		syncDebounceMs: 0,
-		recommendationLoad: options.recommendationLoad,
 	});
 	return { app, sessions, sets };
 }
@@ -76,7 +73,6 @@ function createApp(
 	clock: { nowIso(): string } = fixtureMonday,
 	options: {
 		focus?: PracticeFocusPort;
-		recommendationLoad?: RecommendationLoad;
 	} = {},
 ) {
 	const { app, sessions } = createAppWithSets(children, edaya, clock, options);
@@ -162,21 +158,6 @@ describe("ChildrenAiApp", () => {
 		const generated = await app.generate(student, "revision");
 		expect(focus.calls).toBe(1);
 		expect(generated.lessonId).toBe(FIXTURE_TIMETABLE[0]?.id);
-	});
-
-	test("cron load does not plan when no row is stored", async () => {
-		const focus = new CountingFocus();
-		const { app } = createApp(new FixtureGuardianChildrenPort(), undefined, fixtureMonday, {
-			focus,
-			recommendationLoad: "cron",
-		});
-		const { student } = await fixtureStudent(app);
-		const home = await app.getHome(learnerRef(student));
-		expect(focus.calls).toBe(0);
-		expect(home.focus).toBeNull();
-		expect(home.lessonTitle).toBe("");
-		await expect(app.generate(student, "revision")).rejects.toBeInstanceOf(NothingToPracticeError);
-		expect(focus.calls).toBe(0);
 	});
 
 	test("shows a sentence when the timetable and the next two weeks are empty", async () => {
@@ -371,7 +352,7 @@ describe("ChildrenAiApp", () => {
 		expect(listing.children).toEqual([]);
 	});
 
-	test("CRON-style sync covers students with an active access code", async () => {
+	test("sync covers students with an active access code", async () => {
 		const { app } = createApp();
 		expect(await app.syncLinkedSnapshots()).toEqual([]);
 		await fixtureStudent(app);

@@ -51,7 +51,6 @@ import {
 	type PracticeTrackPlan,
 	type PracticePlanRepository,
 	type PracticeSettingsRepository,
-	type RecommendationLoad,
 	type SessionActor,
 	type SnapshotRepository,
 	type StudentAccessCode,
@@ -76,7 +75,6 @@ export type AppPorts = {
 	sets: ExerciseSetRepository;
 	plans: PracticePlanRepository;
 	practiceSettings: PracticeSettingsRepository;
-	recommendationLoad?: RecommendationLoad;
 	children: GuardianChildrenPort;
 	codes: StudentAccessCodeRepository;
 	studentSessions: StudentSessionPort;
@@ -522,7 +520,6 @@ export class ChildrenAiApp {
 		const promptVersion = this.ports.focus.promptVersion();
 		const samePrompt = promptVersion === "" || stored?.promptVersion === promptVersion;
 		if (stored?.planVersion === PRACTICE_PLAN_VERSION && samePrompt) return stored;
-		if ((this.ports.recommendationLoad ?? "request") === "cron") return stored ?? unreadDailyPlan();
 		const plan = await this.ports.focus.plan({
 			snapshot,
 			now,
@@ -663,18 +660,6 @@ export type HomeSession = {
 	totalMinutes: number;
 	tracks: HomeTrack[];
 };
-
-function unreadDailyPlan(): PracticeSessionPlan {
-	return {
-		summary: "",
-		totalMinutes: 0,
-		planVersion: PRACTICE_PLAN_VERSION,
-		tracks: [
-			{ kind: "revision", minutes: 0, available: false, focus: null, lesson: null, assessmentLabel: null, items: [] },
-			{ kind: "homework", minutes: 0, available: false, focus: null, lesson: null, assessmentLabel: null, items: [] },
-		],
-	};
-}
 
 function trackItems(track: PracticeTrackPlan): PracticeTrackItem[] {
 	if (track.items.length > 0) return track.items;

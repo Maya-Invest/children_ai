@@ -145,12 +145,6 @@ curl http://localhost:8787/health
 
 Local snapshots, sets, codes, sessions, and the school vault live in PGlite at `children_ai/.data/spark` (`DATABASE_URL=pglite:.data/spark`). Delete that folder if you want a clean generate-once cycle. Stop the API first: PGlite keeps a lock on the directory.
 
-Manual CRON (force-sync students that currently have an **active** access code):
-
-```bash
-bun --filter @children-ai/api cron:local
-```
-
 ---
 
 ## Architecture (short)

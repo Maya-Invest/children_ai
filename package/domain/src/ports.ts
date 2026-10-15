@@ -99,12 +99,6 @@ export interface PracticeSettingsRepository {
 	save(settings: PracticeSettings): Promise<void>;
 }
 
-export type RecommendationLoad = "request" | "cron";
-
-export function parseRecommendationLoad(value: string | undefined): RecommendationLoad {
-	return value === "cron" ? "cron" : "request";
-}
-
 export interface PracticePlanRepository {
 	get(query: LearnerContextQuery, planningDate: string): Promise<PracticeSessionPlan | null>;
 	save(query: LearnerContextQuery, planningDate: string, plan: PracticeSessionPlan): Promise<void>;
