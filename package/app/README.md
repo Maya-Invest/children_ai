@@ -1,7 +1,7 @@
-# @children-ai/app
+# @edaya-spark/app
 
-`ChildrenAiApp` use cases (home, generate, snapshots). Depends on `@children-ai/domain` ports.
+`EdayaSparkApp` use cases (home, generate, snapshots). Depends on `@edaya-spark/domain` ports.
 
 ```sh
-bun --filter @children-ai/app test
+bun --filter @edaya-spark/app test
 ```

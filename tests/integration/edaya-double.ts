@@ -54,9 +54,9 @@ export async function startEdayaDouble(): Promise<EdayaDouble> {
 						sessions,
 					});
 				}
-				if (url.pathname === "/internal/children-ai/resolve-guardian") {
+				if (url.pathname === "/internal/edaya-spark/resolve-guardian") {
 					if (request.method !== "POST") return methodNotAllowed();
-					if (request.headers.get("x-children-ai-resolve-secret") !== RESOLVE_SECRET) {
+					if (request.headers.get("x-edaya-spark-resolve-secret") !== RESOLVE_SECRET) {
 						return json({ message: "Unauthorized" }, 401);
 					}
 					const body = await readJson(request);

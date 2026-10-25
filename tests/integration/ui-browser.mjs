@@ -2,8 +2,8 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 import { chromium } from "playwright";
 
-const webOrigin = process.env.CHILDREN_AI_WEB_ORIGIN;
-if (!webOrigin) throw new Error("CHILDREN_AI_WEB_ORIGIN is required");
+const webOrigin = process.env.EDAYA_SPARK_WEB_ORIGIN;
+if (!webOrigin) throw new Error("EDAYA_SPARK_WEB_ORIGIN is required");
 
 const browser = await chromium.launch({ headless: true, timeout: 20_000 });
 const page = await browser.newPage();

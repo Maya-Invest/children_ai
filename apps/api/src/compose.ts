@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { ChildrenAiApp } from "@children-ai/app";
+import { EdayaSparkApp } from "@edaya-spark/app";
 import {
 	createCloudflareRagClient,
 	createExerciseGenerator,
@@ -13,19 +13,19 @@ import {
 	resolveEdayaContextMode,
 	type FocusName,
 	type GeneratorName,
-} from "@children-ai/adaptors";
+} from "@edaya-spark/adaptors";
 import {
 	openSparkDatabase,
 	PostgresSchoolIntegrationVault,
 	type SparkPersistence,
-} from "@children-ai/adaptor-postgres";
-import { parsePalier, resolvePalierEdayaOrigin, resolveVaultMasterKey, type Palier, type SessionStore } from "@children-ai/domain";
+} from "@edaya-spark/adaptor-postgres";
+import { parsePalier, resolvePalierEdayaOrigin, resolveVaultMasterKey, type Palier, type SessionStore } from "@edaya-spark/domain";
 import { createIdentityVerifier } from "./identity.ts";
 import type { IdentityVerifier } from "./http.ts";
 import { assertPersistedPgliteUrl, parseRuntime, type RuntimeKind } from "./runtime/boundaries.ts";
 
 export type LocalRuntime = {
-	app: ChildrenAiApp;
+	app: EdayaSparkApp;
 	sessions: SessionStore;
 	identity: IdentityVerifier;
 	generatorName: GeneratorName;
@@ -91,11 +91,11 @@ export async function createLocalRuntime(): Promise<LocalRuntime> {
 		contextMode: process.env.EDAYA_CONTEXT,
 		credentials,
 		seedDemoSchool: palier !== "prod",
-		resolveGuardianSecret: process.env.CHILDREN_AI_RESOLVE_SECRET,
+		resolveGuardianSecret: process.env.EDAYA_SPARK_RESOLVE_SECRET,
 	});
 	await demo.ready;
 
-	const app = new ChildrenAiApp({
+	const app = new EdayaSparkApp({
 		edaya: demo.edaya,
 		focus: createPracticeFocus({
 			focus: focusName,

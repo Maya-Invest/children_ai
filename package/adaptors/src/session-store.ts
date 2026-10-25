@@ -1,4 +1,4 @@
-import type { SessionActor, SessionStore, StudentActor } from "@children-ai/domain";
+import type { SessionActor, SessionStore, StudentActor } from "@edaya-spark/domain";
 
 export type { SessionStore };
 

@@ -1,4 +1,4 @@
-# @children-ai/adaptor-postgres
+# @edaya-spark/adaptor-postgres
 
 One Postgres schema for Edaya Spark. Local and tests use PGlite. The Worker uses Postgres through Hyperdrive.
 
@@ -6,4 +6,4 @@ One Postgres schema for Edaya Spark. Local and tests use PGlite. The Worker uses
 |---|---|
 | `pglite`, `memory` | Ephemeral PGlite (tests). Refused when `RUNTIME=local`. |
 | `pglite:.data/spark` | Persisted PGlite. Migrates on open. |
-| `postgres://…` | `node-postgres`. Apply migrations with `bun --filter @children-ai/adaptor-postgres db:migrate` before the Worker boots. |
+| `postgres://…` | `node-postgres`. Apply migrations with `bun --filter @edaya-spark/adaptor-postgres db:migrate` before the Worker boots. |

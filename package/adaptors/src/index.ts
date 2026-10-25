@@ -46,7 +46,7 @@ export {
 	MemorySchoolIntegrationVault,
 	LocalDerivingCredentialsPort,
 	demoSchoolCredentials,
-	deriveLocalChildrenAiApiKey,
+	deriveLocalEdayaSparkApiKey,
 	keyPrefixOf,
 } from "./school-integration-vault.ts";
 export { StubExerciseGenerator } from "./generator-stub.ts";

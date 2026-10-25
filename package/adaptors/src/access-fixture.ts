@@ -3,7 +3,7 @@ import {
 	type GuardianChildrenListing,
 	type GuardianChildrenPort,
 	type GuardianChildrenQuery,
-} from "@children-ai/domain";
+} from "@edaya-spark/domain";
 import { FIXTURE_SCHOOL_ID } from "./edaya-fixture.ts";
 
 export class FixtureGuardianChildrenPort implements GuardianChildrenPort {

@@ -1,5 +1,5 @@
 {
-	"name": "@children-ai/api",
+	"name": "@edaya-spark/api",
 	"type": "module",
 	"private": true,
 	"scripts": {
@@ -12,10 +12,10 @@
 		"test": "bun test"
 	},
 	"dependencies": {
-		"@children-ai/adaptor-postgres": "workspace:*",
-		"@children-ai/adaptors": "workspace:*",
-		"@children-ai/app": "workspace:*",
-		"@children-ai/domain": "workspace:*",
+		"@edaya-spark/adaptor-postgres": "workspace:*",
+		"@edaya-spark/adaptors": "workspace:*",
+		"@edaya-spark/app": "workspace:*",
+		"@edaya-spark/domain": "workspace:*",
 		"hono": "^4.7.9",
 		"jose": "^6.1.3"
 	},

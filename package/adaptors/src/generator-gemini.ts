@@ -14,7 +14,7 @@ import {
 	type IdGenerator,
 	type LearnerAcademicSnapshot,
 	type PracticeFocus,
-} from "@children-ai/domain";
+} from "@edaya-spark/domain";
 
 export const DEFAULT_GEMINI_FLASH_MODEL = "gemini-3.5-flash";
 export const GEMINI_PROMPT_VERSION = "gemini-flash-v3";

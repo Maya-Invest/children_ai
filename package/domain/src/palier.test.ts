@@ -54,7 +54,7 @@ describe("palier EDAYA origins", () => {
 		expect(() =>
 			resolveVaultMasterKey(
 				"staging",
-				"children-ai-local-vault-master-not-for-prod",
+				"edaya-spark-local-vault-master-not-for-prod",
 			),
 		).toThrow(/VAULT_MASTER_KEY/);
 		expect(resolveVaultMasterKey("local", undefined)).toContain("local");

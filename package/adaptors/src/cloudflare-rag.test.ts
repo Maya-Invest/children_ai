@@ -8,7 +8,7 @@ import {
 	type CurriculumLesson,
 	type ExerciseProposal,
 	type LearnerAcademicSnapshot,
-} from "@children-ai/domain";
+} from "@edaya-spark/domain";
 import {
 	AI_SEARCH_PACK_VERSION,
 	CloudflarePracticeFocus,

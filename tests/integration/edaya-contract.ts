@@ -1,9 +1,9 @@
-/** Payloads shaped like the Edaya routes Children AI already parses. */
+/** Payloads shaped like the Edaya routes Edaya Spark already parses. */
 
 export const SCHOOL_ID = "sch-edaya-ci-cocody";
 export const ACADEMIC_YEAR_ID = "2025-ci";
-export const S2S_API_KEY = "s2s_live_dev_edaya_ci_cocody_children_ai_key01";
-export const RESOLVE_SECRET = "local-children-ai-resolve-secret";
+export const S2S_API_KEY = "s2s_live_dev_edaya_ci_cocody_edaya_spark_key01";
+export const RESOLVE_SECRET = "local-edaya-spark-resolve-secret";
 export const PARENT_SUBJECT_ID = "parent-sub";
 export const STAFF_SUBJECT_ID = "staff-sub";
 export const STUDENT_ID = "ci-s1";

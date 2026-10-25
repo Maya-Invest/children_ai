@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { ChildrenAiApp } from "@children-ai/app";
+import { EdayaSparkApp } from "@edaya-spark/app";
 import {
 	assertProdRejectsDemoSeed,
 	createCloudflareRagClient,
@@ -14,15 +14,15 @@ import {
 	resolveEdayaContextMode,
 	type FocusName,
 	type GeneratorName,
-} from "@children-ai/adaptors";
-import { openSparkDatabase, PostgresSchoolIntegrationVault } from "@children-ai/adaptor-postgres";
+} from "@edaya-spark/adaptors";
+import { openSparkDatabase, PostgresSchoolIntegrationVault } from "@edaya-spark/adaptor-postgres";
 import {
 	parsePalier,
 	resolvePalierEdayaOrigin,
 	resolveVaultMasterKey,
 	type Palier,
 	type SessionStore,
-} from "@children-ai/domain";
+} from "@edaya-spark/domain";
 import { createIdentityVerifier } from "./identity.ts";
 import type { IdentityVerifier } from "./http.ts";
 import { assertWorkerHyperdrive } from "./runtime/boundaries.ts";
@@ -50,13 +50,13 @@ export type CloudflareAdaptorEnv = {
 	EDAYA_DEMO_API_KEY?: string;
 	EDAYA_CONTEXT?: string;
 	IDENTITY_JWKS_URL?: string;
-	CHILDREN_AI_RESOLVE_SECRET?: string;
+	EDAYA_SPARK_RESOLVE_SECRET?: string;
 	FIXTURE_TODAY?: string;
 	PRACTICE_WEEKDAY?: string;
 };
 
 export type WorkerRuntime = {
-	app: ChildrenAiApp;
+	app: EdayaSparkApp;
 	sessions: SessionStore;
 	identity: IdentityVerifier;
 	generatorName: GeneratorName;
@@ -116,7 +116,7 @@ export async function createCloudflareRuntime(
 		contextMode: env.EDAYA_CONTEXT,
 		credentials: vault,
 		seedDemoSchool: false,
-		resolveGuardianSecret: env.CHILDREN_AI_RESOLVE_SECRET,
+		resolveGuardianSecret: env.EDAYA_SPARK_RESOLVE_SECRET,
 		deriveLocalS2sKey: palier === "local",
 	});
 	if (palier !== "prod" && schoolId) {
@@ -131,7 +131,7 @@ export async function createCloudflareRuntime(
 	}
 	await demo.ready;
 
-	const app = new ChildrenAiApp({
+	const app = new EdayaSparkApp({
 		edaya: demo.edaya,
 		focus: createPracticeFocus({
 			focus: focusName,

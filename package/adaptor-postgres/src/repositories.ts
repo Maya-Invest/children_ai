@@ -17,7 +17,7 @@ import {
 	type SnapshotRepository,
 	type StudentAccessCode,
 	type StudentAccessCodeRepository,
-} from "@children-ai/domain";
+} from "@edaya-spark/domain";
 import * as schema from "./schema.ts";
 
 export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;

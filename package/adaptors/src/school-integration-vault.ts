@@ -1,11 +1,11 @@
 import {
-	CHILDREN_AI_SERVICE_ID,
+	EDAYA_SPARK_SERVICE_ID,
 	type EdayaCredentialsPort,
 	type SchoolCredentials,
 	type SchoolIntegration,
-} from "@children-ai/domain";
+} from "@edaya-spark/domain";
 import {
-	assertChildrenAiApiKey,
+	assertEdayaSparkApiKey,
 	LOCAL_FIXTURE_KEY,
 } from "./edaya-context-mode.ts";
 
@@ -25,9 +25,9 @@ export class MemorySchoolIntegrationVault implements EdayaCredentialsPort {
 	}
 }
 
-/** Must match Edaya `localChildrenAiS2sApiKey` (onboarding mint on palier local). */
-export function deriveLocalChildrenAiApiKey(schoolId: string): string {
-	return `s2s_live_local_${schoolId.replaceAll("-", "")}_children_ai01`;
+/** Must match Edaya `localEdayaSparkS2sApiKey` (onboarding mint on palier local). */
+export function deriveLocalEdayaSparkApiKey(schoolId: string): string {
+	return `s2s_live_local_${schoolId.replaceAll("-", "")}_edaya_spark01`;
 }
 
 type MutableCredentialsPort = EdayaCredentialsPort & {
@@ -56,7 +56,7 @@ export class LocalDerivingCredentialsPort implements EdayaCredentialsPort {
 			schoolId: trimmed,
 			edayaApiBaseUrl: this.options.edayaApiBaseUrl,
 			academicYearId: this.options.academicYearId,
-			apiKey: deriveLocalChildrenAiApiKey(trimmed),
+			apiKey: deriveLocalEdayaSparkApiKey(trimmed),
 		});
 		await this.inner.put(record);
 		return record;
@@ -74,12 +74,12 @@ export function demoSchoolCredentials(input: {
 	apiKey?: string;
 }): SchoolCredentials {
 	const apiKey = input.apiKey?.trim() || LOCAL_FIXTURE_KEY;
-	assertChildrenAiApiKey(apiKey);
+	assertEdayaSparkApiKey(apiKey);
 	const integration: SchoolIntegration = {
 		schoolId: input.schoolId,
 		edayaApiBaseUrl: input.edayaApiBaseUrl,
 		academicYearId: input.academicYearId ?? "2025-ci",
-		serviceId: CHILDREN_AI_SERVICE_ID,
+		serviceId: EDAYA_SPARK_SERVICE_ID,
 		keyPrefix: keyPrefixOf(apiKey),
 		status: "active",
 	};

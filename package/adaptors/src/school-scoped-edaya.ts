@@ -5,12 +5,12 @@ import type {
 	LearnerContextQuery,
 	Palier,
 	SchoolCredentials,
-} from "@children-ai/domain";
+} from "@edaya-spark/domain";
 import {
 	assertEdayaOriginAllowed,
 	resolvePalierEdayaOrigin,
 	SchoolIntegrationMissingError,
-} from "@children-ai/domain";
+} from "@edaya-spark/domain";
 import {
 	FixtureEdayaContext,
 	FIXTURE_ACADEMIC_YEAR_ID,

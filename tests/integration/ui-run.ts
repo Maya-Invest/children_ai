@@ -12,20 +12,20 @@ import { EDAYA_STAND_IN_ORIGIN, startEdayaDouble, type EdayaDouble } from "./eda
 
 const repoRoot = path.join(import.meta.dir, "../..");
 const webRoot = path.join(repoRoot, "apps", "student-web");
-const apiPort = process.env.CHILDREN_AI_TEST_PORT ?? "18787";
-const webPort = process.env.CHILDREN_AI_WEB_PORT ?? "15175";
+const apiPort = process.env.EDAYA_SPARK_TEST_PORT ?? "18787";
+const webPort = process.env.EDAYA_SPARK_WEB_PORT ?? "15175";
 const webOrigin = `http://127.0.0.1:${webPort}`;
 const CHROMIUM_NAMES = ["chrome-headless-shell.exe", "chrome-headless-shell", "chrome.exe", "chrome"];
 
 const standIn: EdayaDouble = await startEdayaDouble();
-const dataDir = mkdtempSync(path.join(tmpdir(), "children-ai-ui-"));
+const dataDir = mkdtempSync(path.join(tmpdir(), "edaya-spark-ui-"));
 let api: Subprocess | undefined;
 let web: Subprocess | undefined;
 
 try {
-	console.log("Starting Children AI API");
+	console.log("Starting Edaya Spark API");
 	api = startApi(standIn.origin, dataDir, webOrigin);
-	await waitForOk(`http://127.0.0.1:${apiPort}/health`, api, "Children AI API");
+	await waitForOk(`http://127.0.0.1:${apiPort}/health`, api, "Edaya Spark API");
 	console.log("Starting student web");
 	web = startWeb();
 	await waitForOk(webOrigin, web, "student web");
@@ -36,7 +36,7 @@ try {
 		cwd: repoRoot,
 		env: {
 			...process.env,
-			CHILDREN_AI_WEB_ORIGIN: webOrigin,
+			EDAYA_SPARK_WEB_ORIGIN: webOrigin,
 			PLAYWRIGHT_BROWSERS_PATH: path.join(repoRoot, ".cache", "ms-playwright"),
 		},
 		stdout: "inherit",
@@ -67,7 +67,7 @@ function startApi(origin: string, databaseDir: string, webOrigin: string): Subpr
 			EDAYA_DEMO_SCHOOL_ID: SCHOOL_ID,
 			EDAYA_DEMO_ACADEMIC_YEAR_ID: ACADEMIC_YEAR_ID,
 			EDAYA_DEMO_API_KEY: S2S_API_KEY,
-			CHILDREN_AI_RESOLVE_SECRET: RESOLVE_SECRET,
+			EDAYA_SPARK_RESOLVE_SECRET: RESOLVE_SECRET,
 			GENERATOR: "stub",
 			FOCUS: "stub",
 			GEMINI_API_KEY: "",

@@ -1,5 +1,5 @@
 {
-	"name": "@children-ai/domain",
+	"name": "@edaya-spark/domain",
 	"type": "module",
 	"private": true,
 	"exports": {

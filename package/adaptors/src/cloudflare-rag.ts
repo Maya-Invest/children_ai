@@ -36,7 +36,7 @@ import {
 	type PracticeFocusRequest,
 	type PracticeRecommendation,
 	type PracticeSessionPlan,
-} from "@children-ai/domain";
+} from "@edaya-spark/domain";
 import { loadPracticePrompts, PRACTICE_PROMPT_VERSION } from "./prompts/load-practice-prompts.ts";
 
 export const DEFAULT_FOCUS_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";

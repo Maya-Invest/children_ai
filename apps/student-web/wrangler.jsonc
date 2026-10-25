@@ -1,5 +1,5 @@
 {
-	"name": "children-ai-student-web",
+	"name": "edaya-spark-student-web",
 	"compatibility_date": "2026-09-07",
 	"compatibility_flags": ["nodejs_als"],
 	"main": ".svelte-kit/cloudflare/_worker.js",
@@ -9,18 +9,18 @@
 	},
 	"env": {
 		"staging": {
-			"name": "children-ai-student-web-staging",
+			"name": "edaya-spark-student-web-staging",
 			"vars": {
-				// Public origin of the children-ai-api Worker. Add the account subdomain for workers.dev, or use the custom domain.
-				"PUBLIC_API_URL": "https://children-ai-api-staging.workers.dev",
+				// Public origin of the edaya-spark-api Worker. Add the account subdomain for workers.dev, or use the custom domain.
+				"PUBLIC_API_URL": "https://edaya-spark-api-staging.workers.dev",
 				"PUBLIC_AUTH_URL": "https://staging.api.edayaplus.com"
 			}
 		},
 		"prod": {
-			"name": "children-ai-student-web",
+			"name": "edaya-spark-student-web",
 			"vars": {
-				// Public origin of the children-ai-api Worker. Add the account subdomain for workers.dev, or use the custom domain.
-				"PUBLIC_API_URL": "https://children-ai-api-prod.workers.dev",
+				// Public origin of the edaya-spark-api Worker. Add the account subdomain for workers.dev, or use the custom domain.
+				"PUBLIC_API_URL": "https://edaya-spark-api-prod.workers.dev",
 				"PUBLIC_AUTH_URL": "https://api.edayaplus.com"
 			}
 		}

@@ -15,9 +15,9 @@ import {
 	type TimetableSlot,
 	type UpcomingAssessment,
 	type UpcomingAssessmentKind,
-	CHILDREN_AI_RESOLVE_SECRET_HEADER,
-} from "@children-ai/domain";
-import { SchoolIntegrationMissingError } from "@children-ai/domain";
+	EDAYA_SPARK_RESOLVE_SECRET_HEADER,
+} from "@edaya-spark/domain";
+import { SchoolIntegrationMissingError } from "@edaya-spark/domain";
 
 export type EdayaFetch = (
 	input: string,
@@ -40,7 +40,7 @@ const CHILDREN_LIST_CACHE_MS = 10_000;
 
 /**
  * Live EDAYA `/core/entities/{publicName}/list` adaptor.
- * Uses the school's children-ai S2S Bearer on this palier and filters to linked children.
+ * Uses the school's edaya-spark S2S Bearer on this palier and filters to linked children.
  */
 export class HttpEdayaContext implements EdayaContextPort, GuardianChildrenPort {
 	private readonly fetchImpl: EdayaFetch;
@@ -66,11 +66,11 @@ export class HttpEdayaContext implements EdayaContextPort, GuardianChildrenPort 
 			return cached.listing;
 		}
 
-		const response = await this.fetchImpl(`${origin}/internal/children-ai/resolve-guardian`, {
+		const response = await this.fetchImpl(`${origin}/internal/edaya-spark/resolve-guardian`, {
 			method: "POST",
 			headers: {
 				"content-type": "application/json",
-				[CHILDREN_AI_RESOLVE_SECRET_HEADER]: secret,
+				[EDAYA_SPARK_RESOLVE_SECRET_HEADER]: secret,
 			},
 			body: JSON.stringify({ subjectId: query.subjectId }),
 		});

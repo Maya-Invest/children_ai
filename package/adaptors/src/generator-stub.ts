@@ -8,7 +8,7 @@ import {
 	type IdGenerator,
 	type LearnerAcademicSnapshot,
 	type PracticeFocus,
-} from "@children-ai/domain";
+} from "@edaya-spark/domain";
 
 export class StubExerciseGenerator implements ExerciseGeneratorPort {
 	constructor(private readonly ids: IdGenerator) {}

@@ -66,7 +66,7 @@ import {
 	isDemoIssuedAccess,
 	isPracticeIntent,
 	learnerQueryForIssuedCode,
-} from "@children-ai/domain";
+} from "@edaya-spark/domain";
 
 export type AppPorts = {
 	edaya: EdayaContextPort;
@@ -90,7 +90,7 @@ export type GuardianChildView = GuardianChild & {
 	accessCode: { hint: string } | null;
 };
 
-export class ChildrenAiApp {
+export class EdayaSparkApp {
 	constructor(private readonly ports: AppPorts) {}
 
 	async resolveGuardian(principal: GuardianPrincipal): Promise<GuardianActor> {

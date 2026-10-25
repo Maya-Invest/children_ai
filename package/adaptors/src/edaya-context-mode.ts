@@ -1,4 +1,4 @@
-import type { Palier } from "@children-ai/domain";
+import type { Palier } from "@edaya-spark/domain";
 
 export const LOCAL_FIXTURE_KEY = "sk_live_local_fixture_not_for_prod";
 
@@ -12,12 +12,12 @@ export function isLocalFixtureApiKey(apiKey: string): boolean {
 	return apiKey === LOCAL_FIXTURE_KEY;
 }
 
-export function assertChildrenAiApiKey(apiKey: string): void {
+export function assertEdayaSparkApiKey(apiKey: string): void {
 	const trimmed = apiKey.trim();
 	if (!trimmed) return;
 	if (isSeedingApiKey(trimmed)) {
 		throw new Error(
-			"Do not use the EDAYA seeding key as the children-ai school key.",
+			"Do not use the EDAYA seeding key as the edaya-spark school key.",
 		);
 	}
 }
@@ -29,7 +29,7 @@ export function assertProdRejectsDemoSeed(
 	if (palier !== "prod") return;
 	if (input.seedDemoSchool || input.demoApiKey?.trim()) {
 		throw new Error(
-			"EDAYA_DEMO_API_KEY must not be set on palier prod. Mint per-school children-ai keys into that palier's vault.",
+			"EDAYA_DEMO_API_KEY must not be set on palier prod. Mint per-school edaya-spark keys into that palier's vault.",
 		);
 	}
 }

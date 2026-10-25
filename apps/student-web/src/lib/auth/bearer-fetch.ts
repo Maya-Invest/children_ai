@@ -3,7 +3,7 @@ import { canonicalHttpOrigin, createAccessTokenManager, createBearerFetch } from
 import { identityAuthOrigin } from './identity-origin';
 
 const childrenApiOrigin = canonicalHttpOrigin(env.PUBLIC_API_URL?.trim() || 'http://localhost:8787');
-/** Access tokens are audience-locked to the unified Edaya API, then presented to Children AI. */
+/** Access tokens are audience-locked to the unified Edaya API, then presented to Edaya Spark. */
 const edayaApiOrigin = canonicalHttpOrigin(env.PUBLIC_AUTH_URL?.trim() || 'http://localhost:9999');
 
 export const accessTokens = createAccessTokenManager(async () => {

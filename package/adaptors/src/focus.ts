@@ -1,4 +1,4 @@
-import type { PracticeFocusPort } from "@children-ai/domain";
+import type { PracticeFocusPort } from "@edaya-spark/domain";
 import {
 	CloudflarePracticeFocus,
 	DEFAULT_FOCUS_MODEL,

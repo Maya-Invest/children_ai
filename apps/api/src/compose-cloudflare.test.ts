@@ -9,7 +9,7 @@ describe("createCloudflareRuntime", () => {
 			EDAYA_API_ORIGIN: "https://staging.api.edayaplus.com",
 			EDAYA_DEMO_SCHOOL_ID: "sch-edaya-ci-cocody",
 			EDAYA_DEMO_ACADEMIC_YEAR_ID: "2025-ci",
-			EDAYA_DEMO_API_KEY: "s2s_live_dev_edaya_ci_cocody_children_ai_key01",
+			EDAYA_DEMO_API_KEY: "s2s_live_dev_edaya_ci_cocody_edaya_spark_key01",
 			VAULT_MASTER_KEY: "staging-vault-master-key-for-tests",
 			EDAYA_CONTEXT: "fixture",
 		});
@@ -25,7 +25,7 @@ describe("createCloudflareRuntime", () => {
 			createCloudflareRuntime({
 				PALIER: "prod",
 				EDAYA_API_ORIGIN: "https://api.edayaplus.com",
-				EDAYA_DEMO_API_KEY: "s2s_live_dev_edaya_ci_cocody_children_ai_key01",
+				EDAYA_DEMO_API_KEY: "s2s_live_dev_edaya_ci_cocody_edaya_spark_key01",
 				VAULT_MASTER_KEY: "prod-vault-master-key-for-tests",
 			}),
 		).rejects.toThrow(/EDAYA_DEMO_API_KEY/);
@@ -36,7 +36,7 @@ describe("createCloudflareRuntime", () => {
 			createCloudflareRuntime({
 				PALIER: "prod",
 				EDAYA_API_ORIGIN: "https://api.edayaplus.com",
-				VAULT_MASTER_KEY: "children-ai-local-vault-master-not-for-prod",
+				VAULT_MASTER_KEY: "edaya-spark-local-vault-master-not-for-prod",
 			}),
 		).rejects.toThrow(/VAULT_MASTER_KEY/);
 	});

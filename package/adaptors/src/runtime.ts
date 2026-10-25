@@ -1,4 +1,4 @@
-import type { Clock, IdGenerator } from "@children-ai/domain";
+import type { Clock, IdGenerator } from "@edaya-spark/domain";
 
 export class SystemClock implements Clock {
 	nowIso(): string {
