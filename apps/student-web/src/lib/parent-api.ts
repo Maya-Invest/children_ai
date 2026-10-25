@@ -1,10 +1,27 @@
 import { parentApiFetch } from './auth/bearer-fetch';
-import type { GuardianChildView, HomePayload, ParentChildrenPayload } from './types';
+import { env } from '$env/dynamic/public';
+import { getGuardianToken, isDemoExplore } from './session';
+import type {
+	ExerciseSet,
+	GuardianChildView,
+	HomePayload,
+	ParentChildrenPayload,
+	PracticeIntent,
+} from './types';
+
+const base = env.PUBLIC_API_URL ?? 'http://localhost:8787';
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 	const headers = new Headers(init.headers);
 	headers.set('Content-Type', 'application/json');
-	const response = await parentApiFetch(path, { ...init, headers });
+	let response: Response;
+	if (isDemoExplore()) {
+		const token = getGuardianToken();
+		if (token) headers.set('Authorization', `Bearer ${token}`);
+		response = await fetch(`${base}${path}`, { ...init, headers });
+	} else {
+		response = await parentApiFetch(path, { ...init, headers });
+	}
 	const body = await response.json().catch(() => ({}));
 	if (!response.ok) {
 		const error = new Error(body.message ?? body.error ?? 'Erreur réseau') as Error & {
@@ -37,4 +54,24 @@ export function revokeChildAccessCode(studentId: string) {
 	return request<{ ok: true }>(`/parent/children/${studentId}/access-codes/revoke`, {
 		method: 'POST',
 	});
+}
+
+export function releaseChildCorrection(studentId: string, setId?: string) {
+	return request<{ set: ExerciseSet }>(`/parent/children/${studentId}/correction/release`, {
+		method: 'POST',
+		body: JSON.stringify(setId ? { setId } : {}),
+	});
+}
+
+export function updateChildPracticeSettings(
+	studentId: string,
+	patch: { autoReleaseCorrection?: boolean; focusIntent?: PracticeIntent },
+) {
+	return request<{ settings: { autoReleaseCorrection: boolean; focusIntent?: PracticeIntent } }>(
+		`/parent/children/${studentId}/practice-settings`,
+		{
+			method: 'POST',
+			body: JSON.stringify(patch),
+		},
+	);
 }

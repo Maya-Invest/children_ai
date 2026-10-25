@@ -6,12 +6,18 @@ import type {
 	LearnerAcademicSnapshot,
 	LearnerContext,
 	PracticeFocus,
+	PracticeIntent,
+	PracticeSessionPlan,
+	PracticeSettings,
+	PracticeTrackKind,
+	SessionActor,
 	StudentAccessCode,
 } from "./types.ts";
 
 export type LearnerContextQuery = {
 	schoolId: string;
 	studentId: string;
+	contextSource?: "fixture" | "live";
 };
 
 export interface EdayaContextPort {
@@ -39,10 +45,25 @@ export interface EdayaCredentialsPort {
 	getActive(schoolId: string): Promise<SchoolCredentials | null>;
 }
 
-export interface CurriculumCatalogPort {
+export type PracticeRecommendation = {
+	focus: PracticeFocus;
+	lesson: CurriculumLesson;
+};
+
+export type PracticeFocusRequest = {
+	snapshot: LearnerAcademicSnapshot;
+	intent?: PracticeIntent;
+	now?: Date;
+	/** Intended duration for the whole session. The recommendation splits it across tracks. */
+	sessionMinutes?: { min: number; max: number };
+};
+
+export interface PracticeFocusPort {
 	packVersion(): string;
-	listLessons(grade: CurriculumLesson["grade"]): CurriculumLesson[];
-	getLesson(lessonId: string): CurriculumLesson | undefined;
+	/** Prompt file version. Empty when this focus does not use a versioned prompt. */
+	promptVersion(): string;
+	recommend(input: PracticeFocusRequest): Promise<PracticeRecommendation>;
+	plan(input: PracticeFocusRequest): Promise<PracticeSessionPlan>;
 }
 
 export interface ExerciseGeneratorPort {
@@ -50,6 +71,7 @@ export interface ExerciseGeneratorPort {
 		snapshot: LearnerAcademicSnapshot;
 		lesson: CurriculumLesson;
 		focus: PracticeFocus;
+		plannedMinutes: number;
 	}): Promise<ExerciseSet>;
 }
 
@@ -60,9 +82,20 @@ export interface SnapshotRepository {
 
 export interface ExerciseSetRepository {
 	findBySnapshotId(snapshotId: string): Promise<ExerciseSet | null>;
+	findBySnapshotTrack(snapshotId: string, track: PracticeTrackKind): Promise<ExerciseSet | null>;
 	listByStudentId(query: LearnerContextQuery): Promise<ExerciseSet[]>;
 	getById(id: string): Promise<ExerciseSet | null>;
 	save(set: ExerciseSet): Promise<void>;
+}
+
+export interface PracticeSettingsRepository {
+	get(query: LearnerContextQuery): Promise<PracticeSettings | null>;
+	save(settings: PracticeSettings): Promise<void>;
+}
+
+export interface PracticePlanRepository {
+	get(query: LearnerContextQuery, planningDate: string): Promise<PracticeSessionPlan | null>;
+	save(query: LearnerContextQuery, planningDate: string, plan: PracticeSessionPlan): Promise<void>;
 }
 
 export type GuardianChildrenQuery = {
@@ -85,6 +118,11 @@ export interface StudentAccessCodeRepository {
 
 export interface StudentSessionPort {
 	deleteByStudentId(studentId: string): Promise<void>;
+}
+
+export interface SessionStore extends StudentSessionPort {
+	get(token: string): Promise<SessionActor | null>;
+	set(token: string, actor: SessionActor): Promise<void>;
 }
 
 export type GuardianPrincipal = Pick<GuardianActor, "subjectId"> & {

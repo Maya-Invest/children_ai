@@ -1,6 +1,7 @@
-import { loadSet } from "$lib/api";
+import { redirect } from '@sveltejs/kit';
+import type { PageLoad } from './$types';
 
-export async function load({ params }: { params: { id: string } }) {
-	const payload = await loadSet(params.id);
-	return { set: payload.set };
-}
+export const load: PageLoad = async ({ parent, params }) => {
+	const data = await parent();
+	if (!data.set.submittedAt) redirect(302, `/app/sets/${params.id}/question/1`);
+};

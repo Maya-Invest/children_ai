@@ -1,11 +1,13 @@
-import type {
-	CurriculumLesson,
-	ExerciseGeneratorPort,
-	ExerciseQuestion,
-	ExerciseSet,
-	IdGenerator,
-	LearnerAcademicSnapshot,
-	PracticeFocus,
+import {
+	ExerciseGenerationError,
+	PRACTICE_NO_PROPOSALS_MESSAGE,
+	type CurriculumLesson,
+	type ExerciseGeneratorPort,
+	type ExerciseQuestion,
+	type ExerciseSet,
+	type IdGenerator,
+	type LearnerAcademicSnapshot,
+	type PracticeFocus,
 } from "@children-ai/domain";
 
 export class StubExerciseGenerator implements ExerciseGeneratorPort {
@@ -15,14 +17,21 @@ export class StubExerciseGenerator implements ExerciseGeneratorPort {
 		snapshot: LearnerAcademicSnapshot;
 		lesson: CurriculumLesson;
 		focus: PracticeFocus;
+		plannedMinutes: number;
 	}): Promise<ExerciseSet> {
 		const { snapshot, lesson } = input;
+		const proposals = input.focus.proposals;
+		if (proposals.length === 0) {
+			throw new ExerciseGenerationError(PRACTICE_NO_PROPOSALS_MESSAGE);
+		}
 		const name = snapshot.context.student.firstName;
-		const questions: ExerciseQuestion[] = lesson.skills.slice(0, 5).map((skill, index) => ({
-			id: this.ids.next(),
-			kind: "short",
-			prompt: questionFor(lesson, skill, name, index),
-		}));
+		const skills = proposals.map((proposal) => proposal.promptHint || lesson.title);
+
+		const questions: ExerciseQuestion[] = skills.map((skill, index) =>
+			index % 2 === 1
+				? mcqQuestion(this.ids.next(), lesson, skill, name, index)
+				: writtenQuestion(this.ids.next(), lesson, skill, name, index),
+		);
 
 		return {
 			id: this.ids.next(),
@@ -32,18 +41,46 @@ export class StubExerciseGenerator implements ExerciseGeneratorPort {
 			lessonId: lesson.id,
 			generatedAt: new Date().toISOString(),
 			generator: "stub",
-			promptVersion: "stub-v1",
+			promptVersion: "stub-v2",
 			questions,
 		};
 	}
 }
 
-function questionFor(
+function writtenQuestion(
+	id: string,
 	lesson: CurriculumLesson,
 	skill: string,
 	name: string,
 	index: number,
-): string {
+): ExerciseQuestion {
 	const content = lesson.contents[index] ?? lesson.contents[0] ?? lesson.title;
-	return `${name}, pour la leçon officielle « ${lesson.title} » (${lesson.theme.title}) : ${skill.toLowerCase()}. Travaille à partir de la notion « ${content} ». Pas de solution fournie — écris ta démarche.`;
+	return {
+		id,
+		kind: "written",
+		prompt: `${name}, pour la leçon officielle « ${lesson.title} » (${lesson.theme.title}) : ${skill.toLowerCase()}. Travaille à partir de la notion « ${content} ». Écris ta réponse dans le cadre.`,
+		expectedAnswer: content,
+	};
+}
+
+function mcqQuestion(
+	id: string,
+	lesson: CurriculumLesson,
+	skill: string,
+	name: string,
+	index: number,
+): ExerciseQuestion {
+	const content = lesson.contents[index] ?? lesson.contents[0] ?? lesson.title;
+	const choices = [
+		content,
+		"Cette affirmation est fausse.",
+		"On ne peut pas conclure avec les informations données.",
+	];
+	return {
+		id,
+		kind: "mcq",
+		prompt: `${name}, QCM — ${skill.toLowerCase()}. Quelle affirmation est juste pour la leçon « ${lesson.title} » ?`,
+		choices,
+		expectedAnswer: choices[0],
+	};
 }

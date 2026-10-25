@@ -12,4 +12,4 @@ bun run dev          # API :8787 + student-web :5174
 
 API only: `bun run dev:api`. Health: http://localhost:8787/health
 
-Path A (fixture, no EDAYA) vs Path B (live school API): [../../README.md](../../README.md).
+Live parents vs demo button: [../../README.md](../../README.md).

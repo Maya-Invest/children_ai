@@ -1,6 +1,6 @@
 import { env } from "$env/dynamic/public";
 import { getToken } from "./session";
-import type { ExerciseSet, HomePayload } from "./types";
+import type { ExerciseSet, GuardianActor, HomePayload, PracticeTrackKind } from "./types";
 
 const base = env.PUBLIC_API_URL ?? "http://localhost:8787";
 
@@ -31,14 +31,41 @@ export function signInStudent(code: string) {
 	});
 }
 
+export type DemoFamilyAuth = {
+	token: string;
+	actor: GuardianActor;
+	guardian: { token: string; actor: GuardianActor };
+};
+
+export function signInDemo() {
+	return request<DemoFamilyAuth>(`/auth/demo`, { method: "POST" });
+}
+
 export function loadHome() {
 	return request<HomePayload>("/home");
 }
 
-export function generateSet() {
-	return request<{ set: ExerciseSet }>("/exercise-sets/generate", { method: "POST" });
+export function generateSet(track: PracticeTrackKind = "revision", lessonId?: string) {
+	return request<{ set: ExerciseSet }>("/exercise-sets/generate", {
+		method: "POST",
+		body: JSON.stringify({ track, lessonId }),
+	});
 }
 
 export function loadSet(id: string) {
 	return request<{ set: ExerciseSet }>(`/exercise-sets/${id}`);
+}
+
+export function submitSet(id: string, answers: { questionId: string; value: string }[]) {
+	return request<{ set: ExerciseSet }>(`/exercise-sets/${id}/submit`, {
+		method: "POST",
+		body: JSON.stringify({ answers }),
+	});
+}
+
+export function saveSetProgress(id: string, answers: { questionId: string; value: string }[]) {
+	return request<{ set: ExerciseSet }>(`/exercise-sets/${id}/progress`, {
+		method: "POST",
+		body: JSON.stringify({ answers }),
+	});
 }

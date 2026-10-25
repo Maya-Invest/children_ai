@@ -1,11 +1,18 @@
-import type {
-	ExerciseSet,
-	ExerciseSetRepository,
-	LearnerAcademicSnapshot,
-	LearnerContextQuery,
-	SnapshotRepository,
-	StudentAccessCode,
-	StudentAccessCodeRepository,
+import {
+	exerciseTrack,
+	learnerQueryForIssuedCode,
+	type ExerciseSet,
+	type ExerciseSetRepository,
+	type LearnerAcademicSnapshot,
+	type LearnerContextQuery,
+	type PracticePlanRepository,
+	type PracticeSessionPlan,
+	type PracticeSettings,
+	type PracticeSettingsRepository,
+	type PracticeTrackKind,
+	type SnapshotRepository,
+	type StudentAccessCode,
+	type StudentAccessCodeRepository,
 } from "@children-ai/domain";
 
 export class InMemorySnapshotRepository implements SnapshotRepository {
@@ -35,6 +42,17 @@ export class InMemoryExerciseSetRepository implements ExerciseSetRepository {
 		return this.items.find((item) => item.snapshotId === snapshotId) ?? null;
 	}
 
+	async findBySnapshotTrack(
+		snapshotId: string,
+		track: PracticeTrackKind,
+	): Promise<ExerciseSet | null> {
+		return latestSet(
+			this.items.filter(
+				(item) => item.snapshotId === snapshotId && exerciseTrack(item) === track,
+			),
+		);
+	}
+
 	async listByStudentId(query: LearnerContextQuery): Promise<ExerciseSet[]> {
 		return this.items.filter(
 			(item) =>
@@ -47,8 +65,53 @@ export class InMemoryExerciseSetRepository implements ExerciseSetRepository {
 	}
 
 	async save(set: ExerciseSet): Promise<void> {
+		const index = this.items.findIndex((item) => item.id === set.id);
+		if (index >= 0) {
+			this.items[index] = set;
+			return;
+		}
 		this.items.push(set);
 	}
+}
+
+export class InMemoryPracticeSettingsRepository implements PracticeSettingsRepository {
+	private readonly items = new Map<string, PracticeSettings>();
+
+	async get(query: LearnerContextQuery): Promise<PracticeSettings | null> {
+		return this.items.get(practiceKey(query)) ?? null;
+	}
+
+	async save(settings: PracticeSettings): Promise<void> {
+		this.items.set(practiceKey(settings), settings);
+	}
+}
+
+function latestSet(sets: ExerciseSet[]): ExerciseSet | null {
+	return [...sets].sort((left, right) => right.generatedAt.localeCompare(left.generatedAt))[0] ?? null;
+}
+
+function practiceKey(query: { schoolId: string; studentId: string }): string {
+	return `${query.schoolId}:${query.studentId}`;
+}
+
+export class InMemoryPracticePlanRepository implements PracticePlanRepository {
+	private readonly items = new Map<string, PracticeSessionPlan>();
+
+	async get(query: LearnerContextQuery, planningDate: string): Promise<PracticeSessionPlan | null> {
+		return this.items.get(planKey(query, planningDate)) ?? null;
+	}
+
+	async save(
+		query: LearnerContextQuery,
+		planningDate: string,
+		plan: PracticeSessionPlan,
+	): Promise<void> {
+		this.items.set(planKey(query, planningDate), plan);
+	}
+}
+
+function planKey(query: { schoolId: string; studentId: string }, planningDate: string): string {
+	return `${query.schoolId}:${query.studentId}:${planningDate}`;
 }
 
 export class InMemoryStudentAccessCodeRepository implements StudentAccessCodeRepository {
@@ -75,7 +138,7 @@ export class InMemoryStudentAccessCodeRepository implements StudentAccessCodeRep
 	async listActiveLearners(): Promise<LearnerContextQuery[]> {
 		return this.items
 			.filter((item) => item.revokedAt === null)
-			.map((item) => ({ schoolId: item.schoolId, studentId: item.studentId }));
+			.map((item) => learnerQueryForIssuedCode(item));
 	}
 
 	async save(code: StudentAccessCode): Promise<void> {

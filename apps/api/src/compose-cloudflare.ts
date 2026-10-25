@@ -1,35 +1,44 @@
+import { join } from "node:path";
 import { ChildrenAiApp } from "@children-ai/app";
 import {
 	assertProdRejectsDemoSeed,
+	createCloudflareRagClient,
 	createExerciseGenerator,
+	createPracticeFocus,
 	createSchoolEdayaStack,
 	CryptoIdGenerator,
 	demoSchoolCredentials,
-	JsonCurriculumCatalog,
+	resolveFocusName,
 	resolveGeneratorName,
-	SystemClock,
-	type SessionStore,
+	createRuntimeClock,
+	resolveEdayaContextMode,
+	type FocusName,
+	type GeneratorName,
 } from "@children-ai/adaptors";
-import {
-	KvExerciseSetRepository,
-	KvSchoolIntegrationVault,
-	KvSessionStore,
-	KvSnapshotRepository,
-	KvStudentAccessCodeRepository,
-	type KvNamespaceLike,
-} from "@children-ai/adaptor-cloudflare";
+import { openSparkDatabase, PostgresSchoolIntegrationVault } from "@children-ai/adaptor-postgres";
 import {
 	parsePalier,
 	resolvePalierEdayaOrigin,
 	resolveVaultMasterKey,
 	type Palier,
+	type SessionStore,
 } from "@children-ai/domain";
 import { createIdentityVerifier } from "./identity.ts";
 import type { IdentityVerifier } from "./http.ts";
+import { assertWorkerHyperdrive } from "./runtime/boundaries.ts";
 
 export type CloudflareAdaptorEnv = {
-	STORE: KvNamespaceLike;
-	SESSIONS: KvNamespaceLike;
+	HYPERDRIVE?: { connectionString?: string };
+	FOCUS?: string;
+	GENERATOR?: string;
+	CLOUDFLARE_ACCOUNT_ID?: string;
+	CLOUDFLARE_API_TOKEN?: string;
+	CLOUDFLARE_RAG_NAMESPACE?: string;
+	CLOUDFLARE_RAG_INSTANCE?: string;
+	CLOUDFLARE_BYOK_ALIAS?: string;
+	FOCUS_MODEL?: string;
+	RAG_GENERATOR_MODEL?: string;
+	RAG_PACK_VERSION?: string;
 	GEMINI_API_KEY?: string;
 	GEMINI_MODEL?: string;
 	CORS_ORIGIN?: string;
@@ -40,37 +49,76 @@ export type CloudflareAdaptorEnv = {
 	EDAYA_DEMO_ACADEMIC_YEAR_ID?: string;
 	EDAYA_DEMO_API_KEY?: string;
 	EDAYA_CONTEXT?: string;
-	IDENTITY_ISSUER?: string;
 	IDENTITY_JWKS_URL?: string;
-	IDENTITY_DIRECTORY_SECRET?: string;
-	CHILDREN_API_ORIGIN?: string;
-	PUBLIC_API_URL?: string;
+	CHILDREN_AI_RESOLVE_SECRET?: string;
+	FIXTURE_TODAY?: string;
+	PRACTICE_WEEKDAY?: string;
 };
 
 export type WorkerRuntime = {
 	app: ChildrenAiApp;
 	sessions: SessionStore;
 	identity: IdentityVerifier;
-	generatorName: "stub" | "gemini-flash";
+	generatorName: GeneratorName;
+	focusName: FocusName;
 	corsOrigins: string[];
 	palier: Palier;
 	schoolId: string;
 	contextMode: "fixture" | "http";
 };
 
+const repoRoot = join(import.meta.dir, "../../..");
+
 export async function createCloudflareRuntime(
 	env: CloudflareAdaptorEnv,
 ): Promise<WorkerRuntime> {
 	const ids = new CryptoIdGenerator();
-	const clock = new SystemClock();
-	const generatorName = resolveGeneratorName(env.GEMINI_API_KEY);
 	const palier = parsePalier(env.PALIER, "local");
+	const contextMode = resolveEdayaContextMode(
+		palier,
+		env.EDAYA_CONTEXT,
+		env.EDAYA_DEMO_API_KEY,
+		env.EDAYA_API_ORIGIN,
+	);
+	const clock = createRuntimeClock({
+		contextMode,
+		fixtureToday: env.FIXTURE_TODAY,
+		practiceWeekday: env.PRACTICE_WEEKDAY,
+	});
+	const generatorName = resolveGeneratorName({
+		generator: env.GENERATOR,
+		geminiApiKey: env.GEMINI_API_KEY,
+	});
+	const focusName = resolveFocusName(env.FOCUS);
+	const rag = focusName === "cloudflare" || generatorName === "rag"
+		? createCloudflareRagClient({
+			accountId: env.CLOUDFLARE_ACCOUNT_ID,
+			apiToken: env.CLOUDFLARE_API_TOKEN,
+			namespace: env.CLOUDFLARE_RAG_NAMESPACE,
+			instance: env.CLOUDFLARE_RAG_INSTANCE,
+			byokAlias: env.CLOUDFLARE_BYOK_ALIAS,
+		})
+		: undefined;
 	const edayaApiBaseUrl = resolvePalierEdayaOrigin(palier, env.EDAYA_API_ORIGIN);
 	const vaultMasterKey = resolveVaultMasterKey(palier, env.VAULT_MASTER_KEY);
 	assertProdRejectsDemoSeed(palier, { demoApiKey: env.EDAYA_DEMO_API_KEY });
+	const connectionString = assertWorkerHyperdrive(env.HYPERDRIVE?.connectionString);
+	const persistence = await openSparkDatabase(connectionString, { repoRoot });
+	const vault = new PostgresSchoolIntegrationVault(persistence.db, vaultMasterKey);
 
-	const vault = new KvSchoolIntegrationVault(env.STORE, vaultMasterKey);
 	const schoolId = env.EDAYA_DEMO_SCHOOL_ID?.trim() || "";
+	const demo = createSchoolEdayaStack({
+		palier,
+		schoolId: schoolId || undefined,
+		edayaApiBaseUrl,
+		academicYearId: env.EDAYA_DEMO_ACADEMIC_YEAR_ID,
+		apiKey: env.EDAYA_DEMO_API_KEY,
+		contextMode: env.EDAYA_CONTEXT,
+		credentials: vault,
+		seedDemoSchool: false,
+		resolveGuardianSecret: env.CHILDREN_AI_RESOLVE_SECRET,
+		deriveLocalS2sKey: palier === "local",
+	});
 	if (palier !== "prod" && schoolId) {
 		await vault.put(
 			demoSchoolCredentials({
@@ -81,42 +129,42 @@ export async function createCloudflareRuntime(
 			}),
 		);
 	}
-
-	const demo = createSchoolEdayaStack({
-		palier,
-		schoolId: schoolId || undefined,
-		edayaApiBaseUrl,
-		academicYearId: env.EDAYA_DEMO_ACADEMIC_YEAR_ID,
-		apiKey: env.EDAYA_DEMO_API_KEY,
-		contextMode: env.EDAYA_CONTEXT,
-		credentials: vault,
-		seedDemoSchool: false,
-	});
-	const sessions = new KvSessionStore(env.SESSIONS);
+	await demo.ready;
 
 	const app = new ChildrenAiApp({
 		edaya: demo.edaya,
-		catalog: new JsonCurriculumCatalog(),
+		focus: createPracticeFocus({
+			focus: focusName,
+			rag,
+			model: env.FOCUS_MODEL,
+			packVersion: env.RAG_PACK_VERSION,
+		}),
 		generator: createExerciseGenerator({
 			ids,
 			clock,
+			generator: generatorName,
 			apiKey: env.GEMINI_API_KEY,
 			model: env.GEMINI_MODEL,
+			rag,
+			ragModel: env.RAG_GENERATOR_MODEL,
 		}),
-		snapshots: new KvSnapshotRepository(env.STORE),
-		sets: new KvExerciseSetRepository(env.STORE),
-		codes: new KvStudentAccessCodeRepository(env.STORE),
+		snapshots: persistence.snapshots,
+		sets: persistence.sets,
+		plans: persistence.plans,
+		practiceSettings: persistence.practiceSettings,
+		codes: persistence.codes,
 		children: demo.children,
-		studentSessions: sessions,
+		studentSessions: persistence.sessions,
 		clock,
 		ids,
 	});
 
 	return {
 		app,
-		sessions,
+		sessions: persistence.sessions,
 		identity: createIdentityVerifier(env),
 		generatorName,
+		focusName,
 		corsOrigins: (env.CORS_ORIGIN ?? "")
 			.split(",")
 			.map((item) => item.trim())

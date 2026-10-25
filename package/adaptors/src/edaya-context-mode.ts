@@ -38,6 +38,7 @@ export function resolveEdayaContextMode(
 	palier: Palier,
 	configured: string | undefined,
 	apiKey: string | undefined,
+	origin?: string,
 ): EdayaContextMode {
 	const explicit = configured?.trim().toLowerCase();
 	if (explicit === "fixture" || explicit === "http") {
@@ -48,6 +49,7 @@ export function resolveEdayaContextMode(
 	}
 	if (palier === "prod") return "http";
 	if (palier === "in-memory") return "fixture";
+	if (origin?.trim()) return "http";
 	const key = apiKey?.trim() ?? "";
 	if (!key || isLocalFixtureApiKey(key)) return "fixture";
 	return "http";

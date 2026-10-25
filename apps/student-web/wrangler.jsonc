@@ -6,5 +6,23 @@
 	"assets": {
 		"binding": "ASSETS",
 		"directory": ".svelte-kit/cloudflare"
+	},
+	"env": {
+		"staging": {
+			"name": "children-ai-student-web-staging",
+			"vars": {
+				// Public origin of the children-ai-api Worker. Add the account subdomain for workers.dev, or use the custom domain.
+				"PUBLIC_API_URL": "https://children-ai-api-staging.workers.dev",
+				"PUBLIC_AUTH_URL": "https://staging.api.edayaplus.com"
+			}
+		},
+		"prod": {
+			"name": "children-ai-student-web",
+			"vars": {
+				// Public origin of the children-ai-api Worker. Add the account subdomain for workers.dev, or use the custom domain.
+				"PUBLIC_API_URL": "https://children-ai-api-prod.workers.dev",
+				"PUBLIC_AUTH_URL": "https://api.edayaplus.com"
+			}
+		}
 	}
 }

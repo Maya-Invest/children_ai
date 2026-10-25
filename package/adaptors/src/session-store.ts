@@ -1,10 +1,6 @@
-import type { SessionActor, StudentActor } from "@children-ai/domain";
+import type { SessionActor, SessionStore, StudentActor } from "@children-ai/domain";
 
-export interface SessionStore {
-	get(token: string): Promise<SessionActor | null>;
-	set(token: string, actor: SessionActor): Promise<void>;
-	deleteByStudentId(studentId: string): Promise<void>;
-}
+export type { SessionStore };
 
 export class MemorySessionStore implements SessionStore {
 	private readonly items = new Map<string, SessionActor>();

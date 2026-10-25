@@ -4,6 +4,7 @@ import type {
 	LearnerContext,
 	LearnerContextQuery,
 	Palier,
+	SchoolCredentials,
 } from "@children-ai/domain";
 import {
 	assertEdayaOriginAllowed,
@@ -17,15 +18,17 @@ import {
 } from "./edaya-fixture.ts";
 import {
 	assertProdRejectsDemoSeed,
+	isLocalFixtureApiKey,
 	resolveEdayaContextMode,
 	type EdayaContextMode,
 } from "./edaya-context-mode.ts";
 import { HttpEdayaContext, type EdayaFetch } from "./edaya-http.ts";
 import {
 	demoSchoolCredentials,
+	LocalDerivingCredentialsPort,
 	MemorySchoolIntegrationVault,
 } from "./school-integration-vault.ts";
-import { FixtureGuardianChildrenPort } from "./access-fixture.ts";
+import { EmptyGuardianChildrenPort } from "./access-fixture.ts";
 
 /**
  * Resolves the school's EDAYA credentials on this palier, then delegates.
@@ -46,6 +49,29 @@ export class SchoolScopedEdayaContext implements EdayaContextPort {
 	}
 }
 
+/** Demo-issued codes use fixture academic data; Identity/live codes use HTTP/S2S. */
+export class DualEdayaContext implements EdayaContextPort {
+	constructor(
+		private readonly live: EdayaContextPort,
+		private readonly fixture: EdayaContextPort,
+	) {}
+
+	async pullLearnerContext(query: LearnerContextQuery): Promise<LearnerContext> {
+		if (query.contextSource === "fixture") {
+			return this.fixture.pullLearnerContext(query);
+		}
+		const live = await this.live.pullLearnerContext(query);
+		if ((live.timetable?.length ?? 0) > 0) return live;
+		try {
+			const fallback = await this.fixture.pullLearnerContext(query);
+			if ((fallback.timetable?.length ?? 0) === 0) return live;
+			return { ...live, timetable: fallback.timetable };
+		} catch {
+			return live;
+		}
+	}
+}
+
 export type CreateSchoolEdayaOptions = {
 	palier?: Palier;
 	schoolId?: string;
@@ -56,6 +82,8 @@ export type CreateSchoolEdayaOptions = {
 	credentials?: MemorySchoolIntegrationVault | EdayaCredentialsPort;
 	fetchImpl?: EdayaFetch;
 	seedDemoSchool?: boolean;
+	resolveGuardianSecret?: string;
+	deriveLocalS2sKey?: boolean;
 };
 
 export function createSchoolEdayaStack(options: CreateSchoolEdayaOptions = {}) {
@@ -65,43 +93,78 @@ export function createSchoolEdayaStack(options: CreateSchoolEdayaOptions = {}) {
 		demoApiKey: options.apiKey,
 		seedDemoSchool: shouldSeed && palier === "prod",
 	});
-	const edayaApiBaseUrl = resolvePalierEdayaOrigin(palier, options.edayaApiBaseUrl);
+	const configuredOrigin = options.edayaApiBaseUrl;
+	const edayaApiBaseUrl = resolvePalierEdayaOrigin(palier, configuredOrigin);
 	const schoolId = options.schoolId?.trim() || FIXTURE_SCHOOL_ID;
 	const apiKey = options.apiKey;
-	const contextMode = resolveEdayaContextMode(palier, options.contextMode, apiKey);
-	const vault = options.credentials ?? new MemorySchoolIntegrationVault();
-	if (shouldSeed && "put" in vault && typeof vault.put === "function") {
-		vault.put(
-			demoSchoolCredentials({
-				schoolId,
-				edayaApiBaseUrl,
-				academicYearId: options.academicYearId ?? FIXTURE_ACADEMIC_YEAR_ID,
-				apiKey,
-			}),
+	const contextMode = resolveEdayaContextMode(
+		palier,
+		options.contextMode,
+		apiKey,
+		configuredOrigin,
+	);
+	const innerVault = options.credentials ?? new MemorySchoolIntegrationVault();
+	const liveApiKey = apiKey?.trim() ?? "";
+	const mutable = isMutableVault(innerVault);
+	const shouldPutDemoRow =
+		shouldSeed
+		&& mutable
+		&& (
+			contextMode === "fixture"
+			|| (Boolean(liveApiKey) && !isLocalFixtureApiKey(liveApiKey))
 		);
-	}
+	const ready =
+		shouldPutDemoRow && mutable
+			? Promise.resolve(
+					innerVault.put(
+						demoSchoolCredentials({
+							schoolId,
+							edayaApiBaseUrl,
+							academicYearId: options.academicYearId ?? FIXTURE_ACADEMIC_YEAR_ID,
+							apiKey,
+						}),
+					),
+				)
+			: Promise.resolve();
 
-	const inner: EdayaContextPort =
+	const deriveLocalS2sKey = options.deriveLocalS2sKey ?? palier === "local";
+	const vault =
+		deriveLocalS2sKey && mutable
+			? new LocalDerivingCredentialsPort(innerVault, {
+					edayaApiBaseUrl,
+					academicYearId: options.academicYearId ?? FIXTURE_ACADEMIC_YEAR_ID,
+				})
+			: innerVault;
+
+	const fixture = new FixtureEdayaContext();
+	const liveInner: EdayaContextPort =
 		contextMode === "http"
 			? new HttpEdayaContext({
 					credentials: vault,
-					schoolId,
 					fetchImpl: options.fetchImpl,
+					resolveGuardian: {
+						origin: edayaApiBaseUrl,
+						secret: options.resolveGuardianSecret ?? "",
+					},
 				})
-			: new FixtureEdayaContext();
+			: fixture;
 
 	const children =
-		contextMode === "http" && inner instanceof HttpEdayaContext
-			? inner
-			: new FixtureGuardianChildrenPort(schoolId);
+		contextMode === "http" && liveInner instanceof HttpEdayaContext
+			? liveInner
+			: new EmptyGuardianChildrenPort();
 
 	return {
 		palier,
 		schoolId,
 		vault,
+		ready,
 		contextMode,
 		children,
-		edaya: new SchoolScopedEdayaContext(palier, vault, inner),
+		edaya: new DualEdayaContext(
+			new SchoolScopedEdayaContext(palier, vault, liveInner),
+			fixture,
+		),
 	};
 }
 
@@ -113,10 +176,18 @@ export function createDemoEdayaContext(options: {
 	apiKey?: string;
 	contextMode?: EdayaContextMode | string;
 	fetchImpl?: EdayaFetch;
+	resolveGuardianSecret?: string;
 } = {}) {
 	return createSchoolEdayaStack({
 		...options,
 		contextMode: options.contextMode ?? "fixture",
 		seedDemoSchool: true,
+		deriveLocalS2sKey: false,
 	});
+}
+
+function isMutableVault(
+	value: EdayaCredentialsPort,
+): value is EdayaCredentialsPort & { put: (record: SchoolCredentials) => void | Promise<void> } {
+	return "put" in value && typeof (value as { put?: unknown }).put === "function";
 }

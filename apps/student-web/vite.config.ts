@@ -3,7 +3,7 @@ import { defineConfig, loadEnv } from "vite";
 
 export default defineConfig(({ mode }) => {
 	const env = loadEnv(mode, process.cwd(), "");
-	const authOrigin = env.AUTH_URL || env.PUBLIC_AUTH_URL || "http://localhost:9900";
+	const authOrigin = env.AUTH_URL || env.PUBLIC_AUTH_URL || "http://localhost:9999";
 	const authProxy = {
 		"/auth": { target: authOrigin, changeOrigin: true },
 	};

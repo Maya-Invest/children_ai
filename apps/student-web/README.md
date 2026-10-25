@@ -1,6 +1,6 @@
 # @children-ai/student-web
 
-SvelteKit student UI. Local port **5174** (`127.0.0.1`).
+SvelteKit student UI. Local port **5175** (`127.0.0.1`).
 
 ```sh
 # from children_ai/
@@ -13,8 +13,9 @@ bun run dev:web      # UI only; needs API on :8787
 
 ```
 PUBLIC_API_URL=http://localhost:8787
+PUBLIC_AUTH_URL=http://localhost:9999
 ```
 
-Port 5174 is also used by `edaya_web` webadmin — do not run both at once.
+Port 5175 is reserved for Children AI student-web (`edaya_web` webadmin uses 5174).
 
 Full click-through: [../../README.md](../../README.md).

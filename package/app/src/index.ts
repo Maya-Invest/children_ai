@@ -1,20 +1,36 @@
 import {
 	AlreadyGeneratedError,
+	AlreadySubmittedError,
 	ChildNotLinkedError,
+	CorrectionUnavailableError,
+	DomainError,
+	EmptySubmissionError,
+	ExerciseSetNotFoundError,
 	GuardianCannotGenerateError,
-	LessonNotInPackError,
 	NoSnapshotError,
+	SetNotSubmittedError,
+	StudentOnlyActionError,
 	UnknownAccessCodeError,
+	DAILY_PRACTICE_MAX_MINUTES,
+	DAILY_PRACTICE_MIN_MINUTES,
+	displaySubjectLabel,
+	exerciseTrack,
 	formatStudentAccessCode,
 	generateStudentAccessCode,
 	hashStudentAccessCode,
 	isCompleteStudentAccessCode,
+	normalizeAnswer,
+	NothingToPracticeError,
+	PRACTICE_PLAN_VERSION,
+	plannedQuestionCount,
+	planningDateKey,
+	presentExerciseSet,
+	scoreExerciseSet,
 	snapshotFingerprint,
 	studentAccessCodeHint,
-	suggestFocus,
 	type Clock,
-	type CurriculumCatalogPort,
 	type EdayaContextPort,
+	type ExerciseAudience,
 	type ExerciseGeneratorPort,
 	type ExerciseSet,
 	type ExerciseSetRepository,
@@ -27,20 +43,39 @@ import {
 	type LearnerAcademicSnapshot,
 	type LearnerContextQuery,
 	type PracticeFocus,
+	type PracticeFocusPort,
+	type PracticeIntent,
+	type PracticeSessionPlan,
+	type PracticeSettings,
+	type PracticeTrackKind,
+	type PracticeTrackItem,
+	type PracticeTrackPlan,
+	type PracticePlanRepository,
+	type PracticeSettingsRepository,
 	type SessionActor,
 	type SnapshotRepository,
 	type StudentAccessCode,
 	type StudentAccessCodeRepository,
 	type StudentActor,
+	type StudentAnswer,
 	type StudentSessionPort,
+	demoFamilyListing,
+	demoGuardianActor,
+	demoStudentActor,
+	isDemoGuardian,
+	isDemoIssuedAccess,
+	isPracticeIntent,
+	learnerQueryForIssuedCode,
 } from "@children-ai/domain";
 
 export type AppPorts = {
 	edaya: EdayaContextPort;
-	catalog: CurriculumCatalogPort;
+	focus: PracticeFocusPort;
 	generator: ExerciseGeneratorPort;
 	snapshots: SnapshotRepository;
 	sets: ExerciseSetRepository;
+	plans: PracticePlanRepository;
+	practiceSettings: PracticeSettingsRepository;
 	children: GuardianChildrenPort;
 	codes: StudentAccessCodeRepository;
 	studentSessions: StudentSessionPort;
@@ -80,9 +115,11 @@ export class ChildrenAiApp {
 		displayName: string;
 		children: GuardianChildView[];
 	}> {
-		const listing = await this.ports.children.listChildren({
-			subjectId: guardian.subjectId,
-		});
+		const listing = isDemoGuardian(guardian)
+			? demoFamilyListing(guardian)
+			: await this.ports.children.listChildren({
+				subjectId: guardian.subjectId,
+			});
 		const children: GuardianChildView[] = [];
 		for (const child of listing.children) {
 			const active = await this.ports.codes.getActiveByStudentId(child.studentId);
@@ -145,9 +182,11 @@ export class ChildrenAiApp {
 		const record = await this.ports.codes.getByHash(await hashStudentAccessCode(code));
 		if (!record || record.revokedAt) throw new UnknownAccessCodeError();
 
-		const listing = await this.ports.children.listChildren({
-			subjectId: record.guardianSubjectId,
-		});
+		const listing = isDemoIssuedAccess(record.guardianSubjectId)
+			? demoFamilyListing(demoGuardianActor())
+			: await this.ports.children.listChildren({
+				subjectId: record.guardianSubjectId,
+			});
 		const child =
 			listing.children.find((item) => item.studentId === record.studentId)
 			?? {
@@ -165,7 +204,16 @@ export class ChildrenAiApp {
 			codeId: record.id,
 			displayName: `${child.firstName} ${child.lastName}`.trim() || "Élève",
 			childFirstName: child.firstName || "Élève",
+			sessionKind: "code",
 		};
+	}
+
+	async signInDemo(): Promise<StudentActor> {
+		return demoStudentActor();
+	}
+
+	async signInDemoGuardian(): Promise<GuardianActor> {
+		return demoGuardianActor();
 	}
 
 	async syncSnapshot(
@@ -176,13 +224,14 @@ export class ChildrenAiApp {
 		if (
 			current
 			&& !options.force
+			&& (current.context.timetable?.length ?? 0) > 0
 			&& this.isWithinDebounce(current.createdAt)
 		) {
 			return current;
 		}
 
 		const context = await this.ports.edaya.pullLearnerContext(query);
-		const packVersion = this.ports.catalog.packVersion();
+		const packVersion = this.ports.focus.packVersion();
 		const fingerprint = snapshotFingerprint(context, packVersion);
 		if (current?.fingerprint === fingerprint) return current;
 
@@ -199,60 +248,257 @@ export class ChildrenAiApp {
 		return snapshot;
 	}
 
-	async getHome(query: LearnerContextQuery): Promise<{
+	async getHome(
+		query: LearnerContextQuery,
+		audience: ExerciseAudience = "student",
+	): Promise<{
 		snapshot: LearnerAcademicSnapshot;
-		focus: PracticeFocus;
+		focus: PracticeFocus | null;
 		lessonTitle: string;
 		currentSet: ExerciseSet | null;
 		history: ExerciseSet[];
+		autoReleaseCorrection: boolean;
+		focusIntent: PracticeIntent | null;
+		planningDate: string;
+		exerciseUpgradeAvailable: boolean;
+		session: HomeSession;
 	}> {
+		const now = this.now();
 		const snapshot = await this.syncSnapshot(query);
-		const lessons = this.ports.catalog.listLessons(snapshot.context.student.grade);
-		const focus = suggestFocus(snapshot, lessons);
-		const lesson = this.ports.catalog.getLesson(focus.lessonId);
-		if (!lesson) throw new LessonNotInPackError(focus.lessonId);
-		const currentSet = await this.ports.sets.findBySnapshotId(snapshot.id);
+		const plan = await this.resolveDailyPlan(query, snapshot, now);
+		const settings = await this.ports.practiceSettings.get(query);
 		const history = await this.ports.sets.listByStudentId(query);
+		const primary = primaryTrack(plan);
+		const tracks = await Promise.all(
+			plan.tracks.map((track) => this.presentTrack(snapshot.id, track, audience, history)),
+		);
+		const revisionSet = tracks.find((track) => track.kind === "revision")?.currentSet ?? null;
 		return {
 			snapshot,
-			focus,
-			lessonTitle: lesson.title,
-			currentSet,
-			history,
+			focus: primary?.focus ?? null,
+			lessonTitle: primary?.lesson.title ?? "",
+			currentSet: revisionSet,
+			history: history.map((set) => presentExerciseSet(set, audience)),
+			autoReleaseCorrection: settings?.autoReleaseCorrection ?? false,
+			focusIntent: primary?.focus.intent ?? null,
+			planningDate: planningDateKey(now),
+			exerciseUpgradeAvailable: isUpgradableSet(revisionSet),
+			session: {
+				summary: plan.summary,
+				totalMinutes: plan.totalMinutes,
+				tracks,
+			},
 		};
 	}
 
-	async generate(actor: SessionActor): Promise<ExerciseSet> {
+	async generate(
+		actor: SessionActor,
+		track: PracticeTrackKind = "revision",
+		lessonId?: string,
+	): Promise<ExerciseSet> {
 		if (actor.role !== "student") throw new GuardianCannotGenerateError();
 		const query = learnerRef(actor);
 		const snapshot = await this.ensureSnapshot(query);
-		const existing = await this.ports.sets.findBySnapshotId(snapshot.id);
-		if (existing) throw new AlreadyGeneratedError(existing.id);
-
-		const lessons = this.ports.catalog.listLessons(snapshot.context.student.grade);
-		const focus = suggestFocus(snapshot, lessons);
-		const lesson = this.ports.catalog.getLesson(focus.lessonId);
-		if (!lesson) throw new LessonNotInPackError(focus.lessonId);
-
-		const set = await this.ports.generator.generate({ snapshot, lesson, focus });
-		await this.ports.sets.save(set);
-		return set;
-	}
-
-	async listSets(query: LearnerContextQuery): Promise<ExerciseSet[]> {
-		return this.ports.sets.listByStudentId(query);
-	}
-
-	async getSet(query: LearnerContextQuery, setId: string): Promise<ExerciseSet | null> {
-		const set = await this.ports.sets.getById(setId);
-		if (
-			!set
-			|| set.studentId !== query.studentId
-			|| set.schoolId !== query.schoolId
-		) {
-			return null;
+		const plan = await this.resolveDailyPlan(query, snapshot, this.now());
+		const chosen = plan.tracks.find((item) => item.kind === track);
+		const item = trackItem(chosen, lessonId);
+		if (!chosen?.available || !item) {
+			if (plan.tracks.every((entry) => !entry.available)) throw new NothingToPracticeError();
+			throw new DomainError("TRACK_UNAVAILABLE", "Cette piste n'a pas de série à préparer.");
 		}
-		return set;
+		const plannedIds = new Set(trackItems(chosen).map((entry) => entry.lesson.id));
+		const onTrack = (await this.ports.sets.listByStudentId(query)).filter((set) =>
+			set.snapshotId === snapshot.id && exerciseTrack(set) === track
+		);
+		const existing = onTrack.find((set) => set.lessonId === item.lesson.id)
+			?? onTrack.find((set) =>
+				!plannedIds.has(set.lessonId)
+				&& !set.submittedAt
+				&& !hasStarted(set)
+			)
+			?? null;
+		const replace = existing !== null && !blocksRegeneration(existing, item.lesson.id);
+		if (existing && !replace) {
+			throw new AlreadyGeneratedError(existing.id);
+		}
+
+		const generated = await this.ports.generator.generate({
+			snapshot,
+			lesson: item.lesson,
+			focus: item.focus,
+			plannedMinutes: item.minutes,
+		});
+		const set: ExerciseSet = {
+			...(replace && existing ? { ...generated, id: existing.id } : generated),
+			track,
+			plannedMinutes: item.minutes,
+		};
+		await this.ports.sets.save(set);
+		return presentExerciseSet(set, "student");
+	}
+
+	async listSets(
+		query: LearnerContextQuery,
+		audience: ExerciseAudience = "student",
+	): Promise<ExerciseSet[]> {
+		const sets = await this.ports.sets.listByStudentId(query);
+		return sets.map((set) => presentExerciseSet(set, audience));
+	}
+
+	async getSet(
+		query: LearnerContextQuery,
+		setId: string,
+		audience: ExerciseAudience = "student",
+	): Promise<ExerciseSet | null> {
+		const set = await this.requireOwnedSet(query, setId);
+		return set ? presentExerciseSet(set, audience) : null;
+	}
+
+	async submitSet(
+		actor: SessionActor,
+		setId: string,
+		answers: StudentAnswer[],
+	): Promise<ExerciseSet> {
+		if (actor.role !== "student") throw new StudentOnlyActionError();
+		const query = learnerRef(actor);
+		const set = await this.requireOwnedSet(query, setId);
+		if (!set) throw new ExerciseSetNotFoundError();
+		if (set.submittedAt) throw new AlreadySubmittedError();
+
+		const submittedAnswers = set.questions.map((question) => ({
+			questionId: question.id,
+			value: answers.find((answer) => answer.questionId === question.id)?.value ?? "",
+		}));
+		if (!submittedAnswers.some((answer) => Boolean(normalizeAnswer(answer.value)))) {
+			throw new EmptySubmissionError();
+		}
+		if (
+			!set.questions.every((question) =>
+				Boolean(normalizeAnswer(question.expectedAnswer ?? ""))
+			)
+		) {
+			throw new CorrectionUnavailableError();
+		}
+
+		const now = this.ports.clock.nowIso();
+		const settings = await this.ports.practiceSettings.get(query);
+		const submitted: ExerciseSet = {
+			...set,
+			answers: submittedAnswers,
+			submittedAt: now,
+			score: scoreExerciseSet(set, submittedAnswers),
+			correctionReleasedAt: settings?.autoReleaseCorrection
+				? now
+				: set.correctionReleasedAt ?? null,
+		};
+		await this.ports.sets.save(submitted);
+		return presentExerciseSet(submitted, "student");
+	}
+
+	async saveSetProgress(
+		actor: SessionActor,
+		setId: string,
+		answers: StudentAnswer[],
+	): Promise<ExerciseSet> {
+		if (actor.role !== "student") throw new StudentOnlyActionError();
+		const query = learnerRef(actor);
+		const set = await this.requireOwnedSet(query, setId);
+		if (!set) throw new ExerciseSetNotFoundError();
+		if (set.submittedAt) throw new AlreadySubmittedError();
+
+		const incoming = new Map(answers.map((answer) => [answer.questionId, answer.value]));
+		const existing = new Map((set.answers ?? []).map((answer) => [answer.questionId, answer.value]));
+		const saved: ExerciseSet = {
+			...set,
+			answers: set.questions.map((question) => ({
+				questionId: question.id,
+				value: incoming.has(question.id)
+					? (incoming.get(question.id) ?? "")
+					: (existing.get(question.id) ?? ""),
+			})),
+		};
+		await this.ports.sets.save(saved);
+		return presentExerciseSet(saved, "student");
+	}
+
+	async releaseCorrection(
+		guardian: GuardianActor,
+		studentId: string,
+		setId?: string,
+	): Promise<ExerciseSet> {
+		const child = await this.requireLinkedChild(guardian, studentId);
+		const query = { schoolId: child.schoolId, studentId: child.studentId };
+		const set = setId
+			? await this.requireOwnedSet(query, setId)
+			: await this.currentSetFor(query);
+		if (!set) throw new ExerciseSetNotFoundError();
+		if (!set.submittedAt) throw new SetNotSubmittedError();
+		if (!(set.answers ?? []).some((answer) => Boolean(normalizeAnswer(answer.value)))) {
+			throw new EmptySubmissionError();
+		}
+		if (
+			!set.questions.every((question) =>
+				Boolean(normalizeAnswer(question.expectedAnswer ?? ""))
+			)
+		) {
+			throw new CorrectionUnavailableError();
+		}
+		if (set.correctionReleasedAt) {
+			return presentExerciseSet(set, "guardian");
+		}
+		const released: ExerciseSet = {
+			...set,
+			correctionReleasedAt: this.ports.clock.nowIso(),
+		};
+		await this.ports.sets.save(released);
+		return presentExerciseSet(released, "guardian");
+	}
+
+	async updatePracticeSettings(
+		guardian: GuardianActor,
+		studentId: string,
+		patch: {
+			autoReleaseCorrection?: boolean;
+			focusIntent?: PracticeIntent;
+		},
+	): Promise<PracticeSettings> {
+		if (patch.focusIntent !== undefined && !isPracticeIntent(patch.focusIntent)) {
+			throw new DomainError("INVALID_PRACTICE_INTENT", "Ce choix de focus n'est pas reconnu.");
+		}
+		const child = await this.requireLinkedChild(guardian, studentId);
+		const query = { schoolId: child.schoolId, studentId: child.studentId };
+		const current = await this.ports.practiceSettings.get(query);
+		const autoReleaseCorrection = patch.autoReleaseCorrection ?? current?.autoReleaseCorrection ?? false;
+		const settings: PracticeSettings = {
+			schoolId: child.schoolId,
+			studentId: child.studentId,
+			autoReleaseCorrection,
+			focusIntent: patch.focusIntent ?? current?.focusIntent,
+		};
+		await this.ports.practiceSettings.save(settings);
+		if (patch.autoReleaseCorrection === true) {
+			const current = await this.currentSetFor(query);
+			const hasAnswer = (current?.answers ?? []).some((answer) =>
+				Boolean(normalizeAnswer(answer.value))
+			);
+			const hasCorrection = Boolean(
+				current?.questions.every((question) =>
+					Boolean(normalizeAnswer(question.expectedAnswer ?? ""))
+				),
+			);
+			if (
+				current?.submittedAt
+				&& hasAnswer
+				&& hasCorrection
+				&& !current.correctionReleasedAt
+			) {
+				await this.ports.sets.save({
+					...current,
+					correctionReleasedAt: this.ports.clock.nowIso(),
+				});
+			}
+		}
+		return settings;
 	}
 
 	async syncLinkedSnapshots(): Promise<{ studentId: string; snapshotId: string }[]> {
@@ -265,13 +511,102 @@ export class ChildrenAiApp {
 		return results;
 	}
 
+	private async resolveDailyPlan(
+		query: LearnerContextQuery,
+		snapshot: LearnerAcademicSnapshot,
+		now: Date,
+	): Promise<PracticeSessionPlan> {
+		const planningDate = planningDateKey(now);
+		const stored = await this.ports.plans.get(query, planningDate);
+		const promptVersion = this.ports.focus.promptVersion();
+		const samePrompt = promptVersion === "" || stored?.promptVersion === promptVersion;
+		if (stored?.planVersion === PRACTICE_PLAN_VERSION && samePrompt) return stored;
+		const plan = await this.ports.focus.plan({
+			snapshot,
+			now,
+			sessionMinutes: {
+				min: DAILY_PRACTICE_MIN_MINUTES,
+				max: DAILY_PRACTICE_MAX_MINUTES,
+			},
+		});
+		await this.ports.plans.save(query, planningDate, plan);
+		return plan;
+	}
+
+	private now(): Date {
+		const now = new Date(this.ports.clock.nowIso());
+		return Number.isNaN(now.getTime()) ? new Date() : now;
+	}
+
+	private async presentTrack(
+		snapshotId: string,
+		track: PracticeTrackPlan,
+		audience: ExerciseAudience,
+		sets: ExerciseSet[],
+	): Promise<HomeTrack> {
+		const items = trackItems(track).map((item) => {
+			const stored = sets.find((set) =>
+				set.snapshotId === snapshotId
+				&& exerciseTrack(set) === track.kind
+				&& set.lessonId === item.lesson.id
+			) ?? null;
+			const current = shownSet(stored, item.lesson.id);
+			return {
+				lessonId: item.lesson.id,
+				lessonTitle: item.lesson.title,
+				subjectLabel: displaySubjectLabel(item.lesson.subject) || item.lesson.subject,
+				minutes: item.minutes,
+				assessmentLabel: item.assessmentLabel,
+				questionTarget: plannedQuestionCount(item.focus.proposals),
+				canGenerate: track.available && (stored === null || !blocksRegeneration(stored, item.lesson.id)),
+				currentSet: current ? presentExerciseSet(current, audience) : null,
+			};
+		});
+		const first = items[0];
+		return {
+			kind: track.kind,
+			minutes: track.minutes,
+			available: track.available,
+			lessonTitle: first?.lessonTitle ?? null,
+			subjectLabel: first?.subjectLabel ?? null,
+			assessmentLabel: track.assessmentLabel ?? first?.assessmentLabel ?? null,
+			currentSet: first?.currentSet ?? null,
+			questionTarget: first?.questionTarget ?? 0,
+			canGenerate: items.some((item) => item.canGenerate),
+			items,
+		};
+	}
+
+	private async requireOwnedSet(
+		query: LearnerContextQuery,
+		setId: string,
+	): Promise<ExerciseSet | null> {
+		const set = await this.ports.sets.getById(setId);
+		if (
+			!set
+			|| set.studentId !== query.studentId
+			|| set.schoolId !== query.schoolId
+		) {
+			return null;
+		}
+		return set;
+	}
+
+	private async currentSetFor(query: LearnerContextQuery): Promise<ExerciseSet | null> {
+		const snapshot = await this.ports.snapshots.getCurrent(query);
+		if (!snapshot) return null;
+		return this.ports.sets.findBySnapshotId(snapshot.id);
+	}
+
 	private async requireLinkedChild(
 		guardian: GuardianActor,
 		studentId: string,
 	): Promise<GuardianChild> {
-		const listing = await this.ports.children.listChildren({
-			subjectId: guardian.subjectId,
-		});
+		const listing = isDemoGuardian(guardian)
+			? demoFamilyListing(guardian)
+			: await this.ports.children.listChildren({
+				subjectId: guardian.subjectId,
+			});
 		const child = listing.children.find((item) => item.studentId === studentId);
 		if (!child) throw new ChildNotLinkedError();
 		return child;
@@ -297,6 +632,89 @@ export class ChildrenAiApp {
 	}
 }
 
+export type HomeTrackItem = {
+	lessonId: string;
+	lessonTitle: string;
+	subjectLabel: string | null;
+	minutes: number;
+	assessmentLabel: string | null;
+	questionTarget: number;
+	canGenerate: boolean;
+	currentSet: ExerciseSet | null;
+};
+
+export type HomeTrack = {
+	kind: PracticeTrackKind;
+	minutes: number;
+	available: boolean;
+	lessonTitle: string | null;
+	subjectLabel: string | null;
+	assessmentLabel: string | null;
+	currentSet: ExerciseSet | null;
+	questionTarget: number;
+	canGenerate: boolean;
+	items: HomeTrackItem[];
+};
+
+export type HomeSession = {
+	summary: string;
+	totalMinutes: number;
+	tracks: HomeTrack[];
+};
+
+function trackItems(track: PracticeTrackPlan): PracticeTrackItem[] {
+	if (track.items.length > 0) return track.items;
+	if (!track.focus || !track.lesson) return [];
+	return [{
+		minutes: track.minutes,
+		focus: track.focus,
+		lesson: track.lesson,
+		assessmentLabel: track.assessmentLabel,
+	}];
+}
+
+function trackItem(
+	track: PracticeTrackPlan | undefined,
+	lessonId: string | undefined,
+): PracticeTrackItem | undefined {
+	const items = track ? trackItems(track) : [];
+	if (!lessonId) return items[0];
+	return items.find((item) => item.lesson.id === lessonId);
+}
+
+function primaryTrack(plan: PracticeSessionPlan): (PracticeTrackPlan & {
+	focus: PracticeFocus;
+	lesson: NonNullable<PracticeTrackPlan["lesson"]>;
+}) | null {
+	const chosen = plan.tracks.find((track) => track.available && track.focus && track.lesson);
+	if (!chosen?.focus || !chosen.lesson) return null;
+	return { ...chosen, focus: chosen.focus, lesson: chosen.lesson };
+}
+
 export function learnerRef(actor: StudentActor): LearnerContextQuery {
-	return { schoolId: actor.schoolId, studentId: actor.studentId };
+	return learnerQueryForIssuedCode(actor);
+}
+
+function isUpgradableSet(set: ExerciseSet | null): boolean {
+	return Boolean(
+		set
+		&& !set.submittedAt
+		&& set.questions.every((question) => !question.expectedAnswer),
+	);
+}
+
+function hasStarted(set: ExerciseSet): boolean {
+	return (set.answers ?? []).some((answer) => answer.value.trim() !== "");
+}
+
+function blocksRegeneration(existing: ExerciseSet, lessonId: string): boolean {
+	if (isUpgradableSet(existing)) return false;
+	if (!existing.submittedAt && existing.lessonId !== lessonId && !hasStarted(existing)) return false;
+	return true;
+}
+
+function shownSet(stored: ExerciseSet | null, lessonId: string): ExerciseSet | null {
+	if (!stored || !lessonId) return stored;
+	if (stored.submittedAt || stored.lessonId === lessonId || hasStarted(stored)) return stored;
+	return null;
 }

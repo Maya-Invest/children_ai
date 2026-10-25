@@ -1,0 +1,40 @@
+name: Deployment
+on:
+  push:
+    branches: [main, staging]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Environment
+        type: choice
+        options: [staging, production]
+        default: staging
+      source_ref:
+        description: Source revision (empty uses selected workflow revision)
+        type: string
+        default: ''
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.event_name == 'workflow_dispatch' && (inputs.target == 'production' && 'deploy-production' || 'deploy-staging') || (github.ref_name == 'main' && 'deploy-production' || 'deploy-staging') }}
+  cancel-in-progress: false
+jobs:
+  quality-check:
+    uses: ./.github/workflows/_quality-check.yml
+    with:
+      source_ref: ${{ github.event_name == 'workflow_dispatch' && inputs.source_ref || github.sha }}
+  unit-test:
+    uses: ./.github/workflows/_unit-test.yml
+    with:
+      source_ref: ${{ github.event_name == 'workflow_dispatch' && inputs.source_ref || github.sha }}
+  integration-test:
+    needs: [quality-check, unit-test]
+    uses: ./.github/workflows/_integration-test.yml
+    with:
+      source_ref: ${{ github.event_name == 'workflow_dispatch' && inputs.source_ref || github.sha }}
+  deployment:
+    needs: [integration-test]
+    uses: ./.github/workflows/_deployment.yml
+    with:
+      target: ${{ github.event_name == 'workflow_dispatch' && inputs.target || (github.ref_name == 'main' && 'production' || 'staging') }}
+      source_ref: ${{ github.event_name == 'workflow_dispatch' && inputs.source_ref || github.sha }}

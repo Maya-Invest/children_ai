@@ -2,6 +2,10 @@
 	"name": "children-ai-api",
 	"main": "src/worker.ts",
 	"compatibility_date": "2026-09-07",
+	"compatibility_flags": ["nodejs_compat"],
+	"rules": [
+		{ "type": "Text", "globs": ["**/*.md"], "fallthrough": true }
+	],
 	"observability": {
 		"enabled": true
 	},
@@ -12,24 +16,15 @@
 		"EDAYA_API_ORIGIN": "http://localhost:9999",
 		"EDAYA_DEMO_SCHOOL_ID": "sch-edaya-ci-cocody",
 		"EDAYA_DEMO_ACADEMIC_YEAR_ID": "2025-ci",
-		"IDENTITY_ISSUER": "http://localhost:9900",
-		"CHILDREN_API_ORIGIN": "http://localhost:8787"
+		"CHILDREN_AI_RESOLVE_SECRET": "local-children-ai-resolve-secret"
 	},
-	"kv_namespaces": [
+	"hyperdrive": [
 		{
-			"binding": "STORE",
+			"binding": "HYPERDRIVE",
 			"id": "00000000000000000000000000000000",
-			"preview_id": "00000000000000000000000000000000"
-		},
-		{
-			"binding": "SESSIONS",
-			"id": "00000000000000000000000000000001",
-			"preview_id": "00000000000000000000000000000001"
+			"localConnectionString": "pglite:.data/spark"
 		}
 	],
-	"triggers": {
-		"crons": ["0 6 * * *"]
-	},
 	"env": {
 		"staging": {
 			"vars": {
@@ -40,19 +35,12 @@
 				"EDAYA_DEMO_SCHOOL_ID": "sch-edaya-ci-cocody",
 				"EDAYA_DEMO_ACADEMIC_YEAR_ID": "2025-ci"
 			},
-			"kv_namespaces": [
+			"hyperdrive": [
 				{
-					"binding": "STORE",
-					"id": "11111111111111111111111111111111"
-				},
-				{
-					"binding": "SESSIONS",
-					"id": "11111111111111111111111111111112"
+					"binding": "HYPERDRIVE",
+					"id": "4791997ceaff4b1f84e55bd3136d5bde"
 				}
-			],
-			"triggers": {
-				"crons": ["0 6 * * *"]
-			}
+			]
 		},
 		"prod": {
 			"vars": {
@@ -61,19 +49,12 @@
 				"PALIER": "prod",
 				"EDAYA_API_ORIGIN": "https://api.edayaplus.com"
 			},
-			"kv_namespaces": [
+			"hyperdrive": [
 				{
-					"binding": "STORE",
-					"id": "22222222222222222222222222222222"
-				},
-				{
-					"binding": "SESSIONS",
-					"id": "22222222222222222222222222222223"
+					"binding": "HYPERDRIVE",
+					"id": "039348fbc7f4418884c02b16f1a6b628"
 				}
-			],
-			"triggers": {
-				"crons": ["0 6 * * *"]
-			}
+			]
 		}
 	}
 }

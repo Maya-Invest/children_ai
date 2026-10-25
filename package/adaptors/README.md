@@ -1,9 +1,7 @@
 # @children-ai/adaptors
 
-Fixture and HTTP EDAYA context, stub + Gemini generators, local file store (`.data/`).
+Fixture and HTTP EDAYA context, stub and Gemini generators. Persistence is `@children-ai/adaptor-postgres`.
 
 ```sh
 bun --filter @children-ai/adaptors test
 ```
-
-Worker KV + vault: `@children-ai/adaptor-cloudflare`.

@@ -1,30 +1,85 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { authClient } from '$lib/auth/client';
-	import { accessTokens } from '$lib/auth/bearer-fetch';
+	import { authClient, type AuthPayload } from '$lib/auth/client';
+	import { clearDemoFamily } from '$lib/session';
+
+	let { data }: { data: { otpFlag: boolean } } = $props();
 
 	let email = $state('m.kone@mail.ci');
-	let password = $state('');
+	let code = $state('');
+	let challenge = $state('');
+	let step = $state<'email' | 'otp' | 'totp'>('email');
 	let error = $state('');
 	let pending = $state(false);
+	let revealedOtp = $state('');
+
+	function challengeFrom(payload: AuthPayload | null): string {
+		return payload && 'challenge' in payload && payload.challenge ? payload.challenge : '';
+	}
 
 	async function submit(event: SubmitEvent) {
 		event.preventDefault();
 		error = '';
 		pending = true;
 		try {
-			const { error: signInError } = await authClient.signIn.email({
-				email: email.trim(),
-				password,
-			});
-			if (signInError) {
-				error = signInError.message ?? 'Connexion impossible';
+			if (step === 'email') {
+				const { data, error: startError } = await authClient.startOtp(email.trim());
+				const nextChallenge = challengeFrom(data);
+				if (startError || !nextChallenge) {
+					error = startError?.message ?? 'Envoi du code impossible';
+					return;
+				}
+				challenge = nextChallenge;
+				code = '';
+				revealedOtp = '';
+				step = 'otp';
 				return;
 			}
-			accessTokens.clear();
+
+			const result =
+				step === 'otp'
+					? await authClient.verifyOtp(challenge, code.trim())
+					: await authClient.verifyTotp(challenge, code.trim());
+			if (result.error || !result.data) {
+				error = result.error?.message ?? 'Code refusé';
+				return;
+			}
+			if (result.data.state === 'totp_required') {
+				const nextChallenge = challengeFrom(result.data);
+				if (!nextChallenge) {
+					error = 'Authentification incomplète';
+					return;
+				}
+				challenge = nextChallenge;
+				code = '';
+				step = 'totp';
+				return;
+			}
+			if (result.data.state !== 'complete') {
+				error = 'Connexion incomplète';
+				return;
+			}
+			clearDemoFamily();
 			await goto('/parent');
 		} catch (caught) {
 			error = caught instanceof Error ? caught.message : 'Connexion impossible';
+		} finally {
+			pending = false;
+		}
+	}
+
+	async function showOtp() {
+		error = '';
+		revealedOtp = '';
+		pending = true;
+		try {
+			const { data: payload, error: revealError } = await authClient.revealOtp(challenge);
+			if (revealError || !payload?.otp) {
+				error = 'Code indisponible. Demande-en un nouveau : il ne reste lisible que quelques minutes.';
+				return;
+			}
+			revealedOtp = payload.otp;
+			code = payload.otp;
 		} finally {
 			pending = false;
 		}
@@ -36,29 +91,59 @@
 		<a class="text-sm font-bold text-forest" href="/">← Accueil</a>
 		<h1 class="mt-4 text-3xl font-extrabold text-ink">Espace parent</h1>
 		<p class="mt-3 text-ink/70">
-			Connecte-toi avec ton compte Edaya. En local seedé : <span class="font-extrabold">m.kone@mail.ci</span> /
-			<span class="font-extrabold">DevPassword1!</span>
+			{#if step === 'email'}
+				Saisis l’email de ton compte Edaya. Un code à usage unique est envoyé.
+			{:else if step === 'otp'}
+				Entre le code reçu pour <span class="font-extrabold">{email}</span>.
+				{#if data.otpFlag}
+					En local, tu peux l’afficher ci-dessous.
+				{/if}
+			{:else}
+				Entre le code de ton application d’authentification.
+			{/if}
 		</p>
 
 		<form class="mt-8 space-y-4" onsubmit={submit}>
-			<label class="block">
-				<span class="text-sm font-bold text-ink/80">Email</span>
-				<input
-					class="mt-2 w-full rounded-2xl border border-ink/10 bg-cream px-4 py-3 outline-none ring-forest focus:ring-2"
-					bind:value={email}
-					type="email"
-					autocomplete="username"
-				/>
-			</label>
-			<label class="block">
-				<span class="text-sm font-bold text-ink/80">Mot de passe</span>
-				<input
-					class="mt-2 w-full rounded-2xl border border-ink/10 bg-cream px-4 py-3 outline-none ring-forest focus:ring-2"
-					bind:value={password}
-					type="password"
-					autocomplete="current-password"
-				/>
-			</label>
+			{#if step === 'email'}
+				<label class="block">
+					<span class="text-sm font-bold text-ink/80">Email</span>
+					<input
+						class="mt-2 w-full rounded-2xl border border-ink/10 bg-cream px-4 py-3 outline-none ring-forest focus:ring-2"
+						bind:value={email}
+						type="email"
+						autocomplete="username"
+						required
+					/>
+				</label>
+			{:else}
+				<label class="block">
+					<span class="text-sm font-bold text-ink/80">{step === 'totp' ? 'Code authenticator' : 'Code'}</span>
+					<input
+						class="mt-2 w-full rounded-2xl border border-ink/10 bg-cream px-4 py-3 outline-none ring-forest focus:ring-2"
+						bind:value={code}
+						type="text"
+						inputmode="numeric"
+						autocomplete="one-time-code"
+						required
+					/>
+				</label>
+			{/if}
+			{#if step === 'otp' && data.otpFlag}
+				<div class="rounded-2xl border border-dashed border-ink/20 p-4">
+					<p class="text-xs font-bold uppercase tracking-wide text-ink/50">Local uniquement</p>
+					<button
+						class="mt-3 rounded-full border border-forest px-4 py-2 text-sm font-extrabold text-forest disabled:opacity-60"
+						disabled={pending}
+						type="button"
+						onclick={showOtp}
+					>
+						Afficher le code
+					</button>
+					{#if revealedOtp}
+						<p class="mt-3 text-2xl font-extrabold tracking-widest text-ink">{revealedOtp}</p>
+					{/if}
+				</div>
+			{/if}
 			{#if error}
 				<p class="text-sm font-bold text-clay">{error}</p>
 			{/if}
@@ -67,7 +152,7 @@
 				disabled={pending}
 				type="submit"
 			>
-				{pending ? 'Connexion…' : 'Se connecter'}
+				{pending ? 'Vérification…' : step === 'email' ? 'Recevoir un code' : 'Se connecter'}
 			</button>
 		</form>
 	</div>

@@ -1,0 +1,23 @@
+name: Deployment PR
+on:
+  pull_request:
+    branches: [main, staging]
+permissions:
+  contents: read
+concurrency:
+  group: pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  quality-check:
+    uses: ./.github/workflows/_quality-check.yml
+    with:
+      source_ref: ${{ github.sha }}
+  unit-test:
+    uses: ./.github/workflows/_unit-test.yml
+    with:
+      source_ref: ${{ github.sha }}
+  integration-test:
+    needs: [quality-check, unit-test]
+    uses: ./.github/workflows/_integration-test.yml
+    with:
+      source_ref: ${{ github.sha }}
