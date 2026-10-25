@@ -59,9 +59,7 @@ export function listLearnerSubjects(context: LearnerContext): string[] {
 
 export function formatProgrammeLine(classLabel: string, subjects: string[]): string {
 	const head = classLabel.trim() || "Classe";
-	if (subjects.length === 0) return `${head} · Programme officiel DPFC`;
-	if (subjects.length <= 4) {
-		return `${head} · ${subjects.join(" · ")} · Programme officiel DPFC`;
-	}
-	return `${head} · Toutes les matières · Programme officiel DPFC`;
+	if (subjects.length === 0) return head;
+	if (subjects.length <= 4) return `${head} · ${subjects.join(" · ")}`;
+	return `${head} · Toutes les matières`;
 }

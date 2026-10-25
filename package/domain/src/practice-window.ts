@@ -3,8 +3,8 @@ import { calendarDaysUntil, matchOfficialLesson, officialLessonsForSubject } fro
 import type {
 	ClassProgressItem,
 	CurriculumLesson,
-	GradeId,
 	LearnerAcademicSnapshot,
+	SchoolGradeLevel,
 	TimetableDay,
 	TimetableSlot,
 	UpcomingAssessment,
@@ -79,7 +79,7 @@ export function endOfDayCandidates(
 ): LessonOnTimetable[] {
 	const seen = new Set<string>();
 	const matches: LessonOnTimetable[] = [];
-	for (const slot of [...window.todayLessons, ...window.nextDayLessons]) {
+	for (const slot of window.todayLessons) {
 		const lesson = matchTimetableLesson(slot.title, gradeLessons);
 		if (!lesson || seen.has(lesson.id)) continue;
 		seen.add(lesson.id);
@@ -170,7 +170,7 @@ export const SNAPSHOT_PACK_VERSION = "snapshot";
 export function resolveSnapshotLesson(
 	slot: TimetableSlot,
 	progress: readonly ClassProgressItem[],
-	grade: GradeId,
+	level: Pick<SchoolGradeLevel, "label" | "cycle">,
 ): CurriculumLesson {
 	const subject = subjectNamedIn(slot.title, progress) ?? slot.title;
 	const named = soleChapter(slot.title, progress);
@@ -182,8 +182,8 @@ export function resolveSnapshotLesson(
 		id: slot.id,
 		packVersion: SNAPSHOT_PACK_VERSION,
 		country: "CI",
-		cycle: "college",
-		grade,
+		cycle: level.cycle?.trim() || "",
+		grade: level.label,
 		subject: lessonSubject,
 		competence: { id: slot.id, title },
 		theme: { id: slot.id, title: chapter?.subject ?? lessonSubject },
@@ -199,12 +199,12 @@ export function resolveSnapshotLesson(
 export function endOfDaySnapshotLessons(
 	window: PracticeWindow,
 	progress: readonly ClassProgressItem[],
-	grade: GradeId,
+	level: Pick<SchoolGradeLevel, "label" | "cycle">,
 ): LessonOnTimetable[] {
 	const seen = new Set<string>();
 	const matches: LessonOnTimetable[] = [];
-	for (const slot of [...window.todayLessons, ...window.nextDayLessons]) {
-		const lesson = resolveSnapshotLesson(slot, progress, grade);
+	for (const slot of window.todayLessons) {
+		const lesson = resolveSnapshotLesson(slot, progress, level);
 		if (seen.has(lesson.id)) continue;
 		seen.add(lesson.id);
 		matches.push({ lesson, slot });
@@ -216,9 +216,7 @@ export function revisionLessonsForDay(
 	matches: readonly LessonOnTimetable[],
 	today: TimetableDay,
 ): LessonOnTimetable[] {
-	const todayMatches = uniqueBySubject(matches.filter((match) => match.slot.dayOfWeek === today));
-	if (todayMatches.length >= MIN_DAILY_SUBJECTS) return todayMatches;
-	return uniqueBySubject([...todayMatches, ...matches]).slice(0, MIN_DAILY_SUBJECTS);
+	return uniqueBySubject(matches.filter((match) => match.slot.dayOfWeek === today));
 }
 
 export function splitMinutes(total: number, count: number): number[] {
@@ -246,11 +244,11 @@ export function upcomingSnapshotLessons(
 	window: PracticeWindow,
 	timetable: readonly TimetableSlot[],
 	progress: readonly ClassProgressItem[],
-	grade: GradeId,
+	level: Pick<SchoolGradeLevel, "label" | "cycle">,
 ): EvaluationOnTimetable[] {
 	const lessons = timetable
 		.filter((slot) => slot.kind === "lesson")
-		.map((slot) => ({ slot, lesson: resolveSnapshotLesson(slot, progress, grade) }));
+		.map((slot) => ({ slot, lesson: resolveSnapshotLesson(slot, progress, level) }));
 	const matches: EvaluationOnTimetable[] = [];
 	for (const assessment of window.evaluations) {
 		const chosen = lessonForAssessment(assessment, lessons, progress);

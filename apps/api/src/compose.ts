@@ -61,6 +61,7 @@ export async function createLocalRuntime(): Promise<LocalRuntime> {
 	const clock = createRuntimeClock({
 		contextMode,
 		fixtureToday: process.env.FIXTURE_TODAY,
+		practiceWeekday: process.env.PRACTICE_WEEKDAY,
 	});
 	const geminiKey = process.env.GEMINI_API_KEY;
 	const generatorName = resolveGeneratorName({

@@ -1,5 +1,6 @@
-import { loadHome } from "$lib/api";
+import type { PageLoad } from './$types';
 
-export async function load() {
-	return { home: await loadHome() };
-}
+export const load: PageLoad = async ({ parent }) => {
+	const data = await parent();
+	return { home: await data.home };
+};

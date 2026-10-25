@@ -22,6 +22,7 @@ import {
 	normalizeAnswer,
 	NothingToPracticeError,
 	PRACTICE_PLAN_VERSION,
+	plannedQuestionCount,
 	planningDateKey,
 	presentExerciseSet,
 	scoreExerciseSet,
@@ -556,7 +557,7 @@ export class ChildrenAiApp {
 				subjectLabel: displaySubjectLabel(item.lesson.subject) || item.lesson.subject,
 				minutes: item.minutes,
 				assessmentLabel: item.assessmentLabel,
-				questionTarget: item.focus.proposals.length,
+				questionTarget: plannedQuestionCount(item.focus.proposals),
 				canGenerate: track.available && (stored === null || !blocksRegeneration(stored, item.lesson.id)),
 				currentSet: current ? presentExerciseSet(current, audience) : null,
 			};

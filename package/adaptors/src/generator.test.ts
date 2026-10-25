@@ -35,7 +35,7 @@ const snapshot: LearnerAcademicSnapshot = {
 			edayaStudentId: "student-1",
 			firstName: "Emma",
 			lastName: "Martin",
-			grade: "6e",
+			gradeLevel: { id: "demo-6eme", name: "Sixième", label: "6ème", order: 1, cycle: "Collège" },
 			classLabel: "6ème 1",
 		},
 		academicYearId: "2025-2026",

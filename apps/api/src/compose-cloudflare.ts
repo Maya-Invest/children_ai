@@ -52,6 +52,7 @@ export type CloudflareAdaptorEnv = {
 	IDENTITY_JWKS_URL?: string;
 	CHILDREN_AI_RESOLVE_SECRET?: string;
 	FIXTURE_TODAY?: string;
+	PRACTICE_WEEKDAY?: string;
 };
 
 export type WorkerRuntime = {
@@ -82,6 +83,7 @@ export async function createCloudflareRuntime(
 	const clock = createRuntimeClock({
 		contextMode,
 		fixtureToday: env.FIXTURE_TODAY,
+		practiceWeekday: env.PRACTICE_WEEKDAY,
 	});
 	const generatorName = resolveGeneratorName({
 		generator: env.GENERATOR,

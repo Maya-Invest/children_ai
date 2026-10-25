@@ -1,28 +1,33 @@
 <script lang="ts">
+	import { openFollow } from '$lib/follow-nav';
 	import SubjectSplitAccordion from '$lib/SubjectSplitAccordion.svelte';
-	import { formatMarkDate, type MarkGroup, type ProgressGroup, type WeekDay } from '$lib/timetable';
-	import type { Mark } from '$lib/types';
+	import { subjectFromSlug, subjectSlugs } from '$lib/subject-path';
+	import { formatMarkDate, groupClassProgress, groupMarksBySubject, groupTimetable } from '$lib/timetable';
+	import type { HomePayload, Mark } from '$lib/types';
 
 	let {
-		classLabel,
-		attendanceLabel,
-		weekDays,
-		progressGroups,
-		markGroups,
-		rankLabel,
-		averageLabel,
+		home,
+		tab,
+		subjectSlug = '',
+		basePath,
 	}: {
-		classLabel: string;
-		attendanceLabel: string;
-		weekDays: WeekDay[];
-		progressGroups: ProgressGroup[];
-		markGroups: MarkGroup[];
-		rankLabel: string;
-		averageLabel: string;
+		home: HomePayload;
+		tab: 'timetable' | 'progress' | 'marks';
+		subjectSlug?: string;
+		basePath: string;
 	} = $props();
 
-	let tab = $state<'timetable' | 'progress' | 'marks'>('timetable');
-
+	let classLabel = $derived(home.student.classLabel);
+	let weekDays = $derived(groupTimetable(home.timetable ?? [], home.planningDate));
+	let progressGroups = $derived(groupClassProgress(home.classProgress ?? []));
+	let markGroups = $derived(groupMarksBySubject(home.marks ?? []));
+	let attendanceLabel = $derived(
+		home.attendance ? `${Math.round(home.attendance.presentRate * 100)} %` : '—',
+	);
+	let rankLabel = $derived(home.rank ? `${home.rank.rank}e / ${home.rank.classSize}` : '—');
+	let averageLabel = $derived(
+		home.rank ? home.rank.overallAverage.toLocaleString('fr-CI', { maximumFractionDigits: 1 }) : '—',
+	);
 	let progressAccordionGroups = $derived(
 		progressGroups.map((group) => ({
 			subject: group.subject,
@@ -30,7 +35,6 @@
 			items: group.items,
 		})),
 	);
-
 	let marksAccordionGroups = $derived(
 		markGroups.map((group) => ({
 			subject: group.subject,
@@ -38,6 +42,14 @@
 			items: group.items,
 		})),
 	);
+	let progressSlugs = $derived(subjectSlugs(progressGroups.map((group) => group.subject)));
+	let markSlugs = $derived(subjectSlugs(markGroups.map((group) => group.subject)));
+	let selectedProgress = $derived(subjectFromSlug(progressSlugs.map((entry) => entry.label), subjectSlug) ?? '');
+	let selectedMarks = $derived(subjectFromSlug(markSlugs.map((entry) => entry.label), subjectSlug) ?? '');
+	let progressHref = $derived(
+		tab === 'progress' && subjectSlug ? `${basePath}/avancement/${subjectSlug}` : `${basePath}/avancement`,
+	);
+	let marksHref = $derived(tab === 'marks' && subjectSlug ? `${basePath}/notes/${subjectSlug}` : `${basePath}/notes`);
 
 	function tabClass(active: boolean) {
 		return [
@@ -45,48 +57,40 @@
 			active ? 'bg-forest text-white' : 'bg-white text-ink ring-1 ring-ink/10',
 		];
 	}
+
+	function subjectHref(section: 'avancement' | 'notes', labels: { label: string; slug: string }[], subject: string) {
+		const slug = labels.find((entry) => entry.label === subject)?.slug;
+		return slug ? `${basePath}/${section}/${slug}` : `${basePath}/${section}`;
+	}
 </script>
 
 <section class="mt-6 rounded-[2rem] bg-paper p-6 shadow-card">
-	<div class="flex flex-wrap items-center justify-between gap-3">
-		<div
-			class="flex flex-wrap gap-2"
-			role="tablist"
-			aria-label="Emploi du temps, avancement et notes"
-		>
-			<button
-				id="school-follow-tab-timetable"
+	<nav class="flex flex-wrap items-center justify-between gap-3" aria-label="Emploi du temps, avancement et notes">
+		<div class="flex flex-wrap gap-2">
+			<a
 				class={tabClass(tab === 'timetable')}
-				type="button"
-				role="tab"
-				aria-selected={tab === 'timetable'}
-				aria-controls="school-follow-panel-timetable"
-				onclick={() => (tab = 'timetable')}
+				href={basePath}
+				aria-current={tab === 'timetable' ? 'page' : undefined}
+				onclick={(event) => openFollow(event, basePath, basePath)}
 			>
 				Emploi du temps
-			</button>
-			<button
-				id="school-follow-tab-progress"
+			</a>
+			<a
 				class={tabClass(tab === 'progress')}
-				type="button"
-				role="tab"
-				aria-selected={tab === 'progress'}
-				aria-controls="school-follow-panel-progress"
-				onclick={() => (tab = 'progress')}
+				href={progressHref}
+				aria-current={tab === 'progress' ? 'page' : undefined}
+				onclick={(event) => openFollow(event, progressHref, basePath)}
 			>
 				Avancement
-			</button>
-			<button
-				id="school-follow-tab-marks"
+			</a>
+			<a
 				class={tabClass(tab === 'marks')}
-				type="button"
-				role="tab"
-				aria-selected={tab === 'marks'}
-				aria-controls="school-follow-panel-marks"
-				onclick={() => (tab = 'marks')}
+				href={marksHref}
+				aria-current={tab === 'marks' ? 'page' : undefined}
+				onclick={(event) => openFollow(event, marksHref, basePath)}
 			>
 				Dernières notes
-			</button>
+			</a>
 		</div>
 		{#if tab === 'timetable'}
 			<div class="shrink-0 text-right">
@@ -100,14 +104,10 @@
 				<p class="mt-1 text-sm font-bold text-ink/60">Moyenne {averageLabel}</p>
 			</div>
 		{/if}
-	</div>
+	</nav>
 
 	{#if tab === 'timetable'}
-		<div
-			id="school-follow-panel-timetable"
-			role="tabpanel"
-			aria-labelledby="school-follow-tab-timetable"
-		>
+		<div>
 			<p class="mt-3 text-sm font-bold text-ink/50">Semaine type · {classLabel}</p>
 			{#if weekDays.length === 0}
 				<p class="mt-4 text-ink/70">Aucun emploi du temps n’est encore publié pour cette classe.</p>
@@ -115,10 +115,7 @@
 				<div class="mt-4 grid gap-2 sm:grid-cols-5">
 					{#each weekDays as day (day.id)}
 						<div
-							class={[
-								'rounded-2xl p-3',
-								day.isToday ? 'bg-forest/10 ring-2 ring-forest/20' : 'bg-cream',
-							]}
+							class={['rounded-2xl p-3', day.isToday ? 'bg-forest/10 ring-2 ring-forest/20' : 'bg-cream']}
 							aria-current={day.isToday ? 'date' : undefined}
 						>
 							<p class="text-sm font-extrabold text-forest">{day.label}</p>
@@ -143,11 +140,7 @@
 			{/if}
 		</div>
 	{:else if tab === 'progress'}
-		<div
-			id="school-follow-panel-progress"
-			role="tabpanel"
-			aria-labelledby="school-follow-tab-progress"
-		>
+		<div>
 			{#if progressGroups.length === 0}
 				<p class="mt-4 text-ink/70">Aucun avancement de classe n’est encore disponible.</p>
 			{:else}
@@ -155,6 +148,10 @@
 					groups={progressAccordionGroups}
 					navLabel="Matières"
 					idPrefix="school-follow-matters"
+					selectedSubject={selectedProgress}
+					collapseHref="{basePath}/avancement"
+					hrefFor={(subject) => subjectHref('avancement', progressSlugs, subject)}
+					onNavigate={(event, href) => openFollow(event, href, basePath)}
 				>
 					{#snippet item(entry)}
 						<div class="flex items-center justify-between gap-3">
@@ -172,11 +169,7 @@
 			{/if}
 		</div>
 	{:else}
-		<div
-			id="school-follow-panel-marks"
-			role="tabpanel"
-			aria-labelledby="school-follow-tab-marks"
-		>
+		<div>
 			{#if markGroups.length === 0}
 				<p class="mt-4 text-ink/70">Aucune note pour le moment.</p>
 			{:else}
@@ -184,6 +177,10 @@
 					groups={marksAccordionGroups}
 					navLabel="Matières"
 					idPrefix="school-follow-marks"
+					selectedSubject={selectedMarks}
+					collapseHref="{basePath}/notes"
+					hrefFor={(subject) => subjectHref('notes', markSlugs, subject)}
+					onNavigate={(event, href) => openFollow(event, href, basePath)}
 				>
 					{#snippet item(mark: Mark)}
 						<div class="flex items-center justify-between gap-3">

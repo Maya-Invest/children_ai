@@ -2,8 +2,10 @@ import { describe, expect, test } from "bun:test";
 import {
 	NOTHING_TO_PRACTICE_MESSAGE,
 	PracticePlanError,
+	PRACTICE_MINUTES_MESSAGE,
 	PRACTICE_NO_PROGRAMME_MESSAGE,
 	PRACTICE_TIMETABLE_MISMATCH_MESSAGE,
+	type CurriculumLesson,
 	type ExerciseProposal,
 	type LearnerAcademicSnapshot,
 } from "@children-ai/domain";
@@ -31,8 +33,8 @@ const snapshot: LearnerAcademicSnapshot = {
 		student: {
 			edayaStudentId: "student-1",
 			firstName: "Léa",
-			lastName: "Tremblay",
-			grade: "6e",
+			lastName: "Mercier",
+			gradeLevel: { id: "demo-6eme", name: "Sixième", label: "6ème", order: 1, cycle: "Collège" },
 			classLabel: "6ème 1",
 		},
 		academicYearId: "2025-ci",
@@ -186,9 +188,11 @@ describe("practice focus selection", () => {
 		const plan = await focus.plan({ snapshot: mondaySnapshot(), now: monday });
 		expect(focus.packVersion()).toBe(AI_SEARCH_PACK_VERSION);
 		expect(chats).toBe(1);
-		expect(user).toContain("Plage prévue pour l'ensemble des séries : 110 à 130 minutes.");
+		expect(user).toContain("Total à répartir entre les deux pistes : de 110 à 130 minutes.");
+		expect(user).toContain("lundi");
 		expect(user).toContain("Mathématiques — fractions");
-		expect(user).toContain("Mathématiques — droites et points");
+		expect(user).not.toContain("Mathématiques — droites et points");
+		expect(user).not.toContain("Demain");
 		expect(user).toContain("Devoir Fractions");
 		expect(user).not.toContain("2026-11-20");
 		expect(plan.totalMinutes).toBe(120);
@@ -223,12 +227,12 @@ describe("practice focus selection", () => {
 			now: monday,
 			sessionMinutes: { min: 80, max: 90 },
 		});
-		expect(user).toContain("Plage prévue pour l'ensemble des séries : 80 à 90 minutes.");
+		expect(user).toContain("Total à répartir entre les deux pistes : de 80 à 90 minutes.");
 		expect(plan.totalMinutes).toBe(90);
-		expect(plan.promptVersion).toBe("1.1");
+		expect(plan.promptVersion).toBe("1.3");
 	});
 
-	test("cloudflare plan keeps only the lessons named on each proposal", async () => {
+	test("cloudflare plan rejects a lesson scheduled for the next day", async () => {
 		const focus = new CloudflarePracticeFocus({
 			rag: rag(["extrait"], JSON.stringify({
 				revision: {
@@ -252,7 +256,7 @@ describe("practice focus selection", () => {
 						{
 							lessonId: "math-tue",
 							subject: "Mathématiques",
-							mode: "preparation",
+							mode: "consolidation",
 							objective: "Repérer un point sur une droite",
 							theme: "Droites",
 							exerciseType: "application",
@@ -261,17 +265,47 @@ describe("practice focus selection", () => {
 							promptHint: "Placer un point sur une droite graduée.",
 							grounding: "dpfc_verified",
 						},
+					],
+				},
+				homework: {
+					available: false,
+					minutes: 0,
+					rationale: "Aucune évaluation dans la fenêtre.",
+					brief: "",
+					proposals: [],
+				},
+			})),
+			model: DEFAULT_FOCUS_MODEL,
+		});
+		await expect(focus.plan({
+			snapshot: mondaySnapshot({ upcomingAssessments: [] }),
+			now: monday,
+			sessionMinutes: { min: 40, max: 40 },
+		})).rejects.toMatchObject({
+			message: PRACTICE_TIMETABLE_MISMATCH_MESSAGE,
+		});
+	});
+
+	test("cloudflare plan keeps a lesson named on today's proposal", async () => {
+		const focus = new CloudflarePracticeFocus({
+			rag: rag(["extrait"], JSON.stringify({
+				revision: {
+					available: true,
+					minutes: 40,
+					rationale: "Leçon du jour.",
+					brief: "Reste sur le titre de la leçon.",
+					proposals: [
 						{
-							lessonId: "lecon-inventee",
-							subject: "Histoire",
+							lessonId: "math-mon",
+							subject: "Mathématiques",
 							mode: "consolidation",
-							objective: "Inventer un cours",
-							theme: "Histoire",
-							exerciseType: "comprehension",
-							difficulty: "hard",
-							minutes: 20,
-							promptHint: "Rédiger sur un chapitre absent.",
-							grounding: "dpfc_verified",
+							objective: "Comparer deux fractions",
+							theme: "Fractions",
+							exerciseType: "recognition",
+							difficulty: "easy",
+							minutes: 40,
+							promptHint: "Reconnaître la plus grande de 1/2 et 1/3.",
+							grounding: "candidate_only",
 						},
 					],
 				},
@@ -288,13 +322,12 @@ describe("practice focus selection", () => {
 		const plan = await focus.plan({
 			snapshot: mondaySnapshot({ upcomingAssessments: [] }),
 			now: monday,
+			sessionMinutes: { min: 40, max: 40 },
 		});
 		expect(plan.tracks[0]?.items.map((item) => [item.lesson.id, item.minutes])).toEqual([
-			["math-mon", 15],
-			["math-tue", 25],
+			["math-mon", 40],
 		]);
 		expect(plan.tracks[0]?.items[0]?.focus.proposals[0]?.promptHint).toContain("sans ajouter d'objectif officiel DPFC");
-		expect(plan.tracks[0]?.items[1]?.focus.proposals[0]?.minutes).toBe(25);
 		expect(plan.tracks[1]?.available).toBe(false);
 	});
 
@@ -305,12 +338,12 @@ describe("practice focus selection", () => {
 				plan: {
 					revision: {
 						available: "true",
-						minutes: 40.6,
+						minutes: 110.4,
 						lessonId: FRACTIONS_ID,
 						reason: "Leçon du jour.",
 						proposals: {
 							objective: "Comparer",
-							minutes: "40",
+							minutes: "110",
 							promptHint: "Comparer deux fractions",
 						},
 					},
@@ -326,7 +359,7 @@ describe("practice focus selection", () => {
 			now: monday,
 		});
 		expect(plan.tracks.map((track) => [track.kind, track.minutes])).toEqual([
-			["revision", 41],
+			["revision", 110],
 			["homework", 0],
 		]);
 		expect(plan.tracks[0]?.focus?.brief).toContain("Fractions");
@@ -339,7 +372,7 @@ describe("practice focus selection", () => {
 					if (chats === 1) return { text: "pas un plan", hits: [{ text: "extrait" }] };
 					return {
 						text: JSON.stringify({
-							revision: JSON.parse(trackJson({ available: true, minutes: 40, lessonId: FRACTIONS_ID })),
+							revision: JSON.parse(trackJson({ available: true, minutes: 120, lessonId: FRACTIONS_ID })),
 							homework: JSON.parse(trackJson({ available: false, minutes: 0, lessonId: "" })),
 						}),
 						hits: [{ text: "extrait" }],
@@ -353,7 +386,7 @@ describe("practice focus selection", () => {
 			now: monday,
 		});
 		expect(chats).toBe(2);
-		expect(recovered.tracks[0]?.minutes).toBe(40);
+		expect(recovered.tracks[0]?.minutes).toBe(120);
 	});
 
 	test("cloudflare plan leaves an evaluation outside two weeks out of the prompt", async () => {
@@ -450,28 +483,27 @@ describe("practice focus selection", () => {
 		expect(plan.summary).toContain("1 h 55");
 	});
 
-	test("cloudflare plan keeps the recommendation minutes and still rejects an empty programme extract", async () => {
+	test("cloudflare plan rejects a total outside the requested range", async () => {
+		let chats = 0;
 		const short = new CloudflarePracticeFocus({
-			rag: rag(["extrait"], JSON.stringify({
-				revision: JSON.parse(trackJson({ available: true, minutes: 50, lessonId: FRACTIONS_ID })),
-				homework: JSON.parse(trackJson({ available: true, minutes: 50, lessonId: FRACTIONS_ID })),
-			})),
+			rag: {
+				async chat() {
+					chats += 1;
+					return {
+						text: JSON.stringify({
+							revision: JSON.parse(trackJson({ available: true, minutes: 50, lessonId: FRACTIONS_ID })),
+							homework: JSON.parse(trackJson({ available: true, minutes: 50, lessonId: FRACTIONS_ID })),
+						}),
+						hits: [{ text: "extrait" }],
+					};
+				},
+			},
 			model: DEFAULT_FOCUS_MODEL,
 		});
-		const shortPlan = await short.plan({ snapshot: mondaySnapshot(), now: monday });
-		expect(shortPlan.totalMinutes).toBe(100);
-		expect(shortPlan.tracks.map((track) => track.minutes)).toEqual([50, 50]);
-
-		const long = new CloudflarePracticeFocus({
-			rag: rag(["extrait"], JSON.stringify({
-				revision: JSON.parse(trackJson({ available: true, minutes: 40, lessonId: FRACTIONS_ID })),
-				homework: JSON.parse(trackJson({ available: true, minutes: 100, lessonId: FRACTIONS_ID })),
-			})),
-			model: DEFAULT_FOCUS_MODEL,
+		await expect(short.plan({ snapshot: mondaySnapshot(), now: monday })).rejects.toMatchObject({
+			message: PRACTICE_MINUTES_MESSAGE,
 		});
-		const longPlan = await long.plan({ snapshot: mondaySnapshot(), now: monday });
-		expect(longPlan.totalMinutes).toBe(140);
-		expect(longPlan.tracks.map((track) => track.minutes)).toEqual([40, 100]);
+		expect(chats).toBe(2);
 
 		const empty = new CloudflarePracticeFocus({
 			rag: rag([], JSON.stringify({})),
@@ -481,18 +513,18 @@ describe("practice focus selection", () => {
 			message: PRACTICE_NO_PROGRAMME_MESSAGE,
 		});
 
-		let chats = 0;
+		let quietChats = 0;
 		const quiet = new CloudflarePracticeFocus({
 			rag: {
 				async chat() {
-					chats += 1;
+					quietChats += 1;
 					return { text: "{}", hits: [] };
 				},
 			},
 			model: DEFAULT_FOCUS_MODEL,
 		});
 		const plan = await quiet.plan({ snapshot, now: monday });
-		expect(chats).toBe(0);
+		expect(quietChats).toBe(0);
 		expect(plan.summary).toBe(NOTHING_TO_PRACTICE_MESSAGE);
 	});
 
@@ -628,22 +660,23 @@ describe("cloudflare exercise generator", () => {
 				brief: "On revoit les fractions.",
 				intent: "prepare_next_day",
 				proposals: [
-					...proposals(20),
 					{
-						objective: "Reconnaître",
+						objective: "Comparer deux fractions",
 						theme: "Nombres",
-						exerciseType: "recognition",
-						difficulty: "easy",
-						minutes: 10,
-						promptHint: "Quelle fraction est la plus grande ?",
+						exerciseType: "comprehension",
+						difficulty: "medium",
+						minutes: 15,
+						promptHint: "Comparer 1/2 et 1/3",
 					},
 				],
 			},
 			plannedMinutes: 40,
 		});
 		expect(set.generator).toBe("llm");
-		expect(set.promptVersion).toBe(`1.1:${DEFAULT_RAG_GENERATOR_MODEL}`);
-		expect(user).toContain("Durée recommandée pour cette série : 40 minutes.");
+		expect(set.promptVersion).toBe(`1.3:${DEFAULT_RAG_GENERATOR_MODEL}`);
+		expect(user).toContain("Durée recommandée pour cette série : 15 minutes.");
+		expect(user).toContain("Consigne : On revoit les fractions.");
+		expect(user).toContain("Proposition :");
 		expect(set.questions).toHaveLength(3);
 	});
 
@@ -697,7 +730,16 @@ describe("cloudflare exercise generator", () => {
 				rationale: "Leçon du jour.",
 				brief: "Revoir les codes.",
 				intent: "prepare_next_day",
-				proposals: proposals(20),
+				proposals: [
+				{
+					objective: "Reconnaître les codes",
+					theme: "Codes",
+					exerciseType: "recognition",
+					difficulty: "easy",
+					minutes: 12,
+					promptHint: "Quel ensemble regroupe ces codes ?",
+				},
+			],
 			},
 			plannedMinutes: 20,
 		});
@@ -712,7 +754,7 @@ describe("cloudflare exercise generator", () => {
 	});
 
 	test("completes a short homework reply and keeps a partial series", async () => {
-		const lesson = {
+		const lesson: CurriculumLesson = {
 			id: lessonJson.lesson.id,
 			packVersion: "rag-index-2026",
 			country: "CI",
@@ -727,7 +769,7 @@ describe("cloudflare exercise generator", () => {
 			skills: ["Repérer une thèse"],
 			contents: ["Thèse", "Argument"],
 			sourcePdf: "cloudflare-rag",
-		} as const;
+		};
 		const focus = {
 			lessonId: lessonJson.lesson.id,
 			subject: "FR",
@@ -838,6 +880,29 @@ describe("fixture day clock", () => {
 		expect(createRuntimeClock({ contextMode: "http", fixtureToday: "2026-10-05" })).toBeInstanceOf(SystemClock);
 		expect(() => createRuntimeClock({ contextMode: "fixture", fixtureToday: "lundi" })).toThrow(
 			/AAAA-MM-JJ/,
+		);
+	});
+
+	test("an empty practice weekday follows the calendar", () => {
+		expect(createRuntimeClock({ contextMode: "http", practiceWeekday: "" })).toBeInstanceOf(SystemClock);
+		expect(createRuntimeClock({ contextMode: "http", practiceWeekday: "   " })).toBeInstanceOf(SystemClock);
+	});
+
+	test("a practice weekday moves the clock onto that day of the current school week", () => {
+		const saturday = { contextMode: "fixture" as const, fixtureToday: "2026-10-17" };
+		expect(createRuntimeClock({ ...saturday, practiceWeekday: "lundi" }).nowIso()).toBe(
+			"2026-10-12T18:00:00.000Z",
+		);
+		expect(createRuntimeClock({ ...saturday, practiceWeekday: "Vendredi" }).nowIso()).toBe(
+			"2026-10-16T18:00:00.000Z",
+		);
+		expect(createRuntimeClock({ ...saturday, practiceWeekday: "samedi" }).nowIso()).toBe(
+			"2026-10-17T18:00:00.000Z",
+		);
+		expect(createRuntimeClock({ contextMode: "http", practiceWeekday: "mardi" }).nowIso().length).toBeGreaterThan(0);
+		expect(new Date(createRuntimeClock({ contextMode: "http", practiceWeekday: "mardi" }).nowIso()).getUTCDay()).toBe(2);
+		expect(() => createRuntimeClock({ contextMode: "http", practiceWeekday: "lundii" })).toThrow(
+			/PRACTICE_WEEKDAY/,
 		);
 	});
 });

@@ -1,5 +1,6 @@
 <script lang="ts">
-	import type { ResultFilter } from "$lib/result-filter";
+	import { openInPlace } from "$lib/corrige-nav";
+	import { filterPath, type ResultFilter } from "$lib/result-filter";
 
 	let {
 		value,
@@ -7,16 +8,18 @@
 		incorrectCount,
 		unansweredCount,
 		total,
-		onSelect,
+		basePath,
 		compact = false,
+		shallow = false,
 	}: {
 		value: ResultFilter;
 		correctCount: number;
 		incorrectCount: number;
 		unansweredCount: number;
 		total: number;
-		onSelect: (next: ResultFilter) => void;
+		basePath: string;
 		compact?: boolean;
+		shallow?: boolean;
 	} = $props();
 
 	const options = $derived([
@@ -29,11 +32,11 @@
 
 <div
 	class={['flex flex-wrap gap-2', compact ? 'mt-2' : 'mt-6']}
-	role="group"
+	role="navigation"
 	aria-label="Filtrer les questions"
 >
 	{#each options as option (option.id)}
-		<button
+		<a
 			class={[
 				'rounded-full font-extrabold',
 				compact ? 'px-3 py-1 text-xs' : 'px-4 py-2 text-sm',
@@ -43,11 +46,13 @@
 				value === option.id && option.id === 'unanswered' && 'bg-ink/60',
 				value === option.id && option.id === 'all' && 'bg-ink',
 			]}
-			type="button"
-			aria-pressed={value === option.id}
-			onclick={() => onSelect(option.id)}
+			href={filterPath(basePath, option.id)}
+			aria-current={value === option.id ? 'page' : undefined}
+			onclick={(event) => {
+				if (shallow) openInPlace(event, filterPath(basePath, option.id), true);
+			}}
 		>
 			{option.label} ({option.count})
-		</button>
+		</a>
 	{/each}
 </div>

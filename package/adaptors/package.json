@@ -10,7 +10,6 @@
 		"test": "bun test"
 	},
 	"dependencies": {
-		"@children-ai/curriculum-data": "workspace:*",
 		"@children-ai/domain": "workspace:*"
 	},
 	"devDependencies": {

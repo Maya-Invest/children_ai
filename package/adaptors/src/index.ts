@@ -1,4 +1,3 @@
-export { JsonCurriculumCatalog, COLLEGE_MATHS_PACK_VERSION } from "./curriculum-catalog.ts";
 export { StubPracticeFocus } from "./focus-stub.ts";
 export { createPracticeFocus, resolveFocusName, type FocusName } from "./focus.ts";
 export {
@@ -17,11 +16,17 @@ export {
 	FIXTURE_SCHOOL_ID,
 	FIXTURE_STUDENT_ID,
 	FIXTURE_STUDENT_ID_BROU,
+	FIXTURE_STUDENT_ID_SECONDE,
+	FIXTURE_STUDENT_ID_TLE,
 	FIXTURE_LEA_CHAPTER,
 	FIXTURE_LEA_READING,
 	FIXTURE_THOMAS_CHAPTER,
+	FIXTURE_CAMILLE_CHAPTER,
+	FIXTURE_INES_CHAPTER,
 	FIXTURE_TIMETABLE,
 	FIXTURE_TIMETABLE_BROU,
+	FIXTURE_TIMETABLE_SECONDE,
+	FIXTURE_TIMETABLE_TLE,
 } from "./edaya-fixture.ts";
 export {
 	SchoolScopedEdayaContext,

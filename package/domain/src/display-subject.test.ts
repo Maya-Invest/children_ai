@@ -11,8 +11,8 @@ const context: LearnerContext = {
 	student: {
 		edayaStudentId: "ci-s1",
 		firstName: "Léa",
-		lastName: "Tremblay",
-		grade: "6e",
+		lastName: "Mercier",
+		gradeLevel: { id: "demo-6eme", name: "Sixième", label: "6ème", order: 1, cycle: "Collège" },
 		classLabel: "6ème 1",
 	},
 	academicYearId: "2025-ci",
@@ -64,14 +64,12 @@ describe("displaySubjectLabel", () => {
 	});
 
 	test("builds a programme line without hardcoding a single subject", () => {
-		expect(formatProgrammeLine("6ème 1", [])).toBe(
-			"6ème 1 · Programme officiel DPFC",
-		);
+		expect(formatProgrammeLine("6ème 1", [])).toBe("6ème 1");
 		expect(formatProgrammeLine("6ème 1", ["Mathématiques", "Français"])).toBe(
-			"6ème 1 · Mathématiques · Français · Programme officiel DPFC",
+			"6ème 1 · Mathématiques · Français",
 		);
-		expect(
-			formatProgrammeLine("6ème 1", ["A", "B", "C", "D", "E"]),
-		).toBe("6ème 1 · Toutes les matières · Programme officiel DPFC");
+		expect(formatProgrammeLine("6ème 1", ["A", "B", "C", "D", "E"])).toBe(
+			"6ème 1 · Toutes les matières",
+		);
 	});
 });

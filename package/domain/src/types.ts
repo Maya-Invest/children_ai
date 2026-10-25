@@ -1,11 +1,20 @@
-export type GradeId = "6e" | "5e" | "4e" | "3e";
+/** Grade level as stored by Edaya. Not a collapsed collège code. */
+export type SchoolGradeLevel = {
+	id: string;
+	name: string;
+	label: string;
+	order: number;
+	cycle?: string;
+};
 
-/** Built-in Sophie Tremblay demo family — landing hint “Essayer la démo” only, never Identity parents. */
+/** Built-in Sophie Mercier demo family — landing hint “Essayer la démo” only, never Identity parents. */
 export const DEMO_FIXTURE_SCHOOL_ID = "sch-edaya-ci-cocody";
 export const DEMO_FIXTURE_STUDENT_ID = "ci-s1";
 export const DEMO_FIXTURE_STUDENT_ID_BROU = "ci-s31";
+export const DEMO_FIXTURE_STUDENT_ID_SECONDE = "ci-s32";
+export const DEMO_FIXTURE_STUDENT_ID_TLE = "ci-s33";
 export const DEMO_FIXTURE_GUARDIAN_SUBJECT_ID = "demo-guardian";
-export const DEMO_FIXTURE_GUARDIAN_NAME = "Sophie Tremblay";
+export const DEMO_FIXTURE_GUARDIAN_NAME = "Sophie Mercier";
 
 export const CHILDREN_AI_RESOLVE_SECRET_HEADER = "x-children-ai-resolve-secret";
 
@@ -13,8 +22,9 @@ export type CurriculumLesson = {
 	id: string;
 	packVersion: string;
 	country: "CI";
-	cycle: "college";
-	grade: GradeId;
+	cycle: string;
+	/** Edaya grade-level label, such as `6ème` or `2nde C`. */
+	grade: string;
 	subject: string;
 	competence: { id: string; title: string };
 	theme: { id: string; title: string };
@@ -66,7 +76,7 @@ export type LearnerContext = {
 		edayaStudentId: string;
 		firstName: string;
 		lastName: string;
-		grade: GradeId;
+		gradeLevel: SchoolGradeLevel;
 		classLabel: string;
 	};
 	academicYearId: string;
@@ -277,7 +287,7 @@ export type GuardianChild = {
 	firstName: string;
 	lastName: string;
 	classLabel?: string;
-	grade?: GradeId;
+	gradeLevel?: SchoolGradeLevel;
 };
 
 export type GuardianChildrenListing = {
@@ -318,7 +328,7 @@ export class NoSnapshotError extends DomainError {
 }
 
 export const NOTHING_TO_PRACTICE_MESSAGE =
-	"Aucune leçon n'est prévue aujourd'hui ni demain, et aucune évaluation n'arrive dans les deux prochaines semaines.";
+	"Aucune leçon n'est prévue aujourd'hui, et aucune évaluation n'arrive dans les deux prochaines semaines.";
 
 export const PRACTICE_MINUTES_MESSAGE = "La séance proposée doit durer entre 1 h 50 et 2 h 10.";
 

@@ -12,12 +12,15 @@ function slot(id: string, title: string, day: TimetableSlot["dayOfWeek"] = "mond
 	return { id, dayOfWeek: day, startTime: "08:00", endTime: "09:00", title, kind: "lesson" };
 }
 
+const sixth = { label: "6ème", cycle: "Collège" };
+const fifth = { label: "5ème", cycle: "Collège" };
+
 describe("snapshot chapter resolution", () => {
 	test("uses the official chapter named in the slot", () => {
 		const lesson = resolveSnapshotLesson(
 			slot("read", "Lecture et compréhension de textes narratifs et documentaires"),
 			progress,
-			"6e",
+			sixth,
 		);
 		expect(lesson.subject).toBe("Français");
 		expect(lesson.title).toBe("Lecture et compréhension de textes narratifs et documentaires");
@@ -42,8 +45,8 @@ describe("snapshot chapter resolution", () => {
 				completedPercentage: 0,
 			},
 		];
-		const monday = resolveSnapshotLesson(slot("math-mon", "Mathématiques", "monday"), math, "6e");
-		const tuesday = resolveSnapshotLesson(slot("math-tue", "Mathématiques", "tuesday"), math, "6e");
+		const monday = resolveSnapshotLesson(slot("math-mon", "Mathématiques", "monday"), math, sixth);
+		const tuesday = resolveSnapshotLesson(slot("math-tue", "Mathématiques", "tuesday"), math, sixth);
 		expect(monday.subject).toBe("Mathématiques");
 		expect(monday.title).toBe("Fractions : opérations simples, fractions équivalentes");
 		expect(tuesday.title).toBe(monday.title);
@@ -51,14 +54,15 @@ describe("snapshot chapter resolution", () => {
 	});
 
 	test("uses the slot anchor when the title does not name the chapter", () => {
-		const lesson = resolveSnapshotLesson(slot("forces", "Physique-Chimie"), progress, "5e");
+		const lesson = resolveSnapshotLesson(slot("forces", "Physique-Chimie"), progress, fifth);
 		expect(lesson.title).toBe("Introduction aux forces et au mouvement");
 		expect(lesson.subject).toBe("Physique-Chimie");
-		expect(lesson.grade).toBe("5e");
+		expect(lesson.grade).toBe("5ème");
+		expect(lesson.cycle).toBe("Collège");
 	});
 
 	test("keeps a subject hour that names no chapter", () => {
-		const lesson = resolveSnapshotLesson(slot("svt", "SVT"), progress, "6e");
+		const lesson = resolveSnapshotLesson(slot("svt", "SVT"), progress, sixth);
 		expect(lesson.title).toBe("SVT");
 		expect(lesson.id).toBe("svt");
 	});
@@ -70,7 +74,7 @@ describe("snapshot chapter resolution", () => {
 		];
 		const snapshot = {
 			context: {
-				student: { grade: "6e" },
+				student: { gradeLevel: { id: "demo-6eme", name: "Sixième", label: "6ème", order: 1, cycle: "Collège" } },
 				timetable,
 				classProgress: progress,
 				upcomingAssessments: [
@@ -92,7 +96,7 @@ describe("snapshot chapter resolution", () => {
 			},
 		} as LearnerAcademicSnapshot;
 		const window = scanPracticeWindow(snapshot, new Date("2026-10-05T18:00:00.000Z"));
-		const matches = upcomingSnapshotLessons(window, timetable, progress, "6e");
+		const matches = upcomingSnapshotLessons(window, timetable, progress, sixth);
 		expect(matches.map((match) => match.assessment.id)).toEqual(["near"]);
 		expect(matches[0]?.lesson.subject).toBe("Français");
 	});

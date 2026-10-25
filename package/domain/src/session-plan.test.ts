@@ -3,6 +3,8 @@ import {
 	composeSessionPlan,
 	emptySessionPlan,
 	exerciseProposalInstruction,
+	plannedQuestionCount,
+	questionCountForMinutes,
 	questionTargetForMinutes,
 } from "./session-plan.ts";
 import { NOTHING_TO_PRACTICE_MESSAGE } from "./types.ts";
@@ -39,8 +41,8 @@ function snapshot(): LearnerAcademicSnapshot {
 			student: {
 				edayaStudentId: "ci-s1",
 				firstName: "Léa",
-				lastName: "Tremblay",
-				grade: "6e",
+				lastName: "Mercier",
+				gradeLevel: { id: "demo-6eme", name: "Sixième", label: "6ème", order: 1, cycle: "Collège" },
 				classLabel: "6ème 1",
 			},
 			academicYearId: "2025-ci",
@@ -94,6 +96,27 @@ function homework(dueAt: string): UpcomingAssessment {
 	};
 }
 
+describe("questionCountForMinutes", () => {
+	test("asks for about one question every 3 to 4 minutes", () => {
+		expect(questionCountForMinutes(10)).toBe(3);
+		expect(questionCountForMinutes(15)).toBe(4);
+		expect(questionCountForMinutes(20)).toBe(6);
+		expect(questionCountForMinutes(30)).toBe(9);
+	});
+});
+
+describe("plannedQuestionCount", () => {
+	test("sums the questions the generator will write for each proposal", () => {
+		expect(plannedQuestionCount([
+			{ objective: "Comparer", theme: "Nombres", exerciseType: "comprehension", difficulty: "medium", minutes: 20, promptHint: "Comparer" },
+		])).toBe(6);
+		expect(plannedQuestionCount([
+			{ objective: "Comparer", theme: "Nombres", exerciseType: "comprehension", difficulty: "medium", minutes: 15, promptHint: "Comparer" },
+			{ objective: "Additionner", theme: "Nombres", exerciseType: "application", difficulty: "medium", minutes: 10, promptHint: "Additionner" },
+		])).toBe(7);
+	});
+});
+
 describe("questionTargetForMinutes", () => {
 	test("scales a series with its duration", () => {
 		expect(questionTargetForMinutes(40)).toEqual({ total: 3, mcq: 2, written: 1 });
@@ -138,7 +161,7 @@ describe("composeSessionPlan", () => {
 			revision: { ...revision, minutes: 120 },
 			homework: null,
 		});
-		expect(plan.summary).toContain("aujourd'hui et demain");
+		expect(plan.summary).toContain("aujourd'hui");
 		expect(plan.summary).toContain("Fractions");
 		expect(plan.tracks[1]).toMatchObject({ kind: "homework", available: false, minutes: 0 });
 	});

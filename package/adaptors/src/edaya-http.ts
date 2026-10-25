@@ -4,7 +4,7 @@ import {
 	type ClassProgressItem,
 	type EdayaContextPort,
 	type EdayaCredentialsPort,
-	type GradeId,
+	type SchoolGradeLevel,
 	type GuardianChildrenListing,
 	type GuardianChildrenPort,
 	type GuardianChildrenQuery,
@@ -188,7 +188,7 @@ export class HttpEdayaContext implements EdayaContextPort, GuardianChildrenPort 
 				edayaStudentId: query.studentId,
 				firstName: asString(student.firstName) || "Élève",
 				lastName: asString(student.lastName),
-				grade: mapGrade(gradeLevel),
+				gradeLevel: schoolGradeLevelFromEdaya(gradeLevel, asString(classGroup?.name)),
 				classLabel: asString(classGroup?.name) || asString(gradeLevel?.label) || "classe",
 			},
 			academicYearId:
@@ -370,14 +370,14 @@ function parseResolveGuardian(text: string): GuardianChildrenListing {
 		displayName: asString(parsed.displayName),
 		children: childrenRaw.filter(isRecord).map((row) => {
 			const classLabel = asString(row.classLabel);
-			const grade = asOptionalGrade(row.grade);
+			const gradeLevel = readOptionalGradeLevel(row.gradeLevel);
 			return {
 				studentId: asString(row.studentId) || asString(row.id),
 				schoolId: asString(row.schoolId) || schoolId,
 				firstName: asString(row.firstName) || "Élève",
 				lastName: asString(row.lastName),
 				...(classLabel ? { classLabel } : {}),
-				...(grade ? { grade } : {}),
+				...(gradeLevel ? { gradeLevel } : {}),
 			};
 		}).filter((child) => child.studentId),
 	};
@@ -564,8 +564,10 @@ function asTimetableDay(value: unknown): TimetableDay | undefined {
 
 function asTime(value: unknown): string {
 	const match = asString(value).match(/^(\d{1,2}):(\d{2})/);
-	if (!match) return "";
-	return `${match[1].padStart(2, "0")}:${match[2]}`;
+	const hours = match?.[1];
+	const minutes = match?.[2];
+	if (!hours || !minutes) return "";
+	return `${hours.padStart(2, "0")}:${minutes}`;
 }
 
 function summarizeAttendance(
@@ -581,22 +583,31 @@ function summarizeAttendance(
 	return { presentRate: present / mine.length };
 }
 
-function mapGrade(gradeLevel: JsonRecord | undefined): GradeId {
-	return asOptionalGrade(
-		`${asString(gradeLevel?.label)} ${asString(gradeLevel?.name)} ${asString(gradeLevel?.id)}`,
-	) ?? "6e";
+export function schoolGradeLevelFromEdaya(
+	gradeLevel: JsonRecord | undefined,
+	fallbackLabel = "",
+): SchoolGradeLevel {
+	const parsed = readOptionalGradeLevel(gradeLevel);
+	if (parsed) return parsed;
+	const label = fallbackLabel.trim() || "classe";
+	return { id: label, name: label, label, order: 1 };
 }
 
-function asOptionalGrade(value: unknown): GradeId | undefined {
-	const raw = asString(value);
-	if (raw === "6e" || raw === "5e" || raw === "4e" || raw === "3e") return raw;
-	if (!raw) return undefined;
-	const haystack = raw.toLowerCase();
-	if (haystack.includes("3e") || haystack.includes("3ème") || haystack.includes("troisi")) return "3e";
-	if (haystack.includes("4e") || haystack.includes("4ème") || haystack.includes("quatr")) return "4e";
-	if (haystack.includes("5e") || haystack.includes("5ème") || haystack.includes("cinq")) return "5e";
-	if (haystack.includes("6e") || haystack.includes("6ème") || haystack.includes("sixi")) return "6e";
-	return undefined;
+function readOptionalGradeLevel(value: unknown): SchoolGradeLevel | undefined {
+	if (!isRecord(value)) return undefined;
+	const label = asString(value.label);
+	const name = asString(value.name);
+	const id = asString(value.id);
+	if (!id && !name && !label) return undefined;
+	const order = asNumber(value.order);
+	const cycle = asString(value.cycle);
+	return {
+		id: id || label || name,
+		name: name || label || id,
+		label: label || name || id,
+		order: order !== undefined && order > 0 ? order : 1,
+		...(cycle ? { cycle } : {}),
+	};
 }
 
 function dateOnly(value: string): string {

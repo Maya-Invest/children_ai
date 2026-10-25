@@ -45,12 +45,6 @@ export interface EdayaCredentialsPort {
 	getActive(schoolId: string): Promise<SchoolCredentials | null>;
 }
 
-export interface CurriculumCatalogPort {
-	packVersion(): string;
-	listLessons(grade: CurriculumLesson["grade"]): CurriculumLesson[];
-	getLesson(lessonId: string): CurriculumLesson | undefined;
-}
-
 export type PracticeRecommendation = {
 	focus: PracticeFocus;
 	lesson: CurriculumLesson;

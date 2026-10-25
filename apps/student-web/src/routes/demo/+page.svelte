@@ -52,7 +52,7 @@
 			<ol class="mt-8 space-y-3">
 				<li class="rounded-2xl bg-cream p-4">
 					<p class="text-xs font-extrabold uppercase tracking-wide text-forest">1 · Parent</p>
-					<p class="mt-1 font-extrabold text-ink">Ouvre l’espace de Sophie Tremblay</p>
+					<p class="mt-1 font-extrabold text-ink">Ouvre l’espace de Sophie Mercier</p>
 					<p class="mt-1 text-sm font-bold text-ink/60">
 						Génère un code pour Léa ou Thomas, puis copie-le.
 					</p>

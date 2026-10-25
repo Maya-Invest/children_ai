@@ -3,7 +3,16 @@
 @tailwind utilities;
 
 html {
-	background: #fbf4e8;
+	--scene-paper: #fbf4e8;
+	--scene-wash-a: #ffe3c4;
+	--scene-wash-b: #c8ebe4;
+	--doodle-primary: #1f6f62;
+	--doodle-accent: #e06c3a;
+	--doodle-paper: #fffdf8;
+	--doodle-ink: #2a1810;
+	--doodle-gold: #e8b84a;
+	--doodle-soft: #c8ebe4;
+	background: var(--scene-paper);
 }
 
 body {
@@ -12,7 +21,45 @@ body {
 	font-family: Nunito, system-ui, sans-serif;
 	color: #2a1810;
 	background:
-		radial-gradient(1200px 500px at 10% -10%, #ffe3c4 0%, transparent 55%),
-		radial-gradient(900px 420px at 100% 0%, #c8ebe4 0%, transparent 50%),
-		#fbf4e8;
+		radial-gradient(1200px 500px at 10% -10%, var(--scene-wash-a) 0%, transparent 55%),
+		radial-gradient(900px 420px at 100% 0%, var(--scene-wash-b) 0%, transparent 50%),
+		var(--scene-paper);
+}
+
+@keyframes school-float {
+	0%,
+	100% {
+		transform: translate3d(0, 0, 0) rotate(var(--tilt, -8deg));
+	}
+	50% {
+		transform: translate3d(var(--drift, 10px), -16px, 0) rotate(calc(var(--tilt, -8deg) * -0.65));
+	}
+}
+
+.school-float {
+	animation: school-float var(--dur, 8s) ease-in-out infinite;
+	animation-delay: var(--delay, 0s);
+	filter: drop-shadow(0 10px 12px rgba(42, 24, 16, 0.12));
+	transform: rotate(var(--tilt, -8deg));
+}
+
+@keyframes stat-grow {
+	from {
+		transform: scaleX(0);
+	}
+	to {
+		transform: scaleX(1);
+	}
+}
+
+.stat-grow {
+	transform-origin: left center;
+	animation: stat-grow 0.7s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.school-float,
+	.stat-grow {
+		animation: none;
+	}
 }

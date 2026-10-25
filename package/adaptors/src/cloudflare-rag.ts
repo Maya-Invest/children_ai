@@ -3,6 +3,7 @@ import {
 	DAILY_PRACTICE_MIN_MINUTES,
 	ExerciseGenerationError,
 	NothingToPracticeError,
+	MIN_DAILY_SUBJECTS,
 	PRACTICE_INTENT_MESSAGE,
 	PRACTICE_MINUTES_MESSAGE,
 	PRACTICE_NO_PROGRAMME_MESSAGE,
@@ -15,8 +16,10 @@ import {
 	endOfDaySnapshotLessons,
 	revisionLessonsForDay,
 	splitMinutes,
-	exerciseProposalInstruction,
+	subjectsMatch,
+	exerciseLengthInstruction,
 	distinctMcqChoices,
+	questionCountForMinutes,
 	questionKind,
 	scanPracticeWindow,
 	upcomingSnapshotLessons,
@@ -55,7 +58,12 @@ export type RagChatResult = {
 };
 
 export type RagClient = {
-	chat(input: { model: string; system: string; user: string }): Promise<RagChatResult>;
+	chat(input: {
+		model: string;
+		system: string;
+		user: string;
+		responseFormat?: Record<string, unknown>;
+	}): Promise<RagChatResult>;
 };
 
 export type CloudflareFetch = (input: string, init: RequestInit) => Promise<Response>;
@@ -125,7 +133,7 @@ export class CloudflarePracticeFocus implements PracticeFocusPort {
 		const now = input.now ?? new Date();
 		const context = input.snapshot.context;
 		const progress = context.classProgress ?? [];
-		const grade = context.student.grade;
+		const grade = context.student.gradeLevel;
 		const window = scanPracticeWindow(input.snapshot, now);
 		const timetable = context.timetable ?? [];
 		const revisionMatches = endOfDaySnapshotLessons(window, progress, grade);
@@ -144,6 +152,7 @@ export class CloudflarePracticeFocus implements PracticeFocusPort {
 				model: this.options.model,
 				system: await focusSystemPrompt(),
 				user: await focusUserPrompt(input.snapshot, window, revisionMatches, homeworkMatches, sessionMinutes),
+				responseFormat: planResponseFormat(),
 			});
 			if (reply.hits.length > 0) sawProgramme = true;
 			if (!sawProgramme) {
@@ -156,12 +165,13 @@ export class CloudflarePracticeFocus implements PracticeFocusPort {
 					today: window.today,
 					revisionMatches,
 					homeworkMatches,
+					sessionMinutes,
 				}));
 			} catch (error) {
-				const unreadable = (error instanceof PracticePlanError || error instanceof ExerciseGenerationError)
-					&& error.message === PRACTICE_UNREADABLE_MESSAGE;
-				if (!unreadable || attempt === 1) {
-					if (unreadable) console.error("practice plan unreadable", reply.text.length, JSON.stringify(reply.text.slice(-180)));
+				const retryable = error instanceof PracticePlanError
+					|| (error instanceof ExerciseGenerationError && error.message === PRACTICE_UNREADABLE_MESSAGE);
+				if (!retryable || attempt === 1) {
+					if (retryable) console.error("practice plan unreadable", reply.text.length, JSON.stringify(reply.text.slice(-180)));
 					throw error;
 				}
 			}
@@ -189,28 +199,33 @@ export class CloudflareRagExerciseGenerator implements ExerciseGeneratorPort {
 		const proposals = requireProposals(input.focus);
 		const questions: ExerciseQuestion[] = [];
 		let sawProgramme = false;
-		for (let attempt = 0; attempt < 2 && questions.length < proposals.length; attempt++) {
-			const pending = proposals.slice(questions.length);
-			const reply = await this.options.rag.chat({
-				model: this.options.model,
-				system: await exerciseSystemPrompt(input.lesson, exerciseProposalInstruction(pending)),
-				user: await exerciseUserPrompt({
-					snapshot: input.snapshot,
-					lesson: input.lesson,
-					focus: { ...input.focus, proposals: pending },
-					plannedMinutes: input.plannedMinutes,
-				}),
-			});
-			if (reply.hits.length > 0) sawProgramme = true;
-			if (!sawProgramme) {
-				throw new ExerciseGenerationError("Le RAG n'a renvoyé aucun extrait pour cette leçon.");
+		for (const proposal of proposals) {
+			const count = questionCountForMinutes(proposal.minutes);
+			let produced: ExerciseQuestion[] = [];
+			for (let attempt = 0; attempt < 2 && produced.length === 0; attempt++) {
+				const reply = await this.options.rag.chat({
+					model: this.options.model,
+					system: await exerciseSystemPrompt(input.lesson, exerciseLengthInstruction(proposal)),
+					user: await exerciseUserPrompt({
+						snapshot: input.snapshot,
+						lesson: input.lesson,
+						focus: input.focus,
+						proposal,
+						plannedMinutes: proposal.minutes,
+					}),
+					responseFormat: questionResponseFormat(),
+				});
+				if (reply.hits.length > 0) sawProgramme = true;
+				if (!sawProgramme) {
+					throw new ExerciseGenerationError("Le RAG n'a renvoyé aucun extrait pour cette leçon.");
+				}
+				try {
+					produced = mapQuestions(parseJson(reply.text), this.options.ids, count).questions;
+				} catch (error) {
+					if (attempt === 1 && questions.length === 0) throw error;
+				}
 			}
-			try {
-				const mapped = mapQuestions(parseJson(reply.text), this.options.ids, pending.length);
-				questions.push(...mapped.questions);
-			} catch (error) {
-				if (questions.length === 0) throw error;
-			}
+			questions.push(...produced);
 		}
 		if (questions.length === 0) {
 			throw new ExerciseGenerationError("Le modèle d'exercices n'a pas produit assez de questions.");
@@ -248,7 +263,7 @@ async function focusUserPrompt(
 	const prompts = await loadPracticePrompts();
 	const student = snapshot.context.student;
 	const revisionLines = revisionMatches.map((match) =>
-		`${match.lesson.id} | ${match.lesson.title} | ${match.slot.dayOfWeek} ${match.slot.startTime} ${match.slot.title} | thème ${match.lesson.theme.title} | habiletés ${match.lesson.skills.join(", ")}`,
+		`${match.lesson.id} | ${match.lesson.title} | ${frenchWeekday(match.slot.dayOfWeek)} ${match.slot.startTime} ${match.slot.title} | thème ${match.lesson.theme.title} | habiletés ${match.lesson.skills.join(", ")}`,
 	);
 	const homeworkLines = homeworkMatches.map((match) =>
 		`${match.lesson.id} | ${match.assessment.title} le ${match.assessment.dueAt.slice(0, 10)} | emploi du temps ${match.slot.title} | thème ${match.lesson.theme.title}`,
@@ -256,14 +271,12 @@ async function focusUserPrompt(
 	return prompts.fill("focus-user", {
 		studentName: student.firstName,
 		classLabel: student.classLabel,
-		grade: student.grade,
+		grade: student.gradeLevel.label,
 		minMinutes: String(sessionMinutes.min),
 		maxMinutes: String(sessionMinutes.max),
 		planningDate: window.planningDate,
-		today: window.today,
+		today: frenchWeekday(window.today),
 		todayLessons: slotLine(window.todayLessons),
-		nextDay: window.nextDay,
-		nextDayLessons: slotLine(window.nextDayLessons),
 		revisionBlock: revisionLines.length > 0
 			? prompts.fill("focus-revision-list", { lines: revisionLines.join("\n") })
 			: prompts.fill("focus-revision-empty"),
@@ -271,6 +284,19 @@ async function focusUserPrompt(
 			? prompts.fill("focus-homework-list", { lines: homeworkLines.join("\n") })
 			: prompts.fill("focus-homework-empty"),
 	});
+}
+
+function frenchWeekday(day: string): string {
+	const names: Record<string, string> = {
+		monday: "lundi",
+		tuesday: "mardi",
+		wednesday: "mercredi",
+		thursday: "jeudi",
+		friday: "vendredi",
+		saturday: "samedi",
+		sunday: "dimanche",
+	};
+	return names[day] ?? day;
 }
 
 function slotLine(slots: { startTime: string; title: string }[]): string {
@@ -284,6 +310,7 @@ function acceptPracticePlan(input: {
 	today: ReturnType<typeof scanPracticeWindow>["today"];
 	revisionMatches: ReturnType<typeof endOfDaySnapshotLessons>;
 	homeworkMatches: ReturnType<typeof upcomingSnapshotLessons>;
+	sessionMinutes: { min: number; max: number };
 }): PracticeSessionPlan {
 	const root = planRoot(input.payload);
 	if (!root) throw new PracticePlanError(PRACTICE_UNREADABLE_MESSAGE);
@@ -308,6 +335,7 @@ function acceptPracticePlan(input: {
 	}
 	if (!revision.available && revision.minutes !== 0) throw new PracticePlanError(PRACTICE_MINUTES_MESSAGE);
 	if (!homework.available && homework.minutes !== 0) throw new PracticePlanError(PRACTICE_MINUTES_MESSAGE);
+	assertPlanContract(revision, homework, input);
 
 	const revisionSeriesItems = revision.available
 		? proposalsNameLessons(revision)
@@ -336,6 +364,67 @@ function acceptPracticePlan(input: {
 		homework: homeworks[0] ?? null,
 		homeworks,
 	});
+}
+
+function assertPlanContract(
+	revision: ParsedTrack,
+	homework: ParsedTrack,
+	input: {
+		today: ReturnType<typeof scanPracticeWindow>["today"];
+		revisionMatches: ReturnType<typeof endOfDaySnapshotLessons>;
+		sessionMinutes: { min: number; max: number };
+	},
+): void {
+	assertTrackSums(revision);
+	assertTrackSums(homework);
+	const total = (revision.available ? revision.minutes : 0) + (homework.available ? homework.minutes : 0);
+	if (total > 0 && (total < input.sessionMinutes.min || total > input.sessionMinutes.max)) {
+		throw new PracticePlanError(PRACTICE_MINUTES_MESSAGE);
+	}
+	assertProposalValues(revision);
+	assertProposalValues(homework);
+	assertThreeSubjects(revision, input.revisionMatches, input.today);
+}
+
+function assertTrackSums(track: ParsedTrack): void {
+	if (!track.available) return;
+	const sum = track.proposals.reduce((total, proposal) => total + proposal.minutes, 0);
+	if (sum !== track.minutes) throw new PracticePlanError(PRACTICE_MINUTES_MESSAGE);
+}
+
+const EXERCISE_TYPES = new Set(["recognition", "comprehension", "application", "problem_solving"]);
+const DIFFICULTIES = new Set(["easy", "medium", "hard"]);
+const MODES = new Set(["consolidation", "assessment_preparation"]);
+const GROUNDINGS = new Set(["dpfc_verified", "candidate_only"]);
+
+function assertProposalValues(track: ParsedTrack): void {
+	if (!track.available) return;
+	for (const proposal of track.proposals) {
+		if (!EXERCISE_TYPES.has(proposal.exerciseType)) throw new PracticePlanError(PRACTICE_UNREADABLE_MESSAGE);
+		if (!DIFFICULTIES.has(proposal.difficulty)) throw new PracticePlanError(PRACTICE_UNREADABLE_MESSAGE);
+		if (proposal.mode && !MODES.has(proposal.mode)) throw new PracticePlanError(PRACTICE_UNREADABLE_MESSAGE);
+		if (proposal.grounding && !GROUNDINGS.has(proposal.grounding)) throw new PracticePlanError(PRACTICE_UNREADABLE_MESSAGE);
+	}
+}
+
+function assertThreeSubjects(
+	track: ParsedTrack,
+	matches: ReturnType<typeof endOfDaySnapshotLessons>,
+	today: ReturnType<typeof scanPracticeWindow>["today"],
+): void {
+	if (!track.available) return;
+	const todayMatches = matches.filter((match) => match.slot.dayOfWeek === today);
+	const distinct: typeof todayMatches = [];
+	for (const match of todayMatches) {
+		const subject = match.lesson.subject || match.slot.title;
+		if (distinct.some((item) => subjectsMatch(item.lesson.subject || item.slot.title, subject))) continue;
+		distinct.push(match);
+	}
+	if (distinct.length < MIN_DAILY_SUBJECTS) return;
+	const chosen = new Set(track.proposals.map((proposal) => proposal.lessonId).filter((id): id is string => Boolean(id)));
+	if (chosen.size === 0 && track.lessonId) chosen.add(track.lessonId);
+	const covered = distinct.filter((match) => chosen.has(match.lesson.id)).length;
+	if (covered < MIN_DAILY_SUBJECTS) throw new PracticePlanError(PRACTICE_TIMETABLE_MISMATCH_MESSAGE);
 }
 
 function revisionSeries(
@@ -382,6 +471,7 @@ function revisionSeries(
 
 type PlannedProposal = ExerciseProposal & {
 	lessonId?: string;
+	mode?: string;
 	grounding?: string;
 };
 
@@ -407,7 +497,10 @@ function seriesFromProposals(
 	const order: string[] = [];
 	for (const proposal of track.proposals) {
 		const lessonId = proposal.lessonId;
-		if (!lessonId || !matches.some((match) => match.lesson.id === lessonId)) continue;
+		if (!lessonId) continue;
+		if (!matches.some((match) => match.lesson.id === lessonId)) {
+			throw new PracticePlanError(PRACTICE_TIMETABLE_MISMATCH_MESSAGE);
+		}
 		const group = groups.get(lessonId);
 		if (group) {
 			group.push(proposal);
@@ -534,6 +627,7 @@ function readProposals(value: unknown): PlannedProposal[] | null {
 		if (!objective || !promptHint || minutes === undefined || minutes <= 0) continue;
 		const lessonId = firstText(record.lessonId, record.lesson);
 		const grounding = firstText(record.grounding);
+		const mode = firstText(record.mode);
 		proposals.push({
 			objective,
 			theme: firstText(record.theme, record.topic) ?? objective,
@@ -542,6 +636,7 @@ function readProposals(value: unknown): PlannedProposal[] | null {
 			minutes,
 			promptHint,
 			...(lessonId ? { lessonId } : {}),
+			...(mode ? { mode } : {}),
 			...(grounding ? { grounding } : {}),
 		});
 	}
@@ -630,20 +725,31 @@ function httpClient(options: {
 	const endpoint = url.toString();
 	return {
 		async chat(input) {
+			const payload = {
+				messages: [
+					{ role: "system", content: input.system },
+					{ role: "user", content: input.user },
+				],
+				model: input.model,
+				max_completion_tokens: 8192,
+				ai_search_options: { retrieval: { max_num_results: 6 } },
+				...(input.responseFormat ? { response_format: input.responseFormat } : {}),
+			};
 			const request = {
 				method: "POST",
 				headers,
-				body: JSON.stringify({
-					messages: [
-						{ role: "system", content: input.system },
-						{ role: "user", content: input.user },
-					],
-					model: input.model,
-					max_completion_tokens: 8192,
-					ai_search_options: { retrieval: { max_num_results: 6 } },
-				}),
+				body: JSON.stringify(payload),
 			};
 			let response = await options.fetchImpl(endpoint, request);
+			if (response.status === 400 && input.responseFormat) {
+				const detail = await response.text();
+				if (/response_format|json_schema|unsupported|unknown/i.test(detail)) {
+					const { response_format: _ignored, ...withoutFormat } = payload;
+					response = await options.fetchImpl(endpoint, { ...request, body: JSON.stringify(withoutFormat) });
+				} else {
+					throw new ExerciseGenerationError(`Le modèle Cloudflare a renvoyé 400. ${detail.trim().slice(0, 240)}`);
+				}
+			}
 			if (response.status === 502 || response.status === 503 || response.status === 504) {
 				response = await options.fetchImpl(endpoint, request);
 			}
@@ -682,11 +788,13 @@ async function exerciseUserPrompt(
 		snapshot: LearnerAcademicSnapshot;
 		lesson: CurriculumLesson;
 		focus: PracticeFocus;
+		proposal: ExerciseProposal;
 		plannedMinutes: number;
 	},
 ): Promise<string> {
 	const prompts = await loadPracticePrompts();
 	const name = input.snapshot.context.student.firstName;
+	const proposal = input.proposal;
 	return prompts.fill("exercise-user", {
 		studentName: name,
 		classLabel: input.snapshot.context.student.classLabel,
@@ -694,11 +802,85 @@ async function exerciseUserPrompt(
 		lessonTitle: input.lesson.title,
 		themeTitle: input.lesson.theme.title,
 		plannedMinutes: String(input.plannedMinutes),
-		rationale: input.focus.rationale,
-		proposals: input.focus.proposals.map((proposal) => `${proposal.exerciseType} (${proposal.difficulty}) — ${proposal.promptHint}`).join(" | "),
+		brief: input.focus.brief,
+		proposal: `${proposal.minutes} min, ${proposal.exerciseType}, difficulté ${proposal.difficulty}, objectif : ${proposal.objective}. ${proposal.promptHint}`,
 		skills: input.lesson.skills.join(", "),
 		contents: input.lesson.contents.join(", "),
 	});
+}
+
+function planResponseFormat(): Record<string, unknown> {
+	return {
+		type: "json_schema",
+		json_schema: {
+			name: "practice_plan",
+			schema: {
+				type: "object",
+				required: ["revision", "homework"],
+				properties: {
+					revision: { $ref: "#/$defs/track" },
+					homework: { $ref: "#/$defs/track" },
+				},
+				$defs: {
+					track: {
+						type: "object",
+						required: ["available", "minutes", "rationale", "brief", "proposals"],
+						properties: {
+							available: { type: "boolean" },
+							minutes: { type: "integer" },
+							rationale: { type: "string" },
+							brief: { type: "string" },
+							proposals: { type: "array", items: { $ref: "#/$defs/proposal" } },
+						},
+					},
+					proposal: {
+						type: "object",
+						required: ["lessonId", "subject", "mode", "objective", "theme", "exerciseType", "difficulty", "minutes", "promptHint", "grounding"],
+						properties: {
+							lessonId: { type: "string" },
+							subject: { type: "string" },
+							mode: { type: "string", enum: ["consolidation", "assessment_preparation"] },
+							objective: { type: "string" },
+							theme: { type: "string" },
+							exerciseType: { type: "string", enum: ["recognition", "comprehension", "application", "problem_solving"] },
+							difficulty: { type: "string", enum: ["easy", "medium", "hard"] },
+							minutes: { type: "integer" },
+							promptHint: { type: "string" },
+							grounding: { type: "string", enum: ["dpfc_verified", "candidate_only"] },
+						},
+					},
+				},
+			},
+		},
+	};
+}
+
+function questionResponseFormat(): Record<string, unknown> {
+	return {
+		type: "json_schema",
+		json_schema: {
+			name: "exercise_questions",
+			schema: {
+				type: "object",
+				required: ["questions"],
+				properties: {
+					questions: {
+						type: "array",
+						items: {
+							type: "object",
+							required: ["prompt", "kind", "expectedAnswer"],
+							properties: {
+								prompt: { type: "string" },
+								kind: { type: "string", enum: ["mcq", "written"] },
+								choices: { type: "array", items: { type: "string" } },
+								expectedAnswer: { type: "string" },
+							},
+						},
+					},
+				},
+			},
+		},
+	};
 }
 
 function mapQuestions(payload: unknown, ids: IdGenerator, max: number): {

@@ -33,8 +33,8 @@ function snapshot(overrides: Partial<LearnerAcademicSnapshot["context"]> = {}): 
 			student: {
 				edayaStudentId: "ci-s1",
 				firstName: "Léa",
-				lastName: "Tremblay",
-				grade: "6e",
+				lastName: "Mercier",
+				gradeLevel: { id: "6e", name: "Sixième", label: "6e", order: 1, cycle: "Collège" },
 				classLabel: "6ème 1",
 			},
 			academicYearId: "2025-ci",

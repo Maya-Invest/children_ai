@@ -18,6 +18,22 @@ export type QuestionTarget = {
 	written: number;
 };
 
+/** About one question per 3 to 4 minutes, as a single exact count. */
+export function questionCountForMinutes(minutes: number): number {
+	if (!Number.isFinite(minutes) || minutes <= 0) return 1;
+	return Math.max(1, Math.round(minutes / 3.5));
+}
+
+export function plannedQuestionCount(proposals: readonly ExerciseProposal[]): number {
+	return proposals.reduce((total, proposal) => total + questionCountForMinutes(proposal.minutes), 0);
+}
+
+export function exerciseLengthInstruction(proposal: ExerciseProposal): string {
+	const count = questionCountForMinutes(proposal.minutes);
+	const label = count > 1 ? "questions" : "question";
+	return `Produis exactement ${count} ${label} pour cette proposition de ${proposal.minutes} minutes.`;
+}
+
 export function questionTargetForMinutes(minutes: number): QuestionTarget {
 	if (minutes <= 40) return { total: 3, mcq: 2, written: 1 };
 	if (minutes <= 60) return { total: 4, mcq: 2, written: 2 };
@@ -147,16 +163,16 @@ function sessionSummary(
 	}
 	if (revision.available && revision.lesson && homework.available && homework.assessmentLabel) {
 		const mark = markNote(snapshot, revision.lesson);
-		return `${budget} ${formatPracticeDuration(revision.minutes)} pour préparer « ${revision.lesson.title} » (aujourd'hui et demain)${mark}, puis ${formatPracticeDuration(homework.minutes)} pour préparer ${homeworkPhrase(homework)}.`;
+		return `${budget} ${formatPracticeDuration(revision.minutes)} pour préparer « ${revision.lesson.title} » (aujourd'hui)${mark}, puis ${formatPracticeDuration(homework.minutes)} pour préparer ${homeworkPhrase(homework)}.`;
 	}
 	if (revision.available && revision.items.length > 1) {
 		return `${budget} Les ${formatPracticeDuration(revision.minutes)} préparent ${subjectList(revision)}, d'après l'emploi du temps du jour.`;
 	}
 	if (revision.available && revision.lesson) {
-		return `${budget} Les ${formatPracticeDuration(revision.minutes)} préparent « ${revision.lesson.title} », d'après les matières prévues aujourd'hui et demain.`;
+		return `${budget} Les ${formatPracticeDuration(revision.minutes)} préparent « ${revision.lesson.title} », d'après les matières prévues aujourd'hui.`;
 	}
 	if (homework.available && homework.assessmentLabel) {
-		return `${budget} Les ${formatPracticeDuration(homework.minutes)} préparent ${homeworkPhrase(homework)}. Aucune leçon du programme n'est prévue aujourd'hui ni demain.`;
+		return `${budget} Les ${formatPracticeDuration(homework.minutes)} préparent ${homeworkPhrase(homework)}. Aucune leçon du programme n'est prévue aujourd'hui.`;
 	}
 	return NOTHING_TO_PRACTICE_MESSAGE;
 }

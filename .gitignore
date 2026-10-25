@@ -10,3 +10,5 @@ worker-configuration.d.ts
 *.log
 .DS_Store
 .neon
+.ci-evidence
+.cache

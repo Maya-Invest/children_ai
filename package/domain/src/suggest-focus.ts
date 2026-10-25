@@ -189,7 +189,7 @@ export function suggestFocus(
 	const intent = isPracticeIntent(options.intent) ? options.intent : DEFAULT_PRACTICE_INTENT;
 	const now = options.now ?? new Date();
 	const gradeLessons = lessons
-		.filter((lesson) => lesson.grade === snapshot.context.student.grade)
+		.filter((lesson) => lesson.grade === snapshot.context.student.gradeLevel.label)
 		.sort((a, b) => a.sequence - b.sequence);
 
 	if (intent === "upcoming_work") {
@@ -219,7 +219,7 @@ export function suggestFocus(
 	return focusFor(
 		fallback,
 		intent,
-		`Première leçon du programme officiel de ${snapshot.context.student.grade} (${subject}).`,
+		`Première leçon du programme officiel de ${snapshot.context.student.gradeLevel.label} (${subject}).`,
 		`Voici la série d'exercices suggérée pour commencer le programme officiel de ${subject}.`,
 	);
 }
@@ -308,7 +308,7 @@ export function suggestHomeworkWithinHorizon(
 	horizonDays: number,
 ): { focus: PracticeFocus; assessment: UpcomingAssessment } | undefined {
 	const gradeLessons = lessons
-		.filter((lesson) => lesson.grade === snapshot.context.student.grade)
+		.filter((lesson) => lesson.grade === snapshot.context.student.gradeLevel.label)
 		.sort((a, b) => a.sequence - b.sequence);
 	return pickUpcoming(snapshot, gradeLessons, now, horizonDays);
 }

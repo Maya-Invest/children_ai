@@ -1,12 +1,17 @@
+/// <reference path="./markdown.d.ts" />
 import promptV1 from "./1.0.md" with { type: "text" };
 import promptV11 from "./1.1.md" with { type: "text" };
+import promptV12 from "./1.2.md" with { type: "text" };
+import promptV13 from "./1.3.md" with { type: "text" };
 
 /** Active prompt file. A new version is a sibling markdown file, then change this value. */
-export const PRACTICE_PROMPT_VERSION = "1.1";
+export const PRACTICE_PROMPT_VERSION = "1.3";
 
 const bundledPrompts: Record<string, string> = {
 	"1.0": promptV1,
 	"1.1": promptV11,
+	"1.2": promptV12,
+	"1.3": promptV13,
 };
 
 export async function loadPracticePrompts(version = PRACTICE_PROMPT_VERSION): Promise<PracticePrompts> {

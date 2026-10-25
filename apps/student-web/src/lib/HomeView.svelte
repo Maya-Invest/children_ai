@@ -1,11 +1,15 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import { resolve } from '$app/paths';
+	import { page } from '$app/state';
 	import ResultFilterBar from '$lib/ResultFilterBar.svelte';
-	import SchoolFollowPanel from '$lib/SchoolFollowPanel.svelte';
+	import SchoolDoodle from '$lib/SchoolDoodle.svelte';
+	import { corrigeFromPath } from '$lib/corrige-path';
+	import { openInPlace } from '$lib/corrige-nav';
 	import { exerciseStatusLabel, studentExerciseButtonLabel } from '$lib/exercise-status';
 	import { summarizePractice } from '$lib/revision-stats';
-	import { filterByResult, resultCounts, type ResultFilter } from '$lib/result-filter';
-	import { formatMarkDate, groupClassProgress, groupMarksBySubject, groupTimetable } from '$lib/timetable';
+	import { filterByResult, resultCounts } from '$lib/result-filter';
+	import { formatMarkDate } from '$lib/timetable';
 	import type { ExerciseSet, HomePayload, HomeTrack, HomeTrackItem, PracticeTrackKind, Question } from '$lib/types';
 
 	type ListedExercise = {
@@ -32,16 +36,25 @@
 		onGenerateAll,
 		onReleaseCorrection,
 		onToggleAutoRelease,
+		resultsLink = '',
+		setHref,
 	}: {
 		home: HomePayload;
 		onGenerate?: (track: PracticeTrackKind, lessonId: string) => Promise<void> | void;
 		onGenerateAll?: () => Promise<void> | void;
 		onReleaseCorrection?: (setId: string) => Promise<void> | void;
 		onToggleAutoRelease?: (checked: boolean) => Promise<void> | void;
+		resultsLink?: string;
+		setHref?: (setId: string) => string;
 	} = $props();
 
 	let student = $derived(
-		home?.student ?? { firstName: '', lastName: '', grade: '', classLabel: '' },
+		home?.student ?? {
+			firstName: '',
+			lastName: '',
+			gradeLevel: { id: '', name: '', label: '', order: 0 },
+			classLabel: '',
+		},
 	);
 	let pendingTrack = $state<'' | PracticeTrackKind | 'all'>('');
 	let pendingLesson = $state('');
@@ -51,26 +64,10 @@
 	let settingsError = $state('');
 	let releasingId = $state('');
 	let releasingAll = $state(false);
-	let viewingSetId = $state<string | null>(null);
-	let resultFilter = $state<ResultFilter>('all');
 	let error = $state('');
 	let isGuardian = $derived(home?.actor?.role === 'guardian');
-	let timetable = $derived(home?.timetable ?? []);
-	let classProgress = $derived(home?.classProgress ?? []);
-	let progressGroups = $derived(groupClassProgress(classProgress));
 	let programmeLine = $derived(
 		home?.programmeLine || `${student.classLabel} · Programme officiel DPFC`,
-	);
-	let weekDays = $derived(groupTimetable(timetable, home?.planningDate));
-	let attendanceLabel = $derived(
-		home?.attendance ? `${Math.round(home.attendance.presentRate * 100)} %` : '—',
-	);
-	let markGroups = $derived(groupMarksBySubject(home?.marks ?? []));
-	let rankLabel = $derived(home?.rank ? `${home.rank.rank}e / ${home.rank.classSize}` : '—');
-	let averageLabel = $derived(
-		home?.rank
-			? home.rank.overallAverage.toLocaleString('fr-CI', { maximumFractionDigits: 1 })
-			: '—',
 	);
 	let practice = $derived(summarizePractice(home?.history, home?.currentSet));
 	let questionTotal = $derived(practice.questionsWorked + practice.questionsOpen);
@@ -92,6 +89,10 @@
 				: 'Après le corrigé',
 	);
 	let questionsHint = $derived(questionTotal === 0 ? 'Aucune pour le moment' : 'travaillées');
+	let resultsValue = $derived(
+		practice.scoredTotal > 0 ? `${practice.scoredCorrect}/${practice.scoredTotal}` : '—',
+	);
+	let detailHref = $derived(resultsLink || (isGuardian ? '' : '/app/stats'));
 	let lastActivityValue = $derived(
 		practice.lastPracticeAt ? formatMarkDate(practice.lastPracticeAt) : '—',
 	);
@@ -161,17 +162,20 @@
 	);
 	let trackLists = $derived(session.tracks.map((track) => ({ track, exercises: exercisesFor(track) })));
 	let listedExercises = $derived(trackLists.flatMap((item) => item.exercises));
-	let viewingExercise = $derived(
-		listedExercises.find((item) => item.setId === viewingSetId) ?? null,
+	let openedCorrige = $derived(
+		page.state.setId
+			? { setId: page.state.setId, filter: page.state.filter ?? 'all' }
+			: corrigeFromPath(page.url.pathname),
 	);
+	let viewingSetId = $derived(openedCorrige?.setId ?? null);
+	let resultFilter = $derived(openedCorrige?.filter ?? 'all');
+	let viewingExercise = $derived(listedExercises.find((item) => item.setId === viewingSetId) ?? null);
 	let viewingSet = $derived(viewingExercise?.set ?? null);
 	let viewingHasCorrection = $derived(viewingExercise?.hasCorrection ?? false);
 	let viewingHasAnyAnswer = $derived(viewingExercise?.hasAnyAnswer ?? false);
 	let viewingSubmitted = $derived(viewingExercise?.submitted ?? false);
 	let correctionCounts = $derived(resultCounts(viewingSet?.questions ?? []));
-	let visibleCorrectionQuestions = $derived(
-		filterByResult(viewingSet?.questions ?? [], resultFilter),
-	);
+	let visibleCorrectionQuestions = $derived(filterByResult(viewingSet?.questions ?? [], resultFilter));
 	let pendingCorrectionIds = $derived(
 		listedExercises
 			.filter(
@@ -342,6 +346,10 @@
 		};
 	}
 
+	function corrigeHref(setId: string) {
+		return setHref ? setHref(setId) : `/app/corriges/${setId}`;
+	}
+
 	function answerFor(set: ExerciseSet, questionId: string): string {
 		const value = set.answers?.find((answer) => answer.questionId === questionId)?.value;
 		return value?.trim() ? value : '—';
@@ -355,14 +363,12 @@
 	}
 
 	function closeCorrection() {
-		viewingSetId = null;
-		resultFilter = 'all';
-	}
-
-	function openCorrection(setId: string | null) {
-		if (!setId) return;
-		resultFilter = 'all';
-		viewingSetId = setId;
+		if (page.state.setId) {
+			history.back();
+			return;
+		}
+		const child = page.url.pathname.match(/^\/parent\/children\/([^/]+)/);
+		void goto(child ? `/parent/children/${child[1]}` : resolve('/app'));
 	}
 
 	function onWindowKeydown(event: KeyboardEvent) {
@@ -466,12 +472,27 @@
 			Dernière activité · {lastActivityValue}
 		</p>
 	</div>
-	<h1 class="mt-2 text-4xl font-extrabold text-ink">
-		{isGuardian ? `Le suivi de ${student.firstName}` : `Bonjour ${student.firstName}`}
-	</h1>
-	<p class="mt-3 max-w-2xl text-lg text-ink/70">
-		{programmeLine}
-	</p>
+	<div class="mt-2 flex items-start justify-between gap-4">
+		<div class="min-w-0">
+			<h1 class="text-4xl font-extrabold text-ink">
+				{isGuardian ? `Le suivi de ${student.firstName}` : `Bonjour ${student.firstName}`}
+			</h1>
+			<p class="mt-3 max-w-2xl text-lg text-ink/70">
+				{programmeLine}
+			</p>
+		</div>
+		<div class="hidden shrink-0 items-end gap-3 sm:flex" aria-hidden="true">
+			<span class="school-float h-14 w-14" style="--tilt:-14deg;--dur:7s;--drift:6px">
+				<SchoolDoodle kind="pencil" />
+			</span>
+			<span class="school-float h-16 w-16" style="--tilt:8deg;--dur:8.5s;--delay:-1.2s;--drift:-8px">
+				<SchoolDoodle kind="book" />
+			</span>
+			<span class="school-float h-12 w-12" style="--tilt:-6deg;--dur:6.5s;--delay:-2.4s;--drift:10px">
+				<SchoolDoodle kind="star" />
+			</span>
+		</div>
+	</div>
 
 	{#snippet statCard(
 		id: string,
@@ -525,7 +546,7 @@
 		</div>
 	{/snippet}
 
-	<div class="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-3">
+	<div class="mt-8 grid grid-cols-2 gap-4 lg:grid-cols-4">
 		{@render statCard(
 			'revisions',
 			'Révisions',
@@ -535,7 +556,7 @@
 			revisionsTip,
 			false,
 		)}
-		{@render statCard('success', 'Réussite', successValue, '', successHint, successTip, false)}
+		{@render statCard('success', 'Score', successValue, '', successHint, successTip, false)}
 		{@render statCard(
 			'questions',
 			'Questions',
@@ -543,8 +564,19 @@
 			questionTotal > 0 ? String(questionTotal) : '',
 			questionsHint,
 			questionsTip,
-			true,
+			false,
 		)}
+		{#if detailHref}
+			<a
+				class="min-w-0 rounded-2xl bg-cream p-4 transition hover:bg-white hover:ring-2 hover:ring-clay/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest"
+				href={detailHref}
+				aria-label="Résultats, ouvrir les statistiques détaillées"
+			>
+				<p class="text-sm font-bold text-ink/50">Résultats</p>
+				<p class="mt-1 break-words text-xl font-extrabold">{resultsValue}</p>
+				<p class="mt-1 text-sm font-bold text-forest">Voir le détail →</p>
+			</a>
+		{/if}
 	</div>
 
 	<div class="mt-6 rounded-2xl border-2 border-clay bg-paper px-4 py-4">
@@ -629,7 +661,7 @@
 		</p>
 	{/if}
 
-	<div class={['relative mt-8 space-y-4', viewingSet ? 'min-h-[28rem]' : '']}>
+	<div class={['relative mt-8 space-y-4', viewingSet && 'min-h-[28rem]']}>
 		{#each trackLists as block (block.track.kind)}
 			<div class="overflow-hidden rounded-[1.75rem] bg-forest/[0.06] p-4 ring-1 ring-forest/10 sm:p-5">
 				<div class="flex flex-wrap items-center justify-between gap-3">
@@ -677,13 +709,14 @@
 							{#if exercise.set}
 								{@const studentButton = studentExerciseButtonLabel(exercise.set, exercise.status === 'Archivé')}
 								{#if studentButton === 'Voir la correction'}
-									<button
+									{@const href = corrigeHref(exercise.set.id)}
+									<a
 										class="rounded-full bg-forest px-3 py-2 text-xs font-extrabold text-white"
-										type="button"
-										onclick={() => openCorrection(exercise.setId)}
+										{href}
+										onclick={(event) => openInPlace(event, href)}
 									>
 										Voir la correction
-									</button>
+									</a>
 								{:else}
 									<a
 										class="rounded-full bg-white px-3 py-2 text-xs font-extrabold text-ink ring-1 ring-ink/10"
@@ -704,13 +737,14 @@
 							{/if}
 						{/if}
 						{#if exercise.setId && isGuardian}
-							<button
+							{@const href = corrigeHref(exercise.setId)}
+							<a
 								class="rounded-full bg-forest px-3 py-2 text-xs font-extrabold text-white"
-								type="button"
-								onclick={() => openCorrection(exercise.setId)}
+								{href}
+								onclick={(event) => openInPlace(event, href)}
 							>
 								{exercise.hasCorrection ? 'Voir le corrigé' : 'Voir la série'}
-							</button>
+							</a>
 							{#if exercise.submitted
 								&& exercise.hasAnyAnswer
 								&& exercise.hasCorrection
@@ -756,9 +790,7 @@
 							</h3>
 						</div>
 						{#if openSet.score}
-							<p
-								class="shrink-0 rounded-lg border-2 border-clay px-2.5 py-1 text-sm font-extrabold text-clay"
-							>
+							<p class="shrink-0 rounded-lg border-2 border-clay px-2.5 py-1 text-sm font-extrabold text-clay">
 								Score : {openSet.score.correct} / {openSet.score.total}
 							</p>
 						{:else if !viewingHasCorrection}
@@ -790,12 +822,13 @@
 					{#if viewingSubmitted && viewingHasCorrection}
 						<ResultFilterBar
 							compact
+							shallow
 							value={resultFilter}
 							correctCount={correctionCounts.correct}
 							incorrectCount={correctionCounts.incorrect}
 							unansweredCount={correctionCounts.unanswered}
 							total={correctionCounts.total}
-							onSelect={(next) => (resultFilter = next)}
+							basePath={corrigeHref(openSet.id)}
 						/>
 					{/if}
 				</div>
@@ -834,13 +867,3 @@
 		<p class="mt-4 font-bold text-clay">{error}</p>
 	{/if}
 </section>
-
-<SchoolFollowPanel
-	classLabel={student.classLabel}
-	{attendanceLabel}
-	{weekDays}
-	{progressGroups}
-	{markGroups}
-	{rankLabel}
-	{averageLabel}
-/>

@@ -9,7 +9,7 @@ import {
 	FIXTURE_SCHOOL_ID,
 	FIXTURE_STUDENT_ID,
 } from "./edaya-fixture.ts";
-import { HttpEdayaContext } from "./edaya-http.ts";
+import { HttpEdayaContext, schoolGradeLevelFromEdaya } from "./edaya-http.ts";
 import {
 	demoSchoolCredentials,
 	deriveLocalChildrenAiApiKey,
@@ -43,7 +43,7 @@ describe("SchoolScopedEdayaContext", () => {
 			studentId: FIXTURE_STUDENT_ID,
 		});
 		expect(context.student.firstName).toBe("Léa");
-		expect(context.student.lastName).toBe("Tremblay");
+		expect(context.student.lastName).toBe("Mercier");
 		expect(context.student.edayaStudentId).toBe("ci-s1");
 	});
 
@@ -141,7 +141,12 @@ describe("HttpEdayaContext", () => {
 
 		expect(context.student.firstName).toBe("Léa");
 		expect(context.student.classLabel).toBe("6ème 1");
-		expect(context.student.grade).toBe("6e");
+		expect(context.student.gradeLevel).toEqual({
+			id: "ci-gl-6",
+			name: "Sixième",
+			label: "6ème",
+			order: 1,
+		});
 		expect(context.marks).toEqual([
 			{
 				id: "res-1",
@@ -282,8 +287,22 @@ describe("HttpEdayaContext", () => {
 					schoolId: "school-uuid",
 					displayName: "Awa Diallo",
 					children: [
-						{ studentId: "stu-live-1", schoolId: "school-uuid", firstName: "Kofi", lastName: "Mensah", classLabel: "6ème 1", grade: "6e" },
-						{ studentId: "stu-live-2", schoolId: "school-uuid", firstName: "Amina", lastName: "Diallo", classLabel: "5ème 2", grade: "5e" },
+						{
+							studentId: "stu-live-1",
+							schoolId: "school-uuid",
+							firstName: "Kofi",
+							lastName: "Mensah",
+							classLabel: "6ème 1",
+							gradeLevel: { id: "ci-gl-6", name: "Sixième", label: "6ème", order: 1, cycle: "Collège" },
+						},
+						{
+							studentId: "stu-live-2",
+							schoolId: "school-uuid",
+							firstName: "Amina",
+							lastName: "Diallo",
+							classLabel: "2nde C 1",
+							gradeLevel: { id: "ci-gl-2ndc", name: "Seconde C", label: "2nde C", order: 5, cycle: "Lycée" },
+						},
 					],
 				}));
 			},
@@ -295,8 +314,14 @@ describe("HttpEdayaContext", () => {
 		});
 		expect(listing.schoolId).toBe("school-uuid");
 		expect(listing.children.map((child) => child.studentId)).toEqual(["stu-live-1", "stu-live-2"]);
-		expect(listing.children[0]).toMatchObject({ classLabel: "6ème 1", grade: "6e" });
-		expect(listing.children[1]).toMatchObject({ classLabel: "5ème 2", grade: "5e" });
+		expect(listing.children[0]).toMatchObject({
+			classLabel: "6ème 1",
+			gradeLevel: { label: "6ème", cycle: "Collège" },
+		});
+		expect(listing.children[1]).toMatchObject({
+			classLabel: "2nde C 1",
+			gradeLevel: { label: "2nde C", cycle: "Lycée" },
+		});
 		expect(listing.displayName).toBe("Awa Diallo");
 	});
 
@@ -411,7 +436,7 @@ describe("HttpEdayaContext", () => {
 							id: "ci-s1",
 							schoolId: "sch-other",
 							firstName: "Léa",
-							lastName: "Tremblay",
+							lastName: "Mercier",
 						},
 					]),
 				),
@@ -469,7 +494,7 @@ function payloadFor(url: string, body: Record<string, string>): unknown[] {
 				id: "ci-s1",
 				schoolId: FIXTURE_SCHOOL_ID,
 				firstName: "Léa",
-				lastName: "Tremblay",
+				lastName: "Mercier",
 			},
 			{
 				id: "ci-s2",
@@ -643,3 +668,21 @@ function payloadFor(url: string, body: Record<string, string>): unknown[] {
 	}
 	return [];
 }
+
+describe("schoolGradeLevelFromEdaya", () => {
+	test("keeps a lycée label instead of collapsing it to 6e", () => {
+		expect(schoolGradeLevelFromEdaya({
+			id: "ci-lycee-2ndc",
+			name: "Seconde C",
+			label: "2nde C",
+			order: 5,
+			cycle: "Lycée",
+		})).toEqual({
+			id: "ci-lycee-2ndc",
+			name: "Seconde C",
+			label: "2nde C",
+			order: 5,
+			cycle: "Lycée",
+		});
+	});
+});

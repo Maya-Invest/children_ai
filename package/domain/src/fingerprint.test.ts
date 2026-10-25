@@ -7,8 +7,8 @@ function context(overrides: Partial<LearnerContext> = {}): LearnerContext {
 		student: {
 			edayaStudentId: "ci-s1",
 			firstName: "Léa",
-			lastName: "Tremblay",
-			grade: "6e",
+			lastName: "Mercier",
+			gradeLevel: { id: "demo-6eme", name: "Sixième", label: "6ème", order: 1, cycle: "Collège" },
 			classLabel: "6ème 1",
 		},
 		academicYearId: "2025-ci",

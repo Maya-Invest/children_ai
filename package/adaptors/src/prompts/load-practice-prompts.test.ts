@@ -3,13 +3,12 @@ import { loadPracticePrompts, PRACTICE_PROMPT_VERSION } from "./load-practice-pr
 
 describe("practice prompt versions", () => {
 	test("loads the active prompt and keeps version 1.0", async () => {
-		expect(PRACTICE_PROMPT_VERSION).toBe("1.1");
+		expect(PRACTICE_PROMPT_VERSION).toBe("1.3");
 		const prompts = await loadPracticePrompts();
-		expect(prompts.version).toBe("1.1");
-		expect(prompts.fill("focus-system")).toContain("Tu es un PLANIFICATEUR");
-		const previous = await loadPracticePrompts("1.0");
-		expect(previous.version).toBe("1.0");
-		expect(previous.fill("focus-system")).toContain("Réponds uniquement en JSON.");
+		expect(prompts.version).toBe("1.3");
+		expect(prompts.fill("focus-system")).toContain("Cette liste ne contient que les leçons d'aujourd'hui.");
+		const previous = await loadPracticePrompts("1.2");
+		expect(previous.version).toBe("1.2");
 		expect(prompts.fill("exercise-user", {
 			studentName: "Léa",
 			classLabel: "6ème 1",
@@ -17,11 +16,11 @@ describe("practice prompt versions", () => {
 			lessonTitle: "Fractions",
 			themeTitle: "Nombres",
 			plannedMinutes: "20",
-			rationale: "Leçon du jour.",
-			proposals: "comprehension (medium) — Comparer",
+			brief: "Comparer des fractions.",
+			proposal: "20 min, comprehension, difficulté medium, objectif : Comparer. Comparer",
 			skills: "Comparer",
 			contents: "Fractions équivalentes",
-		})).toContain("Durée recommandée pour cette série : 20 minutes.");
+		})).toContain("Proposition :");
 	});
 
 	test("refuses a version that is not a prompt file", async () => {

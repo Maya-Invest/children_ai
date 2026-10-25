@@ -9,7 +9,7 @@ export function snapshotFingerprint(
 		packVersion,
 		academicYearId: context.academicYearId,
 		periodId: context.periodId,
-		grade: context.student.grade,
+		gradeLevel: context.student.gradeLevel,
 		classLabel: context.student.classLabel,
 		marks: [...context.marks].sort((a, b) => a.id.localeCompare(b.id)),
 		rank: context.rank ?? null,

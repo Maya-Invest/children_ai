@@ -4,7 +4,6 @@ export type {
 	LearnerContextQuery,
 	SchoolCredentials,
 	SchoolIntegration,
-	CurriculumCatalogPort,
 	PracticeFocusPort,
 	PracticeFocusRequest,
 	PracticeRecommendation,
@@ -87,8 +86,11 @@ export {
 export {
 	composeSessionPlan,
 	emptySessionPlan,
+	exerciseLengthInstruction,
 	exerciseProposalInstruction,
 	formatPracticeDuration,
+	plannedQuestionCount,
+	questionCountForMinutes,
 	questionTargetForMinutes,
 } from "./session-plan.ts";
 export {

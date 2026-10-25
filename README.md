@@ -120,6 +120,19 @@ Restart the API. `/health` → `generator: gemini-flash`. Only **Créer mes exer
 
 ---
 
+## Integration
+
+`bun run test:integration` runs the Children AI API against a local HTTP stand-in for Edaya. It does not start `edaya_backend` and it does not seed a school. The stand-in listens on `http://127.0.0.1:9999` (the origin the local palier allows) and answers the parent signing keys, guardian resolve, and the small set of entity lists the student home reads. Stop anything already bound to port 9999 before the run. The API under test uses port 18787 (`CHILDREN_AI_TEST_PORT`).
+
+```bash
+cd children_ai
+bun run test:integration
+```
+
+`bun test` stays the unit suite and does not include this command. A later GitHub qualify job runs `bun run test:integration` in this repository only and gates deploy on it.
+
+`bun run test:integration:ui` opens the student web and walks a live session in Chromium: parent login, the two children, an access code, the student home, and one exercise generation. It uses the same Edaya stand-in on port 9999. The web server uses port 15175. The first run installs Playwright Chromium into `.cache/ms-playwright`.
+
 ## Checks and troubleshooting
 
 ```bash

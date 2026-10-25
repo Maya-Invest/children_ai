@@ -177,8 +177,11 @@ describe("Hono API", () => {
 			marks: Array<{ subject: string; title: string }>;
 			timetable: unknown[];
 			attendance?: { presentRate: number };
+			student?: { gradeLevel?: { label: string; cycle?: string }; classLabel?: string };
 		};
 		expect(homeBody.lessonTitle).toBe(FIXTURE_LEA_READING);
+		expect(homeBody.student?.gradeLevel).toMatchObject({ label: "6ème", cycle: "Collège" });
+		expect(homeBody.student?.classLabel).toBe("6ème 1");
 		expect(homeBody.programmeLine).toContain("6ème 1");
 		expect(homeBody.programmeLine).toContain("Toutes les matières");
 		expect(homeBody.subjects).toEqual(
@@ -280,8 +283,8 @@ describe("Hono API", () => {
 			children: Array<{ studentId: string }>;
 			displayName: string;
 		};
-		expect(demoListing.displayName).toBe("Sophie Tremblay");
-		expect(demoListing.children.map((child) => child.studentId)).toEqual(["ci-s1", "ci-s31"]);
+		expect(demoListing.displayName).toBe("Sophie Mercier");
+		expect(demoListing.children.map((child) => child.studentId)).toEqual(["ci-s1", "ci-s31", "ci-s32", "ci-s33"]);
 
 		const issued = await http.request("http://localhost/parent/children/ci-s1/access-codes", {
 			method: "POST",

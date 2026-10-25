@@ -63,7 +63,13 @@ export type GuardianChildView = {
 	firstName: string;
 	lastName: string;
 	classLabel?: string;
-	grade?: string;
+	gradeLevel?: {
+		id: string;
+		name: string;
+		label: string;
+		order: number;
+		cycle?: string;
+	};
 	accessCode: { hint: string } | null;
 };
 
@@ -104,7 +110,13 @@ export type HomePayload = {
 	student: {
 		firstName: string;
 		lastName: string;
-		grade: string;
+		gradeLevel: {
+			id: string;
+			name: string;
+			label: string;
+			order: number;
+			cycle?: string;
+		};
 		classLabel: string;
 	};
 	snapshot: {

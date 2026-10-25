@@ -13,6 +13,8 @@
 		"dev:web": "bun --filter @children-ai/student-web dev",
 		"dev:worker": "bun --filter @children-ai/api dev:worker",
 		"test": "bun test package apps/api",
+		"test:integration": "bun test tests/integration",
+		"test:integration:ui": "bun tests/integration/ui-run.ts",
 		"check": "bun --filter '*' check"
 	},
 	"dependencies": {
@@ -21,5 +23,8 @@
 	},
 	"overrides": {
 		"@maya-invest/edaya-identity-client": "file:../edaya_identity/package/identity-client"
+	},
+	"devDependencies": {
+		"playwright": "^1.64.1"
 	}
 }

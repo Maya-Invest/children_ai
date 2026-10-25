@@ -16,8 +16,8 @@ const snapshot = (id: string, createdAt: string): LearnerAcademicSnapshot => ({
 		student: {
 			edayaStudentId: "student-1",
 			firstName: "Léa",
-			lastName: "Tremblay",
-			grade: "6e",
+			lastName: "Mercier",
+			gradeLevel: { id: "demo-6eme", name: "Sixième", label: "6ème", order: 1, cycle: "Collège" },
 			classLabel: "6ème 1",
 		},
 		academicYearId: "2025-ci",

@@ -13,6 +13,8 @@ import {
 	InMemoryPracticeSettingsRepository,
 	InMemorySnapshotRepository,
 	InMemoryStudentAccessCodeRepository,
+	FIXTURE_CAMILLE_CHAPTER,
+	FIXTURE_INES_CHAPTER,
 	FIXTURE_LEA_READING,
 	FIXTURE_THOMAS_CHAPTER,
 	FIXTURE_TIMETABLE,
@@ -157,7 +159,7 @@ describe("ChildrenAiApp", () => {
 
 		const generated = await app.generate(student, "revision");
 		expect(focus.calls).toBe(1);
-		expect(generated.lessonId).toBe(FIXTURE_TIMETABLE[0]?.id);
+		expect(generated.lessonId).toBe(FIXTURE_TIMETABLE[0]!.id);
 	});
 
 	test("shows a sentence when the timetable and the next two weeks are empty", async () => {
@@ -277,7 +279,7 @@ describe("ChildrenAiApp", () => {
 
 		const replaced = await app.generate(student, "revision");
 		expect(replaced.id).toBe("set-invented");
-		expect(replaced.lessonId).toBe(FIXTURE_TIMETABLE[0]?.id);
+		expect(replaced.lessonId).toBe(FIXTURE_TIMETABLE[0]!.id);
 		const after = await app.getHome(learnerRef(student));
 		expect(after.currentSet?.lessonId).toBe(FIXTURE_TIMETABLE[0]?.id);
 	});
@@ -288,7 +290,7 @@ describe("ChildrenAiApp", () => {
 		const first = await app.generate(student);
 		expect(first.questions.length).toBeGreaterThan(0);
 		expect(first.schoolId).toBe(student.schoolId);
-		expect(first.lessonId).toBe(FIXTURE_TIMETABLE[0]?.id);
+		expect(first.lessonId).toBe(FIXTURE_TIMETABLE[0]!.id);
 
 		const home = await app.getHome(learnerRef(student));
 		expect(home.currentSet?.id).toBe(first.id);
@@ -377,14 +379,32 @@ describe("ChildrenAiApp", () => {
 		const guardian = await app.signInDemoGuardian();
 		expect(guardian.sessionKind).toBe("demo");
 		const listing = await app.listChildren(guardian);
-		expect(listing.children.map((child) => child.studentId)).toEqual(["ci-s1", "ci-s31"]);
+		expect(listing.children.map((child) => child.studentId)).toEqual(["ci-s1", "ci-s31", "ci-s32", "ci-s33"]);
 		expect(listing.children[1]).toMatchObject({
 			firstName: "Thomas",
-			lastName: "Tremblay",
+			lastName: "Mercier",
 			classLabel: "5ème 1",
-			grade: "5e",
+			gradeLevel: {
+				id: "demo-5eme",
+				name: "Cinquième",
+				label: "5ème",
+				order: 2,
+				cycle: "Collège",
+			},
 		});
-		expect(listing.displayName).toBe("Sophie Tremblay");
+		expect(listing.children[2]).toMatchObject({
+			firstName: "Camille",
+			lastName: "Mercier",
+			classLabel: "2nde C 1",
+			gradeLevel: { id: "demo-2nde", label: "2nde C", cycle: "Lycée" },
+		});
+		expect(listing.children[3]).toMatchObject({
+			firstName: "Inès",
+			lastName: "Mercier",
+			classLabel: "Tle D 1",
+			gradeLevel: { id: "demo-tle", label: "Tle D", cycle: "Lycée" },
+		});
+		expect(listing.displayName).toBe("Sophie Mercier");
 	});
 
 	test("demo-issued student codes use fixture EDAYA; Identity codes stay on live", async () => {
@@ -395,7 +415,7 @@ describe("ChildrenAiApp", () => {
 		const issued = await demoApp.issueAccessCode(guardian, LEA_ID);
 		const demoStudent = await demoApp.signInStudent(issued.code);
 		expect(demoStudent.sessionKind).toBe("code");
-		expect(demoStudent.displayName).toBe("Léa Tremblay");
+		expect(demoStudent.displayName).toBe("Léa Mercier");
 		expect(learnerRef(demoStudent).contextSource).toBe("fixture");
 		const home = await demoApp.getHome(learnerRef(demoStudent));
 		expect(home.lessonTitle).toBe(FIXTURE_LEA_READING);
@@ -403,7 +423,7 @@ describe("ChildrenAiApp", () => {
 		expect(synced.map((item) => item.studentId)).toEqual(["ci-s1"]);
 		const brouIssued = await demoApp.issueAccessCode(guardian, "ci-s31");
 		const brouStudent = await demoApp.signInStudent(brouIssued.code);
-		expect(brouStudent.displayName).toBe("Thomas Tremblay");
+		expect(brouStudent.displayName).toBe("Thomas Mercier");
 		expect(learnerRef(brouStudent).contextSource).toBe("fixture");
 		const brouHome = await demoApp.getHome(learnerRef(brouStudent));
 		expect(FIXTURE_TIMETABLE_BROU[0]?.title).toBe("Physique-Chimie");
@@ -411,6 +431,30 @@ describe("ChildrenAiApp", () => {
 		expect(brouHome.focusIntent).toBe("prepare_next_day");
 		expect(brouHome.session.tracks.find((track) => track.kind === "homework")?.available).toBe(true);
 		expect(brouHome.snapshot.context.student.classLabel).toBe("5ème 1");
+
+		const camilleIssued = await demoApp.issueAccessCode(guardian, "ci-s32");
+		const camilleStudent = await demoApp.signInStudent(camilleIssued.code);
+		expect(camilleStudent.displayName).toBe("Camille Mercier");
+		expect(learnerRef(camilleStudent).contextSource).toBe("fixture");
+		const camilleHome = await demoApp.getHome(learnerRef(camilleStudent));
+		expect(camilleHome.lessonTitle).toBe(FIXTURE_CAMILLE_CHAPTER);
+		expect(camilleHome.snapshot.context.student.gradeLevel).toMatchObject({
+			label: "2nde C",
+			cycle: "Lycée",
+		});
+		expect(camilleHome.snapshot.context.student.classLabel).toBe("2nde C 1");
+
+		const inesIssued = await demoApp.issueAccessCode(guardian, "ci-s33");
+		const inesStudent = await demoApp.signInStudent(inesIssued.code);
+		expect(inesStudent.displayName).toBe("Inès Mercier");
+		expect(learnerRef(inesStudent).contextSource).toBe("fixture");
+		const inesHome = await demoApp.getHome(learnerRef(inesStudent));
+		expect(inesHome.lessonTitle).toBe(FIXTURE_INES_CHAPTER);
+		expect(inesHome.snapshot.context.student.gradeLevel).toMatchObject({
+			label: "Tle D",
+			cycle: "Lycée",
+		});
+		expect(inesHome.snapshot.context.student.classLabel).toBe("Tle D 1");
 
 		const { app: liveApp } = createApp(new FixtureGuardianChildrenPort(), edaya);
 		const { student } = await fixtureStudent(liveApp);

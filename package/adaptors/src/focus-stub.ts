@@ -40,7 +40,7 @@ export class StubPracticeFocus implements PracticeFocusPort {
 		const now = input.now ?? new Date();
 		const context = input.snapshot.context;
 		const progress = context.classProgress ?? [];
-		const grade = context.student.grade;
+		const grade = context.student.gradeLevel;
 		const window = scanPracticeWindow(input.snapshot, now);
 		const revisionMatches = revisionLessonsForDay(
 			endOfDaySnapshotLessons(window, progress, grade),
@@ -124,7 +124,7 @@ function focusFor(
 		: `Emploi du temps : « ${slotTitle} ». Entraînement de fin de journée sur « ${lesson.title} ».`;
 	const brief = assessment
 		? `Compte tenu de l'évaluation « ${assessment.title} », voici la série d'exercices suggérée pour « ${lesson.title} ».`
-		: `En fin de journée, voici la série d'exercices suggérée pour « ${lesson.title} » (${subject}), d'après les matières prévues aujourd'hui et demain.`;
+		: `En fin de journée, voici la série d'exercices suggérée pour « ${lesson.title} » (${subject}), d'après les matières prévues aujourd'hui.`;
 	return {
 		lessonId: lesson.id,
 		subject: lesson.subject,
