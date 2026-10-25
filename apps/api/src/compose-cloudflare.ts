@@ -67,7 +67,7 @@ export type WorkerRuntime = {
 	contextMode: "fixture" | "http";
 };
 
-const repoRoot = join(import.meta.dir, "../../..");
+const repoRoot = import.meta.dir ? join(import.meta.dir, "../../..") : undefined;
 
 export async function createCloudflareRuntime(
 	env: CloudflareAdaptorEnv,
