@@ -35,6 +35,7 @@ jobs:
   deployment:
     needs: [integration-test]
     uses: ./.github/workflows/_deployment.yml
+    secrets: inherit
     with:
       target: ${{ github.event_name == 'workflow_dispatch' && inputs.target || (github.ref_name == 'main' && 'production' || 'staging') }}
       source_ref: ${{ github.event_name == 'workflow_dispatch' && inputs.source_ref || github.sha }}
