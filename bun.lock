@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "children-ai",
+      "name": "edaya-spark",
       "dependencies": {
         "@neon/config": "^1.8.4",
         "@neon/env": "^1.5.1",
@@ -13,12 +13,12 @@
       },
     },
     "apps/api": {
-      "name": "@children-ai/api",
+      "name": "@edaya-spark/api",
       "dependencies": {
-        "@children-ai/adaptor-postgres": "workspace:*",
-        "@children-ai/adaptors": "workspace:*",
-        "@children-ai/app": "workspace:*",
-        "@children-ai/domain": "workspace:*",
+        "@edaya-spark/adaptor-postgres": "workspace:*",
+        "@edaya-spark/adaptors": "workspace:*",
+        "@edaya-spark/app": "workspace:*",
+        "@edaya-spark/domain": "workspace:*",
         "hono": "^4.7.9",
         "jose": "^6.1.3",
       },
@@ -29,7 +29,7 @@
       },
     },
     "apps/student-web": {
-      "name": "@children-ai/student-web",
+      "name": "@edaya-spark/student-web",
       "devDependencies": {
         "@sveltejs/adapter-cloudflare": "^7.2.3",
         "@sveltejs/kit": "^2.57.0",
@@ -46,10 +46,10 @@
       },
     },
     "package/adaptor-postgres": {
-      "name": "@children-ai/adaptor-postgres",
+      "name": "@edaya-spark/adaptor-postgres",
       "dependencies": {
-        "@children-ai/adaptors": "workspace:*",
-        "@children-ai/domain": "workspace:*",
+        "@edaya-spark/adaptors": "workspace:*",
+        "@edaya-spark/domain": "workspace:*",
         "@electric-sql/pglite": "^0.4.6",
         "drizzle-orm": "^0.39.0",
         "pg": "^8.16.3",
@@ -61,9 +61,9 @@
       },
     },
     "package/adaptors": {
-      "name": "@children-ai/adaptors",
+      "name": "@edaya-spark/adaptors",
       "dependencies": {
-        "@children-ai/domain": "workspace:*",
+        "@edaya-spark/domain": "workspace:*",
       },
       "devDependencies": {
         "@types/bun": "^1.3.14",
@@ -71,18 +71,18 @@
       },
     },
     "package/app": {
-      "name": "@children-ai/app",
+      "name": "@edaya-spark/app",
       "dependencies": {
-        "@children-ai/domain": "workspace:*",
+        "@edaya-spark/domain": "workspace:*",
       },
       "devDependencies": {
-        "@children-ai/adaptors": "workspace:*",
+        "@edaya-spark/adaptors": "workspace:*",
         "@types/bun": "^1.3.14",
         "typescript": "^5.9.2",
       },
     },
     "package/domain": {
-      "name": "@children-ai/domain",
+      "name": "@edaya-spark/domain",
       "devDependencies": {
         "@types/bun": "^1.3.14",
         "typescript": "^5.9.2",
@@ -95,17 +95,17 @@
   "packages": {
     "@alloc/quick-lru": ["@alloc/quick-lru@5.3.0", "", {}, "sha512-U4+70Pc5ZS9osnCBCE5Jha/ciHM+Yp+CNMNC/7HvYbNRk1Ldd+f7qO65W5qfhu/TCv+/ozljlXXe9Nj8419DMA=="],
 
-    "@children-ai/adaptor-postgres": ["@children-ai/adaptor-postgres@workspace:package/adaptor-postgres"],
+    "@edaya-spark/adaptor-postgres": ["@edaya-spark/adaptor-postgres@workspace:package/adaptor-postgres"],
 
-    "@children-ai/adaptors": ["@children-ai/adaptors@workspace:package/adaptors"],
+    "@edaya-spark/adaptors": ["@edaya-spark/adaptors@workspace:package/adaptors"],
 
-    "@children-ai/api": ["@children-ai/api@workspace:apps/api"],
+    "@edaya-spark/api": ["@edaya-spark/api@workspace:apps/api"],
 
-    "@children-ai/app": ["@children-ai/app@workspace:package/app"],
+    "@edaya-spark/app": ["@edaya-spark/app@workspace:package/app"],
 
-    "@children-ai/domain": ["@children-ai/domain@workspace:package/domain"],
+    "@edaya-spark/domain": ["@edaya-spark/domain@workspace:package/domain"],
 
-    "@children-ai/student-web": ["@children-ai/student-web@workspace:apps/student-web"],
+    "@edaya-spark/student-web": ["@edaya-spark/student-web@workspace:apps/student-web"],
 
     "@cloudflare/kv-asset-handler": ["@cloudflare/kv-asset-handler@0.5.0", "", {}, "sha512-jxQYkj8dSIzc0cD6cMMNdOc1UVjqSqu8BZdor5s8cGjW2I8BjODt/kWPVdY+u9zj3ms75Q5qaZgnxUad83+eAg=="],
 

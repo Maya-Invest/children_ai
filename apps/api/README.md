@@ -1,4 +1,4 @@
-# @children-ai/api
+# @edaya-spark/api
 
 Hono API for the student practice app (Bun locally, Cloudflare Worker in staging/prod).
 

@@ -1,8 +1,8 @@
-# Children AI — launch and test
+# Edaya Spark — launch and test
 
-Children AI is a **student practice app** (collège Maths, programme DPFC). It is not the EDAYA staff UI and not a chatbot.
+Edaya Spark is a **student practice app** (collège Maths, programme DPFC). It is not the EDAYA staff UI and not a chatbot.
 
-Parents sign in with their **Edaya account** on the unified API (`:9999`). Students have **no Edaya account**: a parent issues a revocable access code (shown once). Codes live only in Children AI, hashed. Children AI talks to Edaya with a machine key (`s2s_live_…`), never with the parent JWT.
+Parents sign in with their **Edaya account** on the unified API (`:9999`). Students have **no Edaya account**: a parent issues a revocable access code (shown once). Codes live only in Edaya Spark, hashed. Edaya Spark talks to Edaya with a machine key (`s2s_live_…`), never with the parent JWT.
 
 ---
 
@@ -14,17 +14,17 @@ Parents sign in with their **Edaya account** on the unified API (`:9999`). Stude
 | Try Léa without a school | **Path demo**: landing button **Essayer la démo**. Fixture notes only. Not attached to Edaya parents. |
 | Parent account with no guardian links | `/parent` shows an empty list (no Léa). |
 
-Children AI never writes back to EDAYA. The S2S key stays on the Children AI API; the browser never sees it.
+Edaya Spark never writes back to EDAYA. The S2S key stays on the Edaya Spark API; the browser never sees it.
 
 ---
 
 ## Prerequisites
 
 - [Bun](https://bun.sh) 1.3+
-- From this folder: `children_ai`
+- From this folder: `edaya_spark`
 
 ```bash
-cd children_ai
+cd edaya_spark
 bun install
 copy .env.example .env
 ```
@@ -36,7 +36,7 @@ Keep these aligned with `edaya_backend/apps/api/.env`:
 ```
 EDAYA_API_ORIGIN=http://localhost:9999
 EDAYA_CONTEXT=http
-CHILDREN_AI_RESOLVE_SECRET=local-children-ai-resolve-secret
+EDAYA_SPARK_RESOLVE_SECRET=local-edaya-spark-resolve-secret
 ```
 
 `apps/student-web/.env` should contain:
@@ -52,14 +52,14 @@ The parent JWT is issued by the unified API: issuer and audience are `EDAYA_API_
 
 ## Path live — Edaya account + your school’s students
 
-Start the unified API (accounts and school data on `:9999`). Create a school in the webapp (or seed Cocody). Register-school mints a **read** S2S client `children-ai`. Locally the key is deterministic: `s2s_live_local_<schoolIdWithoutDashes>_children_ai01`. Children AI derives the same secret when the vault has no row.
+Start the unified API (accounts and school data on `:9999`). Create a school in the webapp (or seed Cocody). Register-school mints a **read** S2S client `edaya-spark`. Locally the key is deterministic: `s2s_live_local_<schoolIdWithoutDashes>_edaya_spark01`. Edaya Spark derives the same secret when the vault has no row.
 
 ```bash
 # Terminal 1
 cd edaya_backend && bun repo dev      # :9999
 
 # Terminal 2
-cd children_ai
+cd edaya_spark
 bun test
 bun run dev
 ```
@@ -85,9 +85,9 @@ Seeded guardian email: `m.kone@mail.ci`. Sign-in uses the one-time code, not a p
 
 ### Seeded Cocody (optional)
 
-`bun repo seed` on Edaya mints `s2s_live_dev_edaya_ci_cocody_children_ai_key01` for `sch-edaya-ci-cocody`. Put that value in `EDAYA_DEMO_API_KEY` (already in `.env.example`) so the vault does not need to derive a local key for Cocody.
+`bun repo seed` on Edaya mints `s2s_live_dev_edaya_ci_cocody_edaya_spark_key01` for `sch-edaya-ci-cocody`. Put that value in `EDAYA_DEMO_API_KEY` (already in `.env.example`) so the vault does not need to derive a local key for Cocody.
 
-Local API `.env` needs `PLATFORM_BOOTSTRAP_EMAILS=a.kone@ecole-ci.edaya.dev` so seed can mint that key as a platform actor, and `CHILDREN_AI_RESOLVE_SECRET` matching Children AI.
+Local API `.env` needs `PLATFORM_BOOTSTRAP_EMAILS=a.kone@ecole-ci.edaya.dev` so seed can mint that key as a platform actor, and `EDAYA_SPARK_RESOLVE_SECRET` matching Edaya Spark.
 
 ### Optional: change marks in EDAYA
 
@@ -109,7 +109,7 @@ There are **no** global demo logins `STUDENT-LEA` / `PARENT-LEA`.
 
 ## Gemini Flash (optional)
 
-Without a key, generate uses the **stub** (deterministic questions from the official leçon). With a key in `children_ai/.env`:
+Without a key, generate uses the **stub** (deterministic questions from the official leçon). With a key in `edaya_spark/.env`:
 
 ```
 GEMINI_API_KEY=your-key
@@ -122,10 +122,10 @@ Restart the API. `/health` → `generator: gemini-flash`. Only **Créer mes exer
 
 ## Integration
 
-`bun run test:integration` runs the Children AI API against a local HTTP stand-in for Edaya. It does not start `edaya_backend` and it does not seed a school. The stand-in listens on `http://127.0.0.1:9999` (the origin the local palier allows) and answers the parent signing keys, guardian resolve, and the small set of entity lists the student home reads. Stop anything already bound to port 9999 before the run. The API under test uses port 18787 (`CHILDREN_AI_TEST_PORT`).
+`bun run test:integration` runs the Edaya Spark API against a local HTTP stand-in for Edaya. It does not start `edaya_backend` and it does not seed a school. The stand-in listens on `http://127.0.0.1:9999` (the origin the local palier allows) and answers the parent signing keys, guardian resolve, and the small set of entity lists the student home reads. Stop anything already bound to port 9999 before the run. The API under test uses port 18787 (`EDAYA_SPARK_TEST_PORT`).
 
 ```bash
-cd children_ai
+cd edaya_spark
 bun run test:integration
 ```
 
@@ -136,7 +136,7 @@ bun run test:integration
 ## Checks and troubleshooting
 
 ```bash
-cd children_ai
+cd edaya_spark
 bun test
 curl http://localhost:8787/health
 ```
@@ -146,7 +146,7 @@ curl http://localhost:8787/health
 | Student web cannot login / CORS | API not on 8787, or `PUBLIC_API_URL` / Edaya `TRUSTED_ORIGINS` missing `:5175` |
 | Parent login cookie rejected | Unified API not on `:9999`, or `http://127.0.0.1:5175` missing from `TRUSTED_ORIGINS` |
 | `POST /auth/edaya/access-token` 401 after a successful login | Restart student-web so the Vite `/auth` proxy targets `:9999`. The session cookie is first-party on `127.0.0.1:5175`. The token `resource` must be `http://localhost:9999`. |
-| Parent JWT 401 on `/parent/*` | Children AI verifier `iss`/`aud` must both be `EDAYA_API_ORIGIN` |
+| Parent JWT 401 on `/parent/*` | Edaya Spark verifier `iss`/`aud` must both be `EDAYA_API_ORIGIN` |
 | `PALIER_ORIGIN_MISMATCH` | `EDAYA_API_ORIGIN` is staging/prod while `PALIER=local` |
 | `SCHOOL_INTEGRATION_MISSING` | New UUID school not minted, or vault cannot derive the local key |
 | Live home empty / fetch error | EDAYA not running, resolve secret mismatch, or missing `s2s_live_` for that school |
@@ -156,7 +156,7 @@ curl http://localhost:8787/health
 | Parent can see sets but no generate button | Expected |
 | Demo button 403 | Palier `prod` |
 
-Local snapshots, sets, codes, sessions, and the school vault live in PGlite at `children_ai/.data/spark` (`DATABASE_URL=pglite:.data/spark`). Delete that folder if you want a clean generate-once cycle. Stop the API first: PGlite keeps a lock on the directory.
+Local snapshots, sets, codes, sessions, and the school vault live in PGlite at `edaya_spark/.data/spark` (`DATABASE_URL=pglite:.data/spark`). Delete that folder if you want a clean generate-once cycle. Stop the API first: PGlite keeps a lock on the directory.
 
 ---
 
@@ -167,8 +167,8 @@ Tenancy is two axes: **palier** (this deployment: local / staging / prod) and **
 ```
 Parent browser  →  Edaya cookie on :9999  →  JWT iss=aud=Edaya API  →  /parent/*
 Student browser →  code or demo      →  opaque session       →  /home, /exercise-sets
-Children AI API →  resolve secret    →  Edaya POST /internal/children-ai/resolve-guardian
-Children AI API →  Bearer s2s_live_  →  Edaya /core/entities/*/list  (marks / progress)
+Edaya Spark API →  resolve secret    →  Edaya POST /internal/edaya-spark/resolve-guardian
+Edaya Spark API →  Bearer s2s_live_  →  Edaya /core/entities/*/list  (marks / progress)
 ```
 
 | Palier | EDAYA origin |
@@ -177,7 +177,7 @@ Children AI API →  Bearer s2s_live_  →  Edaya /core/entities/*/list  (marks 
 | staging | `https://staging.api.edayaplus.com` |
 | prod | `https://api.edayaplus.com` |
 
-Never point prod Children AI at staging EDAYA (or the reverse). Never forward a human JWT to the school API.
+Never point prod Edaya Spark at staging EDAYA (or the reverse). Never forward a human JWT to the school API.
 
 ### Cloudflare Worker
 
@@ -187,14 +187,14 @@ Never point prod Children AI at staging EDAYA (or the reverse). Never forward a 
 wrangler secret put VAULT_MASTER_KEY --env staging
 wrangler secret put GEMINI_API_KEY --env staging
 wrangler secret put EDAYA_DEMO_API_KEY --env staging
-wrangler secret put CHILDREN_AI_RESOLVE_SECRET --env staging
+wrangler secret put EDAYA_SPARK_RESOLVE_SECRET --env staging
 ```
 
 Do not set `EDAYA_DEMO_API_KEY` on prod. Do not enable `/auth/demo` on palier prod.
 
 ```
 package/domain              ports and types
-package/app                 ChildrenAiApp
+package/app                 EdayaSparkApp
 package/adaptors            fixture + HTTP EDAYA, focus stub, Gemini, Cloudflare RAG
 package/adaptor-postgres    PGlite + Postgres (Hyperdrive) repositories
 apps/api                    Hono (Bun + Worker). RUNTIME, FOCUS, and GENERATOR pick adapters

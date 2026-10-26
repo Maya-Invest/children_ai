@@ -1,4 +1,5 @@
 <script lang="ts">
+	import CastorGuide from '$lib/CastorGuide.svelte';
 	import SchoolBackdrop from '$lib/SchoolBackdrop.svelte';
 	import '../app.css';
 
@@ -13,3 +14,4 @@
 <div class="relative z-10">
 	{@render children()}
 </div>
+<CastorGuide />

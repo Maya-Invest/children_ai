@@ -1,4 +1,4 @@
-import type { ClassProgressItem } from "@children-ai/domain";
+import type { ClassProgressItem } from "@edaya-spark/domain";
 
 /** Official collège matters copied from the Edaya grade files. Edaya itself is not imported. */
 export type GradeSubjectMatters = {

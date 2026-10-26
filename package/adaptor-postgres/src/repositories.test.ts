@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import type { ExerciseSet, LearnerAcademicSnapshot, PracticeSessionPlan, SessionActor, StudentAccessCode } from "@children-ai/domain";
-import { demoSchoolCredentials } from "@children-ai/adaptors";
+import type { ExerciseSet, LearnerAcademicSnapshot, PracticeSessionPlan, SessionActor, StudentAccessCode } from "@edaya-spark/domain";
+import { demoSchoolCredentials } from "@edaya-spark/adaptors";
 import { openSparkDatabase } from "./open.ts";
 import { PostgresSessionStore } from "./repositories.ts";
 import { PostgresSchoolIntegrationVault } from "./vault.ts";
@@ -117,11 +117,11 @@ describe("postgres repositories", () => {
 			demoSchoolCredentials({
 				schoolId: "school",
 				edayaApiBaseUrl: "http://localhost:9999",
-				apiKey: "s2s_live_local_school_children_ai01",
+				apiKey: "s2s_live_local_school_edaya_spark01",
 			}),
 		);
 		const stored = await vault.getActive("school");
-		expect(stored?.apiKey).toBe("s2s_live_local_school_children_ai01");
+		expect(stored?.apiKey).toBe("s2s_live_local_school_edaya_spark01");
 		expect(stored?.integration.status).toBe("active");
 
 		await db.close();

@@ -17,7 +17,7 @@ import { startEdayaDouble, type EdayaDouble } from "./edaya-double.ts";
 
 const repoRoot = path.join(import.meta.dir, "../..");
 const evidencePath = path.join(repoRoot, ".ci-evidence", "integration-summary.json");
-const apiPort = process.env.CHILDREN_AI_TEST_PORT ?? "18787";
+const apiPort = process.env.EDAYA_SPARK_TEST_PORT ?? "18787";
 
 let standIn: EdayaDouble;
 let api: Subprocess | undefined;
@@ -33,9 +33,9 @@ afterAll(async () => {
 });
 
 test("stand-in rejects a bad resolve secret and a bad S2S key", async () => {
-	const resolve = await request(`${standIn.origin}/internal/children-ai/resolve-guardian`, {
+	const resolve = await request(`${standIn.origin}/internal/edaya-spark/resolve-guardian`, {
 		method: "POST",
-		headers: { "x-children-ai-resolve-secret": "wrong-secret" },
+		headers: { "x-edaya-spark-resolve-secret": "wrong-secret" },
 		body: JSON.stringify({ subjectId: PARENT_SUBJECT_ID }),
 	});
 	expect(resolve.status).toBe(401);
@@ -53,7 +53,7 @@ test("stand-in rejects a bad resolve secret and a bad S2S key", async () => {
 
 test("live parent and student path uses the simulated Edaya", async () => {
 	const evidence: { ok: boolean; studentIds: string[] } = { ok: false, studentIds: [] };
-	dataDir = mkdtempSync(path.join(tmpdir(), "children-ai-integration-"));
+	dataDir = mkdtempSync(path.join(tmpdir(), "edaya-spark-integration-"));
 	try {
 		api = startApi(standIn.origin, dataDir);
 		const health = await waitForHealth(apiUrl("/health"));
@@ -166,7 +166,7 @@ function startApi(origin: string, databaseDir: string): Subprocess {
 			EDAYA_DEMO_SCHOOL_ID: SCHOOL_ID,
 			EDAYA_DEMO_ACADEMIC_YEAR_ID: ACADEMIC_YEAR_ID,
 			EDAYA_DEMO_API_KEY: S2S_API_KEY,
-			CHILDREN_AI_RESOLVE_SECRET: RESOLVE_SECRET,
+			EDAYA_SPARK_RESOLVE_SECRET: RESOLVE_SECRET,
 			GENERATOR: "stub",
 			FOCUS: "stub",
 			GEMINI_API_KEY: "",
@@ -185,7 +185,7 @@ async function waitForHealth(url: string): Promise<{ contextMode: string; genera
 	let last = "";
 	while (Date.now() < deadline) {
 		if (api && api.exitCode !== null) {
-			throw new Error(`Children AI API exited ${api.exitCode}.`);
+			throw new Error(`Edaya Spark API exited ${api.exitCode}.`);
 		}
 		try {
 			const response = await request(url);
@@ -196,7 +196,7 @@ async function waitForHealth(url: string): Promise<{ contextMode: string; genera
 		}
 		await Bun.sleep(200);
 	}
-	throw new Error(`Children AI API did not become ready. ${last}`);
+	throw new Error(`Edaya Spark API did not become ready. ${last}`);
 }
 
 async function stopApi(): Promise<void> {

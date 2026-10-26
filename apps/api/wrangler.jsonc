@@ -1,5 +1,5 @@
 {
-	"name": "children-ai-api",
+	"name": "edaya-spark-api",
 	"main": "src/worker.ts",
 	"compatibility_date": "2026-09-07",
 	"compatibility_flags": ["nodejs_compat"],
@@ -16,7 +16,7 @@
 		"EDAYA_API_ORIGIN": "http://localhost:9999",
 		"EDAYA_DEMO_SCHOOL_ID": "sch-edaya-ci-cocody",
 		"EDAYA_DEMO_ACADEMIC_YEAR_ID": "2025-ci",
-		"CHILDREN_AI_RESOLVE_SECRET": "local-children-ai-resolve-secret"
+		"EDAYA_SPARK_RESOLVE_SECRET": "local-edaya-spark-resolve-secret"
 	},
 	"hyperdrive": [
 		{
@@ -38,7 +38,7 @@
 			"hyperdrive": [
 				{
 					"binding": "HYPERDRIVE",
-					"id": "4791997ceaff4b1f84e55bd3136d5bde"
+					"id": "1c3e87f5def146edb2a269bd4ed273fc"
 				}
 			]
 		},
@@ -52,7 +52,7 @@
 			"hyperdrive": [
 				{
 					"binding": "HYPERDRIVE",
-					"id": "039348fbc7f4418884c02b16f1a6b628"
+					"id": "5d12e9b962c34fa4a303c663a7b640b5"
 				}
 			]
 		}

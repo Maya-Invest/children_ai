@@ -67,7 +67,7 @@ export class SchoolIntegrationMissingError extends DomainError {
 	}
 }
 
-const LOCAL_VAULT_MASTER = "children-ai-local-vault-master-not-for-prod";
+const LOCAL_VAULT_MASTER = "edaya-spark-local-vault-master-not-for-prod";
 
 /** Staging/prod require a real master key. Local/in-memory may use a fixed non-prod default. */
 export function resolveVaultMasterKey(

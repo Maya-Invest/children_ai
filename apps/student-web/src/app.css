@@ -52,6 +52,67 @@ body {
 	}
 }
 
+@keyframes castor-float {
+	0%,
+	100% {
+		transform: translateY(0);
+	}
+	50% {
+		transform: translateY(-6px);
+	}
+}
+
+@keyframes castor-blink {
+	0%,
+	42%,
+	48%,
+	100% {
+		transform: scaleY(1);
+	}
+	45% {
+		transform: scaleY(0.12);
+	}
+}
+
+@keyframes castor-tail {
+	0%,
+	100% {
+		transform: rotate(-8deg);
+	}
+	50% {
+		transform: rotate(12deg);
+	}
+}
+
+.castor-float {
+	animation: castor-float 3.2s ease-in-out infinite;
+}
+
+.castor-blink,
+.castor-tail,
+.castor-mouth {
+	transform-box: fill-box;
+	transform-origin: center;
+}
+
+.castor-blink {
+	animation: castor-blink 4.5s ease-in-out infinite;
+}
+
+.castor-tail {
+	animation: castor-tail 1.6s ease-in-out infinite;
+	transform-origin: right center;
+}
+
+.castor-mouth {
+	transform: scaleY(0.2);
+	transition: transform 0.2s ease;
+}
+
+.castor-talking .castor-mouth {
+	transform: scaleY(1);
+}
+
 .stat-grow {
 	transform-origin: left center;
 	animation: stat-grow 0.7s ease-out;
@@ -59,7 +120,14 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
 	.school-float,
-	.stat-grow {
+	.stat-grow,
+	.castor-float,
+	.castor-blink,
+	.castor-tail {
 		animation: none;
+	}
+
+	.castor-mouth {
+		transition: none;
 	}
 }

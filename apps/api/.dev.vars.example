@@ -3,7 +3,7 @@ PALIER=local
 EDAYA_API_ORIGIN=http://localhost:9999
 EDAYA_DEMO_SCHOOL_ID=sch-edaya-ci-cocody
 EDAYA_DEMO_ACADEMIC_YEAR_ID=2025-ci
-# After `bun repo seed` on EDAYA: s2s_live_dev_edaya_ci_cocody_children_ai_key01
+# After `bun repo seed` on EDAYA: s2s_live_dev_edaya_ci_cocody_edaya_spark_key01
 # EDAYA_DEMO_API_KEY=
 # VAULT_MASTER_KEY=
 # GEMINI_API_KEY=

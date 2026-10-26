@@ -24,13 +24,13 @@ export interface EdayaContextPort {
 	pullLearnerContext(query: LearnerContextQuery): Promise<LearnerContext>;
 }
 
-export const CHILDREN_AI_SERVICE_ID = "children-ai" as const;
+export const EDAYA_SPARK_SERVICE_ID = "edaya-spark" as const;
 
 export type SchoolIntegration = {
 	schoolId: string;
 	edayaApiBaseUrl: string;
 	academicYearId: string;
-	serviceId: typeof CHILDREN_AI_SERVICE_ID;
+	serviceId: typeof EDAYA_SPARK_SERVICE_ID;
 	keyPrefix: string;
 	status: "pending" | "active" | "revoked";
 	rotatedAt?: string;

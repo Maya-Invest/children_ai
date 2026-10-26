@@ -10,6 +10,9 @@ export default defineConfig(({ mode }) => {
 
 	return {
 		plugins: [sveltekit()],
+		// esbuild 0.28 cannot lower destructuring to Vite's default old-browser target.
+		build: { target: "es2022" },
+		optimizeDeps: { esbuildOptions: { target: "es2022" } },
 		server: {
 			port: 5175,
 			strictPort: true,

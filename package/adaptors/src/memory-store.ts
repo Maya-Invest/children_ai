@@ -13,7 +13,7 @@ import {
 	type SnapshotRepository,
 	type StudentAccessCode,
 	type StudentAccessCodeRepository,
-} from "@children-ai/domain";
+} from "@edaya-spark/domain";
 
 export class InMemorySnapshotRepository implements SnapshotRepository {
 	private readonly items: LearnerAcademicSnapshot[] = [];

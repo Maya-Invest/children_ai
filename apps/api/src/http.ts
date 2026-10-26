@@ -13,8 +13,8 @@ import {
 	type Palier,
 	type SessionStore,
 	type StudentActor,
-} from "@children-ai/domain";
-import { learnerRef, type ChildrenAiApp } from "@children-ai/app";
+} from "@edaya-spark/domain";
+import { learnerRef, type EdayaSparkApp } from "@edaya-spark/app";
 
 type Env = {
 	Variables: {
@@ -41,7 +41,7 @@ export type HttpOptions = {
 
 const DEFAULT_CORS = ["http://localhost:5175", "http://127.0.0.1:5175"];
 
-export function createHttpApp(app: ChildrenAiApp, options: HttpOptions) {
+export function createHttpApp(app: EdayaSparkApp, options: HttpOptions) {
 	const http = new Hono<Env>();
 	const origins = uniqueOrigins([
 		...DEFAULT_CORS,
@@ -338,7 +338,7 @@ export function createHttpApp(app: ChildrenAiApp, options: HttpOptions) {
 
 function serializeHome(
 	actor: StudentActor | GuardianActor,
-	home: Awaited<ReturnType<ChildrenAiApp["getHome"]>>,
+	home: Awaited<ReturnType<EdayaSparkApp["getHome"]>>,
 	studentCanGenerate: boolean,
 ) {
 	const subjects = listLearnerSubjects(home.snapshot.context);

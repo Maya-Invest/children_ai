@@ -7,7 +7,7 @@ import type {
 	SchoolIntegration,
 	SessionActor,
 	StudentAccessCode,
-} from "@children-ai/domain";
+} from "@edaya-spark/domain";
 
 export const snapshots = pgTable(
 	"snapshots",

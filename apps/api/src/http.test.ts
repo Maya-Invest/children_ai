@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { ChildrenAiApp } from "@children-ai/app";
+import { EdayaSparkApp } from "@edaya-spark/app";
 import {
 	createDemoEdayaContext,
 	createSchoolEdayaStack,
@@ -16,10 +16,10 @@ import {
 	StubPracticeFocus,
 	MemorySessionStore,
 	StubExerciseGenerator,
-} from "@children-ai/adaptors";
+} from "@edaya-spark/adaptors";
 import { verifyIdentityToken } from "./identity.ts";
 import { createTestIdentityKeys, signTestIdentityToken } from "./identity-testing.ts";
-import type { GuardianChildrenPort } from "@children-ai/domain";
+import type { GuardianChildrenPort } from "@edaya-spark/domain";
 import { createHttpApp, type HttpOptions } from "./http.ts";
 
 const issuer = "http://localhost:9999";
@@ -32,7 +32,7 @@ async function createRuntime(
 	const ids = new CryptoIdGenerator();
 	const demo = createDemoEdayaContext({ palier: "in-memory" });
 	const sessions = new MemorySessionStore();
-	const app = new ChildrenAiApp({
+	const app = new EdayaSparkApp({
 		edaya: demo.edaya,
 		focus: new StubPracticeFocus(),
 		generator: new StubExerciseGenerator(ids),
@@ -338,12 +338,12 @@ describe("Hono API", () => {
 			seedDemoSchool: true,
 			deriveLocalS2sKey: false,
 			edayaApiBaseUrl: "http://localhost:9999",
-			apiKey: "s2s_live_dev_edaya_ci_cocody_children_ai_key01",
+			apiKey: "s2s_live_dev_edaya_ci_cocody_edaya_spark_key01",
 			fetchImpl: async () => new Response("unauthorized", { status: 401 }),
 		});
 		const ids = new CryptoIdGenerator();
 		const sessions = new MemorySessionStore();
-		const app = new ChildrenAiApp({
+		const app = new EdayaSparkApp({
 			edaya: stack.edaya,
 			focus: new StubPracticeFocus(),
 			generator: new StubExerciseGenerator(ids),

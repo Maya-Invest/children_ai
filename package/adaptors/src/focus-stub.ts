@@ -19,7 +19,7 @@ import {
 	type PracticeRecommendation,
 	type PracticeSessionPlan,
 	type UpcomingAssessment,
-} from "@children-ai/domain";
+} from "@edaya-spark/domain";
 export class StubPracticeFocus implements PracticeFocusPort {
 	packVersion(): string {
 		return SNAPSHOT_PACK_VERSION;

@@ -1,4 +1,4 @@
-import type { EdayaContextPort, LearnerContext, TimetableDay, TimetableSlot } from "@children-ai/domain";
+import type { EdayaContextPort, LearnerContext, TimetableDay, TimetableSlot } from "@edaya-spark/domain";
 import {
 	DEMO_FIXTURE_SCHOOL_ID,
 	DEMO_FIXTURE_STUDENT_ID,
@@ -6,7 +6,7 @@ import {
 	DEMO_FIXTURE_STUDENT_ID_SECONDE,
 	DEMO_FIXTURE_STUDENT_ID_TLE,
 	EdayaContextFetchError,
-} from "@children-ai/domain";
+} from "@edaya-spark/domain";
 import { GRADE_5E_MATTERS, GRADE_6E_MATTERS, gradeProgress } from "./fixture-grade-matters.ts";
 
 /** demo-ci École Cocody — same school id as EDAYA seed, isolated per palier DB. */

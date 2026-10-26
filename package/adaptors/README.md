@@ -1,7 +1,7 @@
-# @children-ai/adaptors
+# @edaya-spark/adaptors
 
-Fixture and HTTP EDAYA context, stub and Gemini generators. Persistence is `@children-ai/adaptor-postgres`.
+Fixture and HTTP EDAYA context, stub and Gemini generators. Persistence is `@edaya-spark/adaptor-postgres`.
 
 ```sh
-bun --filter @children-ai/adaptors test
+bun --filter @edaya-spark/adaptors test
 ```

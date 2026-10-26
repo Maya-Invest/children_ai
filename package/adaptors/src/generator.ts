@@ -1,4 +1,4 @@
-import type { Clock, ExerciseGeneratorPort, IdGenerator } from "@children-ai/domain";
+import type { Clock, ExerciseGeneratorPort, IdGenerator } from "@edaya-spark/domain";
 import {
 	CloudflareRagExerciseGenerator,
 	DEFAULT_RAG_GENERATOR_MODEL,

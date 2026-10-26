@@ -2,8 +2,8 @@ import { eq } from "drizzle-orm";
 import {
 	decryptVaultSecret,
 	encryptVaultSecret,
-} from "@children-ai/adaptors";
-import type { EdayaCredentialsPort, SchoolCredentials, SchoolIntegration } from "@children-ai/domain";
+} from "@edaya-spark/adaptors";
+import type { EdayaCredentialsPort, SchoolCredentials, SchoolIntegration } from "@edaya-spark/domain";
 import type { SparkDb } from "./repositories.ts";
 import { schoolIntegrations } from "./schema.ts";
 

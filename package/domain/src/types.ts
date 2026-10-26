@@ -16,7 +16,7 @@ export const DEMO_FIXTURE_STUDENT_ID_TLE = "ci-s33";
 export const DEMO_FIXTURE_GUARDIAN_SUBJECT_ID = "demo-guardian";
 export const DEMO_FIXTURE_GUARDIAN_NAME = "Sophie Mercier";
 
-export const CHILDREN_AI_RESOLVE_SECRET_HEADER = "x-children-ai-resolve-secret";
+export const EDAYA_SPARK_RESOLVE_SECRET_HEADER = "x-edaya-spark-resolve-secret";
 
 export type CurriculumLesson = {
 	id: string;

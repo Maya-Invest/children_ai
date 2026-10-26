@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { ChildrenAiApp, learnerRef } from "@children-ai/app";
+import { EdayaSparkApp, learnerRef } from "@edaya-spark/app";
 import {
 	createDemoEdayaContext,
 	CryptoIdGenerator,
@@ -22,7 +22,7 @@ import {
 	StubPracticeFocus,
 	MemorySessionStore,
 	StubExerciseGenerator,
-} from "@children-ai/adaptors";
+} from "@edaya-spark/adaptors";
 import {
 	AlreadyGeneratedError,
 	ChildNotLinkedError,
@@ -35,7 +35,7 @@ import {
 	type GuardianChildrenPort,
 	type PracticeFocusPort,
 	type PracticeFocusRequest,
-} from "@children-ai/domain";
+} from "@edaya-spark/domain";
 
 const fixtureMonday = { nowIso: () => "2026-10-05T18:00:00.000Z" };
 
@@ -51,7 +51,7 @@ function createAppWithSets(
 	const demo = createDemoEdayaContext({ palier: "in-memory" });
 	const sessions = new MemorySessionStore();
 	const sets = new InMemoryExerciseSetRepository();
-	const app = new ChildrenAiApp({
+	const app = new EdayaSparkApp({
 		edaya: edaya ?? demo.edaya,
 		focus: options.focus ?? new StubPracticeFocus(),
 		generator: new StubExerciseGenerator(ids),
@@ -104,7 +104,7 @@ function throwingLiveEdaya(): EdayaContextPort {
 	};
 }
 
-async function fixtureStudent(app: ChildrenAiApp) {
+async function fixtureStudent(app: EdayaSparkApp) {
 	const guardian = await app.resolveGuardian({
 		subjectId: "sub-parent",
 		email: "m.kone@mail.ci",
@@ -114,7 +114,7 @@ async function fixtureStudent(app: ChildrenAiApp) {
 	return { guardian, issued, student };
 }
 
-describe("ChildrenAiApp", () => {
+describe("EdayaSparkApp", () => {
 	test("prepares today's timetable lesson at the end of the day", async () => {
 		const { app } = createApp();
 		const { student } = await fixtureStudent(app);

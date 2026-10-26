@@ -1,5 +1,5 @@
 {
-	"name": "@children-ai/student-web",
+	"name": "@edaya-spark/student-web",
 	"type": "module",
 	"private": true,
 	"scripts": {

@@ -3,7 +3,7 @@ import {
 	EdayaContextFetchError,
 	PalierOriginMismatchError,
 	SchoolIntegrationMissingError,
-} from "@children-ai/domain";
+} from "@edaya-spark/domain";
 import {
 	FixtureEdayaContext,
 	FIXTURE_SCHOOL_ID,
@@ -12,7 +12,7 @@ import {
 import { HttpEdayaContext, schoolGradeLevelFromEdaya } from "./edaya-http.ts";
 import {
 	demoSchoolCredentials,
-	deriveLocalChildrenAiApiKey,
+	deriveLocalEdayaSparkApiKey,
 	MemorySchoolIntegrationVault,
 } from "./school-integration-vault.ts";
 import {
@@ -93,7 +93,7 @@ describe("SchoolScopedEdayaContext", () => {
 		).toThrow(PalierOriginMismatchError);
 	});
 
-	test("refuses the elevated seeding key as a children-ai credential", () => {
+	test("refuses the elevated seeding key as a edaya-spark credential", () => {
 		expect(() =>
 			demoSchoolCredentials({
 				schoolId: FIXTURE_SCHOOL_ID,
@@ -112,7 +112,7 @@ describe("HttpEdayaContext", () => {
 				schoolId: FIXTURE_SCHOOL_ID,
 				edayaApiBaseUrl: "http://localhost:9999",
 				academicYearId: "2025-ci",
-				apiKey: "s2s_live_dev_edaya_ci_cocody_children_ai_key01",
+				apiKey: "s2s_live_dev_edaya_ci_cocody_edaya_spark_key01",
 			}),
 		);
 
@@ -125,7 +125,7 @@ describe("HttpEdayaContext", () => {
 				const body = JSON.parse(String(init?.body ?? "{}")) as Record<string, string>;
 				const headers = new Headers(init?.headers);
 				expect(headers.get("authorization")).toBe(
-					"Bearer s2s_live_dev_edaya_ci_cocody_children_ai_key01",
+					"Bearer s2s_live_dev_edaya_ci_cocody_edaya_spark_key01",
 				);
 				expect(headers.get("x-academic-year-id")).toBe("2025-ci");
 				return new Response(JSON.stringify(payloadFor(url, body)), {
@@ -209,7 +209,7 @@ describe("HttpEdayaContext", () => {
 				schoolId: FIXTURE_SCHOOL_ID,
 				edayaApiBaseUrl: "http://localhost:9999",
 				academicYearId: "2025-ci",
-				apiKey: "s2s_live_dev_edaya_ci_cocody_children_ai_key01",
+				apiKey: "s2s_live_dev_edaya_ci_cocody_edaya_spark_key01",
 			}),
 		);
 		const live = new HttpEdayaContext({
@@ -267,20 +267,20 @@ describe("HttpEdayaContext", () => {
 			demoSchoolCredentials({
 				schoolId: FIXTURE_SCHOOL_ID,
 				edayaApiBaseUrl: "http://localhost:9999",
-				apiKey: "s2s_live_dev_edaya_ci_cocody_children_ai_key01",
+				apiKey: "s2s_live_dev_edaya_ci_cocody_edaya_spark_key01",
 			}),
 		);
 		const edaya = new HttpEdayaContext({
 			credentials: vault,
 			resolveGuardian: {
 				origin: "http://localhost:9999",
-				secret: "local-children-ai-resolve-secret",
+				secret: "local-edaya-spark-resolve-secret",
 			},
 			fetchImpl: async (input, init) => {
 				const url = String(input);
-				expect(url).toBe("http://localhost:9999/internal/children-ai/resolve-guardian");
+				expect(url).toBe("http://localhost:9999/internal/edaya-spark/resolve-guardian");
 				const headers = new Headers(init?.headers);
-				expect(headers.get("x-children-ai-resolve-secret")).toBe("local-children-ai-resolve-secret");
+				expect(headers.get("x-edaya-spark-resolve-secret")).toBe("local-edaya-spark-resolve-secret");
 				const body = JSON.parse(String(init?.body ?? "{}")) as { subjectId?: string };
 				expect(body.subjectId).toBe("sub-parent");
 				return new Response(JSON.stringify({
@@ -331,7 +331,7 @@ describe("HttpEdayaContext", () => {
 			demoSchoolCredentials({
 				schoolId: FIXTURE_SCHOOL_ID,
 				edayaApiBaseUrl: "http://localhost:9999",
-				apiKey: "s2s_live_dev_edaya_ci_cocody_children_ai_key01",
+				apiKey: "s2s_live_dev_edaya_ci_cocody_edaya_spark_key01",
 			}),
 		);
 		let resolveCalls = 0;
@@ -339,7 +339,7 @@ describe("HttpEdayaContext", () => {
 			credentials: vault,
 			resolveGuardian: {
 				origin: "http://localhost:9999",
-				secret: "local-children-ai-resolve-secret",
+				secret: "local-edaya-spark-resolve-secret",
 			},
 			fetchImpl: async () => {
 				resolveCalls += 1;
@@ -366,7 +366,7 @@ describe("HttpEdayaContext", () => {
 				schoolId: FIXTURE_SCHOOL_ID,
 				edayaApiBaseUrl: "http://localhost:9999",
 				academicYearId: "2025-ci",
-				apiKey: "s2s_live_dev_edaya_ci_cocody_children_ai_key01",
+				apiKey: "s2s_live_dev_edaya_ci_cocody_edaya_spark_key01",
 			}),
 		);
 		const calls: string[] = [];
@@ -424,7 +424,7 @@ describe("HttpEdayaContext", () => {
 			demoSchoolCredentials({
 				schoolId: FIXTURE_SCHOOL_ID,
 				edayaApiBaseUrl: "http://localhost:9999",
-				apiKey: "s2s_live_dev_edaya_ci_cocody_children_ai_key01",
+				apiKey: "s2s_live_dev_edaya_ci_cocody_edaya_spark_key01",
 			}),
 		);
 		const edaya = new HttpEdayaContext({
@@ -460,7 +460,7 @@ describe("resolveEdayaContextMode", () => {
 });
 
 describe("local S2S derive", () => {
-	test("puts a deterministic children-ai key when the vault has no row", async () => {
+	test("puts a deterministic edaya-spark key when the vault has no row", async () => {
 		const schoolId = "550e8400-e29b-41d4-a716-446655440000";
 		const stack = createSchoolEdayaStack({
 			palier: "local",
@@ -470,8 +470,8 @@ describe("local S2S derive", () => {
 			deriveLocalS2sKey: true,
 		});
 		const credentials = await stack.vault.getActive(schoolId);
-		expect(credentials?.apiKey).toBe(deriveLocalChildrenAiApiKey(schoolId));
-		expect(credentials?.apiKey).toBe("s2s_live_local_550e8400e29b41d4a716446655440000_children_ai01");
+		expect(credentials?.apiKey).toBe(deriveLocalEdayaSparkApiKey(schoolId));
+		expect(credentials?.apiKey).toBe("s2s_live_local_550e8400e29b41d4a716446655440000_edaya_spark01");
 	});
 
 	test("does not attach Léa to Identity parents in compose", async () => {

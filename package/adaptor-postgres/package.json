@@ -1,5 +1,5 @@
 {
-	"name": "@children-ai/adaptor-postgres",
+	"name": "@edaya-spark/adaptor-postgres",
 	"type": "module",
 	"private": true,
 	"exports": {
@@ -11,8 +11,8 @@
 		"db:migrate": "bun src/migrate-cli.ts"
 	},
 	"dependencies": {
-		"@children-ai/adaptors": "workspace:*",
-		"@children-ai/domain": "workspace:*",
+		"@edaya-spark/adaptors": "workspace:*",
+		"@edaya-spark/domain": "workspace:*",
 		"@electric-sql/pglite": "^0.4.6",
 		"drizzle-orm": "^0.39.0",
 		"pg": "^8.16.3"

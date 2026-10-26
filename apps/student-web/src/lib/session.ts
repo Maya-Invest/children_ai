@@ -1,6 +1,6 @@
-const TOKEN_KEY = "children-ai.token";
-const GUARDIAN_TOKEN_KEY = "children-ai.guardian-token";
-const DEMO_KEY = "children-ai.demo";
+const TOKEN_KEY = "edaya-spark.token";
+const GUARDIAN_TOKEN_KEY = "edaya-spark.guardian-token";
+const DEMO_KEY = "edaya-spark.demo";
 
 function storage(): Storage | null {
 	if (typeof localStorage === "undefined") return null;

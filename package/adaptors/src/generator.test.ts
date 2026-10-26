@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { CurriculumLesson, LearnerAcademicSnapshot } from "@children-ai/domain";
+import type { CurriculumLesson, LearnerAcademicSnapshot } from "@edaya-spark/domain";
 import { CryptoIdGenerator, SystemClock } from "./runtime.ts";
 import { CloudflareRagExerciseGenerator } from "./cloudflare-rag.ts";
 import { createExerciseGenerator, resolveGeneratorName } from "./generator.ts";
