@@ -105,9 +105,10 @@
 		error = '';
 		try {
 			await submitSet(current.id, answers);
-			await goto(resolve('/app/sets/[id]', { id: current.id }));
+			await goto(resolve('/app/sets/[id]', { id: current.id }), { invalidateAll: true });
 		} catch (caught) {
 			error = caught instanceof Error ? caught.message : 'Impossible d’enregistrer tes réponses.';
+		} finally {
 			pending = 'idle';
 		}
 	}

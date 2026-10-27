@@ -11,10 +11,15 @@
 		"staging": {
 			"name": "edaya-spark-student-web-staging",
 			"vars": {
-				// Public origin of the edaya-spark-api Worker. Add the account subdomain for workers.dev, or use the custom domain.
-				"PUBLIC_API_URL": "https://edaya-spark-api-staging.workers.dev",
+				"PUBLIC_API_URL": "https://staging.api.spark.edayaplus.com",
 				"PUBLIC_AUTH_URL": "https://staging.api.edayaplus.com"
-			}
+			},
+			"routes": [
+				{
+					"pattern": "staging.app.spark.edayaplus.com",
+					"custom_domain": true
+				}
+			]
 		},
 		"prod": {
 			"name": "edaya-spark-student-web",

@@ -2,6 +2,7 @@
 	import { invalidateAll } from '$app/navigation';
 	import { issueChildAccessCode, revokeChildAccessCode } from '$lib/parent-api';
 	import { isDemoExplore } from '$lib/session';
+	import TermsAcceptance from '$lib/TermsAcceptance.svelte';
 	import type { ParentChildrenPayload } from '$lib/types';
 
 	let { data }: { data: { listing: ParentChildrenPayload } } = $props();
@@ -10,10 +11,18 @@
 	let revealed = $state<Record<string, string>>({});
 	let error = $state('');
 	let pendingId = $state('');
+	let acceptedTerms = $state(false);
 	let copiedId = $state('');
 	let copiedTimer = 0;
 
+	function requireTerms(): boolean {
+		if (acceptedTerms) return true;
+		error = 'Accepte les conditions d’utilisation pour continuer.';
+		return false;
+	}
+
 	async function generate(studentId: string) {
+		if (!requireTerms()) return;
 		pendingId = studentId;
 		error = '';
 		if (copiedId === studentId) copiedId = '';
@@ -29,6 +38,7 @@
 	}
 
 	async function revoke(studentId: string) {
+		if (!requireTerms()) return;
 		pendingId = studentId;
 		error = '';
 		if (copiedId === studentId) copiedId = '';
@@ -72,6 +82,10 @@
 			Pour ouvrir l’espace élève : génère un code, copie-le, puis connecte-toi comme élève.
 		</p>
 	{/if}
+
+	<div class="mt-6">
+		<TermsAcceptance bind:accepted={acceptedTerms} />
+	</div>
 
 	{#if error}
 		<p class="mt-4 font-bold text-clay">{error}</p>
@@ -132,7 +146,7 @@
 							<button
 								class="rounded-full bg-clay px-4 py-2 text-sm font-extrabold text-white disabled:opacity-60"
 								type="button"
-								disabled={pendingId === child.studentId}
+								disabled={pendingId === child.studentId || !acceptedTerms}
 								onclick={() => generate(child.studentId)}
 							>
 								{child.accessCode ? 'Régénérer' : 'Générer un code'}
@@ -141,15 +155,19 @@
 								<button
 									class="rounded-full bg-white px-4 py-2 text-sm font-extrabold text-ink disabled:opacity-60"
 									type="button"
-									disabled={pendingId === child.studentId}
+									disabled={pendingId === child.studentId || !acceptedTerms}
 									onclick={() => revoke(child.studentId)}
 								>
 									Révoquer
 								</button>
 							{/if}
 							<a
-								class="rounded-full bg-forest px-4 py-2 text-sm font-extrabold text-white"
+								class="rounded-full bg-forest px-4 py-2 text-sm font-extrabold text-white aria-disabled:opacity-60"
 								href={`/parent/children/${child.studentId}`}
+								aria-disabled={!acceptedTerms}
+								onclick={(event) => {
+									if (!acceptedTerms) event.preventDefault();
+								}}
 							>
 								Suivi
 							</a>

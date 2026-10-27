@@ -1,4 +1,4 @@
-import { displaySubjectLabel, subjectsMatch } from "./display-subject.ts";
+import { displaySubjectLabel } from "./display-subject.ts";
 import type {
 	CurriculumLesson,
 	ExerciseProposal,
@@ -100,11 +100,25 @@ export function composeSessionPlan(input: {
 	const homework = homeworks.length > 0
 		? trackPlan("homework", homeworks, homeworks.length === 1 ? homeworks[0]?.assessment ?? null : null)
 		: emptyHomework("homework");
-	return {
-		summary: sessionSummary(input.snapshot, revision, homework),
+	return withSessionSummary({
+		summary: "",
 		totalMinutes: revision.minutes + homework.minutes,
 		planVersion: PRACTICE_PLAN_VERSION,
 		tracks: [revision, homework],
+	});
+}
+
+/** Rebuilds the parent sentence from the lessons already on the plan. */
+export function withSessionSummary(plan: PracticeSessionPlan): PracticeSessionPlan {
+	const revision = plan.tracks.find((track) => track.kind === "revision");
+	const homework = plan.tracks.find((track) => track.kind === "homework");
+	if (!revision && !homework) return plan;
+	return {
+		...plan,
+		summary: sessionSummary(
+			revision ?? emptyHomework("revision"),
+			homework ?? emptyHomework("homework"),
+		),
 	};
 }
 
@@ -152,39 +166,91 @@ function emptyHomework(kind: PracticeTrackPlan["kind"]): PracticeTrackPlan {
 	};
 }
 
-function sessionSummary(
-	snapshot: LearnerAcademicSnapshot,
-	revision: PracticeTrackPlan,
-	homework: PracticeTrackPlan,
-): string {
-	const budget = `Fin de journée : ${formatPracticeDuration(revision.minutes + homework.minutes)}.`;
-	if (revision.available && revision.items.length > 1 && homework.available && homework.assessmentLabel) {
-		return `${budget} ${formatPracticeDuration(revision.minutes)} pour ${subjectList(revision)}, d'après l'emploi du temps du jour, puis ${formatPracticeDuration(homework.minutes)} pour préparer ${homeworkPhrase(homework)}.`;
-	}
-	if (revision.available && revision.lesson && homework.available && homework.assessmentLabel) {
-		const mark = markNote(snapshot, revision.lesson);
-		return `${budget} ${formatPracticeDuration(revision.minutes)} pour préparer « ${revision.lesson.title} » (aujourd'hui)${mark}, puis ${formatPracticeDuration(homework.minutes)} pour préparer ${homeworkPhrase(homework)}.`;
-	}
-	if (revision.available && revision.items.length > 1) {
-		return `${budget} Les ${formatPracticeDuration(revision.minutes)} préparent ${subjectList(revision)}, d'après l'emploi du temps du jour.`;
-	}
-	if (revision.available && revision.lesson) {
-		return `${budget} Les ${formatPracticeDuration(revision.minutes)} préparent « ${revision.lesson.title} », d'après les matières prévues aujourd'hui.`;
-	}
-	if (homework.available && homework.assessmentLabel) {
-		return `${budget} Les ${formatPracticeDuration(homework.minutes)} préparent ${homeworkPhrase(homework)}. Aucune leçon du programme n'est prévue aujourd'hui.`;
-	}
+function sessionSummary(revision: PracticeTrackPlan, homework: PracticeTrackPlan): string {
+	const revisionText = revision.available ? revisionSentence(revision) : "";
+	const homeworkText = homework.available && homework.assessmentLabel
+		? preparationSentence(homework.assessmentLabel, revisionText !== "")
+		: "";
+	if (revisionText && homeworkText) return `${revisionText} ${homeworkText}`;
+	if (revisionText) return revisionText;
+	if (homeworkText) return `Aucun cours n'est prévu aujourd'hui. ${homeworkText}`;
 	return NOTHING_TO_PRACTICE_MESSAGE;
 }
 
-function subjectList(track: PracticeTrackPlan): string {
-	return track.items
-		.map((item) => displaySubjectLabel(item.lesson.subject) || item.lesson.subject)
-		.join(", ");
+function revisionSentence(revision: PracticeTrackPlan): string {
+	const lessons = revisionLessons(revision);
+	const first = lessons[0];
+	if (!first) return "";
+	const head = `la leçon ${deTitle(first.title)} en ${subjectAfterEn(first.subject)}`;
+	const rest = lessons.slice(1).map((lesson) => `${deTitle(lesson.title)} en ${subjectAfterEn(lesson.subject)}`);
+	if (rest.length === 0) return `La révision du jour reprend ${head}.`;
+	return `La révision du jour reprend ${head}, ${joinFrench(rest)}.`;
 }
 
-function homeworkPhrase(homework: PracticeTrackPlan): string {
-	return homework.assessmentLabel ?? "le devoir à venir";
+function revisionLessons(revision: PracticeTrackPlan): { title: string; subject: string }[] {
+	if (revision.items.length > 0) {
+		return revision.items.map((item) => ({
+			title: item.lesson.title,
+			subject: item.lesson.subject,
+		}));
+	}
+	if (!revision.lesson) return [];
+	return [{ title: revision.lesson.title, subject: revision.lesson.subject }];
+}
+
+function deTitle(title: string): string {
+	const prose = lowerFirst(title.trim());
+	if (prose.startsWith("le ")) return `du ${prose.slice(3)}`;
+	if (prose.startsWith("les ")) return `des ${prose.slice(4)}`;
+	if (/^(la |l')/i.test(prose)) return `de ${prose}`;
+	if (/^[aeiouàâäéèêëîïôöùûüy]/i.test(prose)) return `d'${prose}`;
+	return `de ${prose}`;
+}
+
+function subjectAfterEn(subject: string): string {
+	const label = displaySubjectLabel(subject) || subject;
+	if (/^[A-Z0-9]{2,6}$/.test(label)) return label;
+	return label.toLocaleLowerCase("fr");
+}
+
+function joinFrench(parts: string[]): string {
+	if (parts.length <= 1) return parts[0] ?? "";
+	if (parts.length === 2) return `${parts[0]} et ${parts[1]}`;
+	return `${parts.slice(0, -1).join(", ")} et ${parts[parts.length - 1]}`;
+}
+
+function preparationSentence(label: string, also: boolean): string {
+	const read = readAssessment(label);
+	const verb = also ? "est aussi à préparer" : "est à préparer";
+	if (!read) {
+		const plain = label.replace(/[«»]/g, "").replace(/\s+/g, " ").trim();
+		return `${capitalize(plain)} ${verb}.`;
+	}
+	const named = `${read.kind} intitulé${assessmentTitleGender(read.kind)} ${read.title}`;
+	return `${capitalize(named)} ${verb} pour le ${read.when}.`;
+}
+
+function readAssessment(label: string): { kind: string; title: string; when: string } | null {
+	const matched = label.match(/^(.*?) « (.+) » du (.+)$/);
+	if (!matched?.[1] || !matched[2] || !matched[3]) return null;
+	return {
+		kind: matched[1].trim(),
+		title: lowerFirst(matched[2].trim()),
+		when: matched[3].trim(),
+	};
+}
+
+function assessmentTitleGender(kind: string): string {
+	if (kind.startsWith("l'interrogation") || kind.startsWith("l'évaluation")) return "e";
+	return "";
+}
+
+function lowerFirst(text: string): string {
+	return text.charAt(0).toLocaleLowerCase("fr") + text.slice(1);
+}
+
+function capitalize(text: string): string {
+	return text.charAt(0).toLocaleUpperCase("fr") + text.slice(1);
 }
 
 function assessmentLabel(assessment: UpcomingAssessment): string {
@@ -217,26 +283,3 @@ function formatDue(isoDate: string): string {
 	});
 }
 
-function markNote(snapshot: LearnerAcademicSnapshot, lesson: CurriculumLesson): string {
-	const lessonTitle = fold(lesson.title);
-	const marks = [...snapshot.context.marks].sort(
-		(left, right) => ratio(left.score, left.maxScore) - ratio(right.score, right.maxScore),
-	);
-	for (const mark of marks) {
-		if (!subjectsMatch(mark.subject, lesson.subject)) continue;
-		const title = fold(mark.title);
-		if (!title.includes(lessonTitle) && !lessonTitle.includes(title)) continue;
-		const subject = displaySubjectLabel(mark.subject) || displaySubjectLabel(lesson.subject);
-		return ` (${mark.score}/${mark.maxScore} en ${subject})`;
-	}
-	return "";
-}
-
-function ratio(score: number, maxScore: number): number {
-	if (maxScore <= 0) return 1;
-	return score / maxScore;
-}
-
-function fold(text: string): string {
-	return text.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
-}
