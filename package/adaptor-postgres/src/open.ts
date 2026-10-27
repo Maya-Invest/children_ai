@@ -1,6 +1,4 @@
-import { mkdirSync } from "node:fs";
-import { drizzle as drizzlePglite } from "drizzle-orm/pglite";
-import { resolveSparkDatabaseTarget, type SparkDatabaseTarget } from "./database-url.ts";
+import { postgresPoolConfig, resolveSparkDatabaseTarget, type SparkDatabaseTarget } from "./database-url.ts";
 import { runMigrations } from "./migrate.ts";
 import {
 	PostgresExerciseSetRepository,
@@ -50,7 +48,9 @@ async function openTarget(target: SparkDatabaseTarget): Promise<SparkPersistence
 }
 
 async function openPglite(dataDir: string | undefined, target: SparkDatabaseTarget): Promise<SparkPersistence> {
+	const { mkdirSync } = await import("node:fs");
 	const { PGlite } = await import("@electric-sql/pglite");
+	const { drizzle: drizzlePglite } = await import("drizzle-orm/pglite");
 	if (dataDir) mkdirSync(dataDir, { recursive: true });
 	const client = dataDir ? new PGlite(dataDir) : new PGlite();
 	const db = drizzlePglite(client, { schema }) as SparkDb;
@@ -63,7 +63,7 @@ async function openPglite(dataDir: string | undefined, target: SparkDatabaseTarg
 async function openPostgres(target: Extract<SparkDatabaseTarget, { kind: "postgres" }>): Promise<SparkPersistence> {
 	const { drizzle } = await import("drizzle-orm/node-postgres");
 	const { default: pg } = await import("pg");
-	const pool = new pg.Pool({ connectionString: target.url, max: 1 });
+	const pool = new pg.Pool(postgresPoolConfig(target.url));
 	const db = drizzle(pool, { schema }) as unknown as SparkDb;
 	return bundle(db, target, async () => {
 		await pool.end();

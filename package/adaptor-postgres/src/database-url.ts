@@ -59,3 +59,53 @@ export function resolveSparkDatabaseTarget(
 	}
 	return { kind: "postgres", url: trimmed };
 }
+
+export type PostgresPoolConfig = {
+	connectionString: string;
+	max: 1;
+	ssl?: false;
+};
+
+/** Worker-to-Hyperdrive is a local socket. TLS to Neon is Hyperdrive's job. */
+export function isHyperdriveConnectionString(connectionString: string): boolean {
+	const host = postgresHostname(connectionString);
+	return host === "hyperdrive.local" || host.endsWith(".hyperdrive.local");
+}
+
+/**
+ * Hyperdrive must be opened with `ssl: false`. `sslmode=require` makes node-postgres
+ * read system CA files synchronously, which Workers cancel as a hung request.
+ * Direct Neon URLs (CI migrate) keep their sslmode.
+ */
+export function postgresPoolConfig(connectionString: string): PostgresPoolConfig {
+	if (!isHyperdriveConnectionString(connectionString)) {
+		return { connectionString, max: 1 };
+	}
+	return {
+		connectionString: stripSslMode(connectionString),
+		max: 1,
+		ssl: false,
+	};
+}
+
+function postgresHostname(connectionString: string): string {
+	const withoutProtocol = connectionString.trim().replace(/^[a-z][a-z0-9+.-]*:\/\//i, "");
+	const at = withoutProtocol.lastIndexOf("@");
+	const hostAndPath = at === -1 ? withoutProtocol : withoutProtocol.slice(at + 1);
+	const hostport = hostAndPath.split("/")[0] ?? "";
+	return hostport.replace(/:\d+$/, "").toLowerCase();
+}
+
+function stripSslMode(connectionString: string): string {
+	const queryAt = connectionString.indexOf("?");
+	if (queryAt === -1) return connectionString;
+	const base = connectionString.slice(0, queryAt);
+	const params = connectionString
+		.slice(queryAt + 1)
+		.split("&")
+		.filter((part) => {
+			const key = part.split("=")[0]?.toLowerCase();
+			return key !== "sslmode" && key !== "ssl";
+		});
+	return params.length === 0 ? base : `${base}?${params.join("&")}`;
+}
