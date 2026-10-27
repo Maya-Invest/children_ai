@@ -27,6 +27,7 @@ import {
 	presentExerciseSet,
 	scoreExerciseSet,
 	snapshotFingerprint,
+	withSessionSummary,
 	studentAccessCodeHint,
 	type Clock,
 	type EdayaContextPort,
@@ -520,7 +521,7 @@ export class EdayaSparkApp {
 		const stored = await this.ports.plans.get(query, planningDate);
 		const promptVersion = this.ports.focus.promptVersion();
 		const samePrompt = promptVersion === "" || stored?.promptVersion === promptVersion;
-		if (stored?.planVersion === PRACTICE_PLAN_VERSION && samePrompt) return stored;
+		if (stored?.planVersion === PRACTICE_PLAN_VERSION && samePrompt) return withSessionSummary(stored);
 		const plan = await this.ports.focus.plan({
 			snapshot,
 			now,

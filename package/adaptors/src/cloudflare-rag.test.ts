@@ -201,8 +201,9 @@ describe("practice focus selection", () => {
 			["homework", 80, "upcoming_work"],
 		]);
 		expect(plan.tracks[0]?.focus?.proposals).toHaveLength(2);
-		expect(plan.summary).toContain("Fin de journée : 2 h");
-		expect(plan.summary).toContain("Devoir Fractions");
+		expect(plan.summary).toBe(
+			"La révision du jour reprend la leçon de fractions en mathématiques. Le devoir intitulé devoir Fractions est aussi à préparer pour le 8 octobre.",
+		);
 	});
 
 	test("cloudflare plan reads the session range from its input", async () => {
@@ -480,7 +481,9 @@ describe("practice focus selection", () => {
 		});
 		const plan = await focus.plan({ snapshot: mondaySnapshot(), now: monday });
 		expect(plan.totalMinutes).toBe(115);
-		expect(plan.summary).toContain("1 h 55");
+		expect(plan.summary).toContain("fractions en mathématiques");
+		expect(plan.summary).toContain("devoir Fractions");
+		expect(plan.summary).not.toContain("«");
 	});
 
 	test("cloudflare plan rejects a total outside the requested range", async () => {

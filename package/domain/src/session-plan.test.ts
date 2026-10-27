@@ -6,18 +6,19 @@ import {
 	plannedQuestionCount,
 	questionCountForMinutes,
 	questionTargetForMinutes,
+	withSessionSummary,
 } from "./session-plan.ts";
 import { NOTHING_TO_PRACTICE_MESSAGE } from "./types.ts";
 import type { CurriculumLesson, LearnerAcademicSnapshot, UpcomingAssessment } from "./types.ts";
 
-function lesson(title: string): CurriculumLesson {
+function lesson(title: string, subject = "MATH"): CurriculumLesson {
 	return {
 		id: "l-frac",
 		packVersion: "pack",
 		country: "CI",
 		cycle: "college",
 		grade: "6e",
-		subject: "MATH",
+		subject,
 		competence: { id: "c1", title: "Calculs" },
 		theme: { id: "t1", title: "Nombres" },
 		title,
@@ -134,7 +135,7 @@ describe("exerciseProposalInstruction", () => {
 });
 
 describe("composeSessionPlan", () => {
-	test("names both series from minutes it is given and keeps the day at 2 h", () => {
+	test("names the lesson and the homework without the durations", () => {
 		const plan = composeSessionPlan({
 			snapshot: snapshot(),
 			revision: { ...revision, minutes: 40 },
@@ -146,10 +147,11 @@ describe("composeSessionPlan", () => {
 			},
 		});
 		expect(plan.totalMinutes).toBe(120);
-		expect(plan.summary).toContain("Fin de journée : 2 h.");
-		expect(plan.summary).toContain("40 min pour préparer « Fractions »");
-		expect(plan.summary).toContain("1 h 20");
-		expect(plan.summary).toContain("devoir");
+		const due = homework("2026-10-08");
+		const title = due.title.charAt(0).toLocaleLowerCase("fr") + due.title.slice(1);
+		expect(plan.summary).toBe(
+			`La révision du jour reprend la leçon de fractions en mathématiques. Le devoir intitulé ${title} est aussi à préparer pour le 8 octobre.`,
+		);
 		expect(plan.tracks.map((track) => track.minutes)).toEqual([40, 80]);
 		expect(plan.tracks[0]?.focus?.intent).toBe("prepare_next_day");
 		expect(plan.tracks[1]?.focus?.intent).toBe("upcoming_work");
@@ -161,9 +163,57 @@ describe("composeSessionPlan", () => {
 			revision: { ...revision, minutes: 120 },
 			homework: null,
 		});
-		expect(plan.summary).toContain("aujourd'hui");
-		expect(plan.summary).toContain("Fractions");
+		expect(plan.summary).toBe("La révision du jour reprend la leçon de fractions en mathématiques.");
 		expect(plan.tracks[1]).toMatchObject({ kind: "homework", available: false, minutes: 0 });
+	});
+
+	test("names each lesson of the day and keeps the duration off the sentence", () => {
+		const revisions = [
+			{ ...revision, lesson: lesson("Compréhension orale", "Anglais"), minutes: 30 },
+			{ ...revision, lesson: lesson("Les solides", "Physique-Chimie"), minutes: 25 },
+			{ ...revision, lesson: lesson("La cellule", "SVT"), minutes: 25 },
+			{ ...revision, lesson: lesson("Fractions", "Mathématiques"), minutes: 30 },
+		];
+		const plan = composeSessionPlan({
+			snapshot: snapshot(),
+			revision: revisions[0] ?? null,
+			revisions,
+			homework: null,
+		});
+		expect(plan.totalMinutes).toBe(110);
+		expect(plan.summary).toBe(
+			"La révision du jour reprend la leçon de compréhension orale en anglais, des solides en physique-chimie, de la cellule en SVT et de fractions en mathématiques.",
+		);
+	});
+
+	test("names the homework alone when no lesson is planned today", () => {
+		const due = homework("2026-10-08");
+		const plan = composeSessionPlan({
+			snapshot: snapshot(),
+			revision: null,
+			homework: {
+				focus: { ...revision.focus, intent: "upcoming_work" },
+				lesson: fractions,
+				assessment: due,
+				minutes: 40,
+			},
+		});
+		const title = due.title.charAt(0).toLocaleLowerCase("fr") + due.title.slice(1);
+		expect(plan.summary).toBe(
+			`Aucun cours n'est prévu aujourd'hui. Le devoir intitulé ${title} est à préparer pour le 8 octobre.`,
+		);
+	});
+
+	test("rewrites a stored budget sentence from the lessons on the plan", () => {
+		const plan = composeSessionPlan({
+			snapshot: snapshot(),
+			revision: { ...revision, minutes: 120 },
+			homework: null,
+		});
+		const stored = { ...plan, summary: "Fin de journée : 2 h. Les 2 h préparent Mathématiques." };
+		expect(withSessionSummary(stored).summary).toBe(
+			"La révision du jour reprend la leçon de fractions en mathématiques.",
+		);
 	});
 
 	test("states the empty timetable in one sentence", () => {

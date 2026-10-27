@@ -211,8 +211,10 @@ describe("EdayaSparkApp", () => {
 		expect(home.focusIntent).toBe("prepare_next_day");
 		expect(home.lessonTitle).toBe(FIXTURE_LEA_READING);
 		expect(home.session.totalMinutes).toBe(120);
-		expect(home.session.summary).toContain("Fin de journée : 2 h");
+		expect(home.session.summary.toLocaleLowerCase("fr")).toContain(FIXTURE_LEA_READING.toLocaleLowerCase("fr"));
 		expect(home.session.summary).toContain("devoir");
+		expect(home.session.summary).not.toContain("«");
+		expect(home.session.summary).not.toContain("Fin de journée");
 		expect(home.session.tracks.find((track) => track.kind === "revision")).toMatchObject({
 			minutes: 80,
 			available: true,

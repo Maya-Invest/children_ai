@@ -92,6 +92,7 @@ export {
 	plannedQuestionCount,
 	questionCountForMinutes,
 	questionTargetForMinutes,
+	withSessionSummary,
 } from "./session-plan.ts";
 export {
 	distinctMcqChoices,
