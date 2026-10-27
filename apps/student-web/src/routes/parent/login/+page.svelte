@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { authClient, type AuthPayload } from '$lib/auth/client';
 	import { clearDemoFamily } from '$lib/session';
+	import TermsAcceptance from '$lib/TermsAcceptance.svelte';
 
 	let { data }: { data: { otpFlag: boolean } } = $props();
 
@@ -12,6 +13,7 @@
 	let error = $state('');
 	let pending = $state(false);
 	let revealedOtp = $state('');
+	let acceptedTerms = $state(false);
 
 	function challengeFrom(payload: AuthPayload | null): string {
 		return payload && 'challenge' in payload && payload.challenge ? payload.challenge : '';
@@ -20,6 +22,10 @@
 	async function submit(event: SubmitEvent) {
 		event.preventDefault();
 		error = '';
+		if (step === 'email' && !acceptedTerms) {
+			error = 'Accepte les conditions d’utilisation pour continuer.';
+			return;
+		}
 		pending = true;
 		try {
 			if (step === 'email') {
@@ -115,6 +121,7 @@
 						required
 					/>
 				</label>
+				<TermsAcceptance bind:accepted={acceptedTerms} />
 			{:else}
 				<label class="block">
 					<span class="text-sm font-bold text-ink/80">{step === 'totp' ? 'Code authenticator' : 'Code'}</span>
@@ -149,7 +156,7 @@
 			{/if}
 			<button
 				class="w-full rounded-full bg-forest px-6 py-3 text-lg font-extrabold text-white disabled:opacity-60"
-				disabled={pending}
+				disabled={pending || (step === 'email' && !acceptedTerms)}
 				type="submit"
 			>
 				{pending ? 'Vérification…' : step === 'email' ? 'Recevoir un code' : 'Se connecter'}

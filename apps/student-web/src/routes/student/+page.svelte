@@ -2,15 +2,21 @@
 	import { goto } from '$app/navigation';
 	import { signInStudent } from '$lib/api';
 	import { isDemoExplore, setToken } from '$lib/session';
+	import TermsAcceptance from '$lib/TermsAcceptance.svelte';
 
 	let code = $state('');
 	let error = $state('');
 	let pending = $state(false);
+	let acceptedTerms = $state(false);
 	let demo = $derived(isDemoExplore());
 
 	async function submit(event: SubmitEvent) {
 		event.preventDefault();
 		error = '';
+		if (!acceptedTerms) {
+			error = 'Accepte les conditions d’utilisation pour continuer.';
+			return;
+		}
 		pending = true;
 		try {
 			const result = await signInStudent(code);
@@ -44,12 +50,13 @@
 					autocomplete="off"
 				/>
 			</label>
+			<TermsAcceptance bind:accepted={acceptedTerms} />
 			{#if error}
 				<p class="text-sm font-bold text-clay">{error}</p>
 			{/if}
 			<button
 				class="w-full rounded-full bg-clay px-6 py-3 text-lg font-extrabold text-white shadow-card disabled:opacity-60"
-				disabled={pending}
+				disabled={pending || !acceptedTerms}
 				type="submit"
 			>
 				{pending ? 'Entrée…' : 'Entrer'}
