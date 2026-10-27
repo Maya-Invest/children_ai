@@ -33,7 +33,15 @@
 				"PALIER": "staging",
 				"EDAYA_API_ORIGIN": "https://staging.api.edayaplus.com",
 				"EDAYA_DEMO_SCHOOL_ID": "sch-edaya-ci-cocody",
-				"EDAYA_DEMO_ACADEMIC_YEAR_ID": "2025-ci"
+				"EDAYA_DEMO_ACADEMIC_YEAR_ID": "2025-ci",
+				"CLOUDFLARE_ACCOUNT_ID": "5b5a136162b330bf9faa9be04ae4b8e9",
+				"CLOUDFLARE_BYOK_ALIAS": "byok",
+				"CLOUDFLARE_RAG_INSTANCE": "edaya_spark_rag",
+				"CLOUDFLARE_RAG_NAMESPACE": "default",
+				"EDAYA_CONTEXT": "fixture",
+				"FOCUS": "cloudflare",
+				"GENERATOR": "rag",
+				"PRACTICE_WEEKDAY": "mercredi"
 			},
 			"routes": [
 				{
@@ -44,7 +52,7 @@
 			"hyperdrive": [
 				{
 					"binding": "HYPERDRIVE",
-					"id": "1c3e87f5def146edb2a269bd4ed273fc"
+					"id": "bfd08378b53b4350995bdd78aa575572"
 				}
 			]
 		},
@@ -61,6 +69,8 @@
 					"id": "5d12e9b962c34fa4a303c663a7b640b5"
 				}
 			]
-		}
+		},
+		
 	}
 }
+
