@@ -1,9 +1,12 @@
 export {
 	isEphemeralDatabase,
+	isHyperdriveConnectionString,
 	isPgliteDatabase,
+	postgresPoolConfig,
 	resolvePersistedPgliteDataDir,
 	resolvePgliteDataDir,
 	resolveSparkDatabaseTarget,
+	type PostgresPoolConfig,
 	type SparkDatabaseTarget,
 } from "./database-url.ts";
 export { getMigrationsFolder, runMigrations } from "./migrate.ts";
