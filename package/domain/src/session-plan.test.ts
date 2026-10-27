@@ -168,14 +168,16 @@ describe("composeSessionPlan", () => {
 	});
 
 	test("names each lesson of the day and keeps the duration off the sentence", () => {
+		const revisions = [
+			{ ...revision, lesson: lesson("Compréhension orale", "Anglais"), minutes: 30 },
+			{ ...revision, lesson: lesson("Les solides", "Physique-Chimie"), minutes: 25 },
+			{ ...revision, lesson: lesson("La cellule", "SVT"), minutes: 25 },
+			{ ...revision, lesson: lesson("Fractions", "Mathématiques"), minutes: 30 },
+		];
 		const plan = composeSessionPlan({
 			snapshot: snapshot(),
-			revisions: [
-				{ ...revision, lesson: lesson("Compréhension orale", "Anglais"), minutes: 30 },
-				{ ...revision, lesson: lesson("Les solides", "Physique-Chimie"), minutes: 25 },
-				{ ...revision, lesson: lesson("La cellule", "SVT"), minutes: 25 },
-				{ ...revision, lesson: lesson("Fractions", "Mathématiques"), minutes: 30 },
-			],
+			revision: revisions[0] ?? null,
+			revisions,
 			homework: null,
 		});
 		expect(plan.totalMinutes).toBe(110);
