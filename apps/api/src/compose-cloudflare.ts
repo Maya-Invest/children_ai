@@ -65,6 +65,7 @@ export type WorkerRuntime = {
 	palier: Palier;
 	schoolId: string;
 	contextMode: "fixture" | "http";
+	close(): Promise<void>;
 };
 
 const repoRoot = import.meta.dir ? join(import.meta.dir, "../../..") : undefined;
@@ -172,5 +173,6 @@ export async function createCloudflareRuntime(
 		palier,
 		schoolId: demo.schoolId,
 		contextMode: demo.contextMode,
+		close: () => persistence.close(),
 	};
 }
