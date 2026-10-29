@@ -408,6 +408,20 @@ function uniqueOrigins(origins: string[]): string[] {
 	return [...new Set(origins.map((item) => item.trim()).filter(Boolean))];
 }
 
+export function corsPreflight(request: Request, corsOrigins: string[] = []): Response {
+	const origin = request.headers.get("Origin");
+	const allowed = uniqueOrigins([...DEFAULT_CORS, ...corsOrigins]);
+	const headers = new Headers();
+	if (origin && allowed.includes(origin)) {
+		headers.set("Access-Control-Allow-Origin", origin);
+		headers.set("Vary", "Origin");
+		headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+		headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+		headers.set("Access-Control-Max-Age", "86400");
+	}
+	return new Response(null, { status: 204, headers });
+}
+
 function parseAnswers(body: unknown): Array<{ questionId: string; value: string }> {
 	if (!body || typeof body !== "object" || !("answers" in body)) return [];
 	const answers = (body as { answers: unknown }).answers;
