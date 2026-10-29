@@ -33,7 +33,7 @@ export async function openSparkDatabase(
 	// A cached pg.Pool survives across Worker requests. The isolate freezes, the socket dies,
 	// and the next query never settles. Hyperdrive already pools, so each request opens its own.
 	if (target.kind === "ephemeral" || target.kind === "postgres") return openTarget(target);
-	const key = target.kind === "pglite" ? `pglite:${target.dataDir}` : `pg:${target.url}`;
+	const key = `pglite:${target.dataDir}`;
 	const existing = cache.get(key);
 	if (existing) return existing;
 	const opening = openTarget(target);
