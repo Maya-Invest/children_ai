@@ -19,7 +19,8 @@ import {
  * Local palier only accepts http://127.0.0.1:9999 and http://localhost:9999.
  * A random port would be rejected as PALIER_ORIGIN_MISMATCH before any call.
  */
-export const EDAYA_STAND_IN_ORIGIN = "http://127.0.0.1:9999";
+const ipv6Fixture = process.env.SPARK_TEST_IPV6_LOOPBACK === "true";
+export const EDAYA_STAND_IN_ORIGIN = ipv6Fixture ? "http://localhost:9999" : "http://127.0.0.1:9999";
 const STAND_IN_PORT = 9999;
 
 export type EdayaDouble = {
@@ -37,7 +38,7 @@ export async function startEdayaDouble(): Promise<EdayaDouble> {
 	let server: ReturnType<typeof Bun.serve>;
 	try {
 		server = Bun.serve({
-			hostname: "127.0.0.1",
+			hostname: ipv6Fixture ? "::1" : "127.0.0.1",
 			port: STAND_IN_PORT,
 			idleTimeout: 0,
 			async fetch(request) {
@@ -89,6 +90,13 @@ export async function startEdayaDouble(): Promise<EdayaDouble> {
 			`Edaya stand-in could not listen on ${origin}. Stop anything already bound to port ${STAND_IN_PORT}. ${message}`,
 		);
 	}
+
+  // Confirm this process owns the selected endpoint before issuing fixture requests.
+  const published = await fetch(origin + "/.well-known/jwks.json").then(response => response.json());
+  if (JSON.stringify(published) !== JSON.stringify(keys.jwks)) {
+    await server.stop(true);
+    throw new Error("Localhost did not resolve to this test fixture");
+  }
 
 	return {
 		origin,

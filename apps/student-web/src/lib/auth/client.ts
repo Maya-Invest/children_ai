@@ -1,7 +1,7 @@
 import { accessTokens } from './bearer-fetch';
 import { identityAuthOrigin } from './identity-origin';
 
-type AuthFailure = { code?: string; message: string };
+type AuthFailure = { code?: string; message: string; nextResendAt?: number; serverNow?: number; status?: number };
 
 export type AuthChallenge = {
 	state: 'primary_required' | 'totp_required' | 'enrollment_required';
@@ -13,7 +13,8 @@ export type AuthComplete = {
 	user?: { id: string; email?: string | null };
 };
 
-export type AuthPayload = AuthChallenge | AuthComplete | { state: string; challenge?: string };
+export type Registration = { state: 'registration_required'; challenge: string; proof: string; eligible: boolean; expiresAt: number };
+export type AuthPayload = AuthChallenge | AuthComplete | Registration;
 
 async function post<T>(path: string, body: object): Promise<{ data: T | null; error: AuthFailure | null }> {
 	let response: Response;
@@ -27,12 +28,12 @@ async function post<T>(path: string, body: object): Promise<{ data: T | null; er
 	} catch {
 		return { data: null, error: { code: 'network_error', message: 'Impossible de joindre l’authentification Edaya.' } };
 	}
-	const payload = (await response.json().catch(() => ({}))) as { code?: string; message?: string; state?: string };
+	const payload = (await response.json().catch(() => ({}))) as { code?: string; message?: string; state?: string; nextResendAt?: number; serverNow?: number };
 	if (!response.ok) {
 		return {
 			data: null,
 			error: {
-				code: payload.code,
+				code: payload.code, status: response.status, nextResendAt: payload.nextResendAt, serverNow: payload.serverNow,
 				message: payload.message ?? payload.code ?? 'Connexion impossible',
 			},
 		};
@@ -70,7 +71,9 @@ export const authClient = {
 		post<AuthPayload>('/auth/edaya/otp/verify', { challenge, code }),
 	verifyTotp: (challenge: string, code: string) =>
 		post<AuthPayload>('/auth/edaya/totp/verify', { challenge, code }),
-	getSession: () => post<{ user?: { id: string } }>('/auth/edaya/session', {}),
+	completeRegistration: (offer: Registration, termsAcceptance?: { version: string; locale: 'fr'; accepted: true }) =>
+		post<AuthPayload>('/auth/edaya/registration/complete', { challenge: offer.challenge, proof: offer.proof, termsAcceptance }),
+	getSession: () => post<{ user?: { id: string; email?: string } }>('/auth/edaya/session', {}),
 	signOut: () => {
 		accessTokens.clear();
 		return post<{ success: boolean }>('/auth/edaya/sign-out', {});
