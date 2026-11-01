@@ -19,3 +19,5 @@ PUBLIC_AUTH_URL=http://localhost:9999
 Port 5175 is reserved for Edaya Spark student-web (`edaya_web` webadmin uses 5174).
 
 Full click-through: [../../README.md](../../README.md).
+
+Parent sign-in reads the French terms from the unified identity API before enabling acceptance. The reader shows the backend-provided published snapshot, and OTP start sends its version only after the parent checks the box. If that version changes, the parent must accept the refreshed document. With backend enforcement off, Spark retains its existing checkbox and public terms reader.

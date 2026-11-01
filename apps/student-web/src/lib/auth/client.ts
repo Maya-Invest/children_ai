@@ -41,9 +41,29 @@ async function post<T>(path: string, body: object): Promise<{ data: T | null; er
 	return { data: payload as T, error: null };
 }
 
+export type ParentTerms = { enforced: false } | { enforced: true; version: string; html: string };
+
+async function getParentTerms(): Promise<ParentTerms> {
+	const url = new URL('/auth/edaya/terms?locale=fr', identityAuthOrigin());
+	const response = await fetch(url, { cache: 'no-store' });
+	if (!response.ok) throw new Error('Conditions indisponibles');
+	const policy = await response.json();
+	if (policy?.enforced === false && policy.document === null) return { enforced: false };
+	const doc = policy?.document;
+	if (policy?.enforced !== true || doc?.status !== 'published' || doc.locale !== 'fr' ||
+		typeof doc.version !== 'string' || !doc.version || typeof doc.html !== 'string' || !doc.html.trim()) {
+		throw new Error('Conditions indisponibles');
+	}
+	return { enforced: true, version: doc.version, html: doc.html };
+}
+
 export const authClient = {
-	startOtp: (email: string) =>
-		post<AuthChallenge>('/auth/edaya/otp/start', { kind: 'email', value: email, channel: 'email' }),
+	getParentTerms,
+	startOtp: (email: string, termsAcceptance?: { version: string; locale: 'fr'; accepted: true }) =>
+		post<AuthChallenge>('/auth/edaya/otp/start', {
+			kind: 'email', value: email, channel: 'email',
+			...(termsAcceptance ? { termsAcceptance } : {}),
+		}),
 	revealOtp: (challenge: string) =>
 		post<{ otp: string }>('/auth/edaya/testing/otp', { challenge }),
 	verifyOtp: (challenge: string, code: string) =>

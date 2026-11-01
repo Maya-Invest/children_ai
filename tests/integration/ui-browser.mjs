@@ -23,10 +23,24 @@ page.on("response", (response) => {
 try {
 	console.log("1. Open the landing page");
 	await page.goto(webOrigin);
-	await page.getByRole("link", { name: "Me connecter" }).click();
+	// Start with an older published version; the shared identity service requires a fresh checkbox on conflict.
+	await page.route('**/auth/edaya/terms?locale=fr', route => route.fulfill({ json: { enforced: true, document: { version: 'older', locale: 'fr', status: 'published', html: '<p>Version précédente</p>' } } }), { times: 1 });
+	await page.getByRole("link", { name: /Me connecter/ }).click();
 
 	console.log("2. Parent signs in with the Edaya one-time code");
-	await page.getByRole("button", { name: "Recevoir un code" }).click();
+	const send = page.getByRole("button", { name: "Recevoir un code" });
+	const consent = page.getByRole('checkbox');
+	await consent.waitFor();
+	if (!await send.isDisabled()) throw new Error('OTP must wait for explicit acceptance');
+	await page.getByRole('link', { name: 'conditions d’utilisation' }).click();
+	await page.frameLocator('dialog iframe').getByText('Version précédente').waitFor();
+	await page.getByRole('button', { name: 'Fermer' }).click();
+	await consent.check();
+	await send.click();
+	await page.getByText('Les conditions ont changé.', { exact: false }).waitFor();
+	if (await consent.isChecked() || !await send.isDisabled()) throw new Error('Stale consent must be cleared');
+	await consent.check();
+	await send.click();
 	await page.getByRole("button", { name: "Afficher le code" }).click();
 	await page.getByRole("button", { name: "Se connecter" }).click();
 	await page.getByRole("heading", { name: "Bonjour Mariam Koné" }).waitFor();
@@ -34,6 +48,7 @@ try {
 	await page.getByText("Yao Koffi").waitFor();
 
 	console.log("3. Parent issues Aminata's access code");
+	await page.getByRole("checkbox").check();
 	await page.getByRole("button", { name: "Générer un code" }).first().click();
 	const revealed = await page.getByText(/Code \(une seule fois\)/).textContent();
 	const code = revealed?.match(/[A-Z0-9]{4}(?:-[A-Z0-9]{4}){3}/)?.[0];
@@ -42,6 +57,7 @@ try {
 	console.log("4. Student enters the code");
 	await page.goto(`${webOrigin}/student`);
 	await page.getByLabel("Code élève").fill(code);
+	await page.getByRole("checkbox").check();
 	await page.getByRole("button", { name: "Entrer" }).click();
 	await page.waitForURL("**/app**");
 

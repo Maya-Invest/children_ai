@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { authClient, type AuthPayload } from '$lib/auth/client';
+	import { onMount } from 'svelte';
+	import { authClient, type AuthPayload, type ParentTerms } from '$lib/auth/client';
 	import { clearDemoFamily } from '$lib/session';
 	import TermsAcceptance from '$lib/TermsAcceptance.svelte';
 
@@ -14,6 +15,20 @@
 	let pending = $state(false);
 	let revealedOtp = $state('');
 	let acceptedTerms = $state(false);
+	let terms = $state<ParentTerms | null>(null);
+	let termsFailed = $state(false);
+
+	async function loadTerms() {
+		acceptedTerms = false;
+		terms = null;
+		termsFailed = false;
+		try {
+			terms = await authClient.getParentTerms();
+		} catch {
+			termsFailed = true;
+		}
+	}
+	onMount(() => { void loadTerms(); });
 
 	function challengeFrom(payload: AuthPayload | null): string {
 		return payload && 'challenge' in payload && payload.challenge ? payload.challenge : '';
@@ -22,17 +37,25 @@
 	async function submit(event: SubmitEvent) {
 		event.preventDefault();
 		error = '';
-		if (step === 'email' && !acceptedTerms) {
-			error = 'Accepte les conditions d’utilisation pour continuer.';
-			return;
-		}
+		if (pending) return;
 		pending = true;
 		try {
 			if (step === 'email') {
-				const { data, error: startError } = await authClient.startOtp(email.trim());
+				if (!terms || !acceptedTerms) {
+					error = 'Accepte les conditions d’utilisation pour continuer.';
+					return;
+				}
+				const { data, error: startError } = await authClient.startOtp(email.trim(), terms.enforced
+					? { version: terms.version, locale: 'fr', accepted: true }
+					: undefined);
 				const nextChallenge = challengeFrom(data);
 				if (startError || !nextChallenge) {
-					error = startError?.message ?? 'Envoi du code impossible';
+					if (startError?.code === 'terms_version_changed' || startError?.code === 'terms_acceptance_required') {
+						await loadTerms();
+						error = 'Les conditions ont changé. Lis et accepte leur nouvelle version pour continuer.';
+					} else {
+						error = startError?.message ?? 'Envoi du code impossible';
+					}
 					return;
 				}
 				challenge = nextChallenge;
@@ -116,12 +139,21 @@
 					<input
 						class="mt-2 w-full rounded-2xl border border-ink/10 bg-cream px-4 py-3 outline-none ring-forest focus:ring-2"
 						bind:value={email}
+						oninput={() => { acceptedTerms = false; }}
+						disabled={pending}
 						type="email"
 						autocomplete="username"
 						required
 					/>
 				</label>
-				<TermsAcceptance bind:accepted={acceptedTerms} />
+				{#if terms}
+					<TermsAcceptance bind:accepted={acceptedTerms} html={terms.enforced ? terms.html : undefined} disabled={pending} />
+				{:else if termsFailed}
+					<p role="alert" class="text-sm font-bold text-clay">Impossible de charger les conditions d’utilisation.</p>
+					<button class="underline" type="button" onclick={loadTerms}>Réessayer</button>
+				{:else}
+					<p role="status">Chargement des conditions d’utilisation…</p>
+				{/if}
 			{:else}
 				<label class="block">
 					<span class="text-sm font-bold text-ink/80">{step === 'totp' ? 'Code authenticator' : 'Code'}</span>
@@ -156,7 +188,7 @@
 			{/if}
 			<button
 				class="w-full rounded-full bg-forest px-6 py-3 text-lg font-extrabold text-white disabled:opacity-60"
-				disabled={pending || (step === 'email' && !acceptedTerms)}
+				disabled={pending || (step === 'email' && (!terms || !acceptedTerms))}
 				type="submit"
 			>
 				{pending ? 'Vérification…' : step === 'email' ? 'Recevoir un code' : 'Se connecter'}

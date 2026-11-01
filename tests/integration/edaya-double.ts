@@ -45,6 +45,10 @@ export async function startEdayaDouble(): Promise<EdayaDouble> {
 				if (request.method === "GET" && url.pathname === "/.well-known/jwks.json") {
 					return json(keys.jwks);
 				}
+				if (url.pathname === "/auth/edaya/terms" && request.method === "GET") {
+					if (url.searchParams.get("locale") !== "fr") return json({ code: "invalid_request" }, 400);
+					return json({ enforced: true, document: { version: "spark-terms-v1", locale: "fr", status: "published", title: "Conditions d’utilisation", documentHash: "fixture-fr", html: "<h1>Conditions d’utilisation</h1><p>Conditions de test.</p>", sections: [{ heading: "Conditions d’utilisation", paragraphs: ["Conditions de test."] }] } });
+				}
 				if (url.pathname.startsWith("/auth/edaya/")) {
 					if (request.method !== "POST") return methodNotAllowed();
 					return handleAuth(url.pathname, request, {
@@ -124,6 +128,9 @@ async function handleAuth(
 ): Promise<Response> {
 	const body = await readJson(request);
 	if (pathname === "/auth/edaya/otp/start") {
+		const acceptance = body.termsAcceptance as { version?: string; locale?: string; accepted?: boolean } | undefined;
+		if (acceptance?.accepted !== true || acceptance.locale !== 'fr') return json({ code: 'terms_acceptance_required' }, 400);
+		if (acceptance.version !== 'spark-terms-v1') return json({ code: 'terms_version_changed' }, 409);
 		const email = typeof body.value === "string" ? body.value.trim().toLowerCase() : "";
 		const subjectId = subjectForEmail(email);
 		if (!subjectId) return json({ message: "Compte introuvable" }, 404);
