@@ -9,7 +9,7 @@
 	},
 	"env": {
 		"staging": {
-			"name": "edaya-spark-student-web-staging",
+			"name": "edaya-spark-app-staging",
 			"vars": {
 				"PUBLIC_API_URL": "https://staging.api.spark.edayaplus.com",
 				"PUBLIC_AUTH_URL": "https://staging.api.edayaplus.com"

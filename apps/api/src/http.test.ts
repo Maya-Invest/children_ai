@@ -117,6 +117,38 @@ describe("Hono API", () => {
 		expect(listing.children.some((child) => child.studentId === "ci-s1")).toBe(false);
 	});
 
+	test("revoke clears the active code and tells the browser not to cache the list", async () => {
+		const { http, keys } = await createRuntime(new FixtureGuardianChildrenPort());
+		const headers = await parentHeaders(keys);
+		const issued = await http.request("http://localhost/parent/children/ci-s1/access-codes", {
+			method: "POST",
+			headers,
+		});
+		expect(issued.status).toBe(201);
+		const body = (await issued.json()) as { code: string };
+
+		const revoke = await http.request("http://localhost/parent/children/ci-s1/access-codes/revoke", {
+			method: "POST",
+			headers,
+		});
+		expect(revoke.status).toBe(200);
+		expect(revoke.headers.get("cache-control")).toContain("no-store");
+
+		const children = await http.request("http://localhost/parent/children", { headers });
+		expect(children.headers.get("cache-control")).toContain("no-store");
+		const listing = (await children.json()) as {
+			children: Array<{ accessCode: { hint: string } | null }>;
+		};
+		expect(listing.children[0]?.accessCode).toBeNull();
+
+		const studentAuth = await http.request("http://localhost/auth/student-code", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({ code: body.code }),
+		});
+		expect(studentAuth.status).toBe(401);
+	});
+
 	test("parent JWT with a fixture children port can still issue a student code", async () => {
 		const { http, keys } = await createRuntime(new FixtureGuardianChildrenPort());
 		const headers = await parentHeaders(keys);

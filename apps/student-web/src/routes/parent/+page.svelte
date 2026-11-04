@@ -9,6 +9,7 @@
 	let listing = $derived(data.listing);
 	let demo = $derived(isDemoExplore());
 	let revealed = $state<Record<string, string>>({});
+	let revokedIds = $state<string[]>([]);
 	let error = $state('');
 	let pendingId = $state('');
 	let acceptedTerms = $state(false);
@@ -29,6 +30,7 @@
 		try {
 			const issued = await issueChildAccessCode(studentId);
 			revealed = { ...revealed, [studentId]: issued.code };
+			revokedIds = revokedIds.filter((id) => id !== studentId);
 			await invalidateAll();
 		} catch (caught) {
 			error = caught instanceof Error ? caught.message : 'Impossible de générer le code';
@@ -46,12 +48,18 @@
 			const next = { ...revealed };
 			delete next[studentId];
 			revealed = next;
+			revokedIds = [...revokedIds, studentId];
 			await invalidateAll();
 		} catch (caught) {
 			error = caught instanceof Error ? caught.message : 'Impossible de révoquer le code';
 		} finally {
 			pendingId = '';
 		}
+	}
+
+	function activeCode(child: ParentChildrenPayload['children'][number]) {
+		if (revokedIds.includes(child.studentId)) return null;
+		return child.accessCode;
 	}
 
 	async function copyCode(studentId: string, code: string) {
@@ -100,6 +108,7 @@
 	{:else}
 		<ul class="mt-8 space-y-4">
 			{#each listing.children as child (child.studentId)}
+				{@const active = activeCode(child)}
 				<li class="rounded-2xl bg-cream p-5">
 					<div class="flex flex-wrap items-start justify-between gap-3">
 						<div>
@@ -133,9 +142,9 @@
 										Se connecter comme élève
 									</a>
 								{/if}
-							{:else if child.accessCode}
+							{:else if active}
 								<p class="mt-2 text-sm text-ink/70">
-									Code actif · se termine par {child.accessCode.hint}
+									Code actif · se termine par {active.hint}
 								</p>
 							{:else}
 								<p class="mt-2 text-sm text-ink/70">Aucun code actif</p>
@@ -148,9 +157,9 @@
 								disabled={pendingId === child.studentId || !acceptedTerms}
 								onclick={() => generate(child.studentId)}
 							>
-								{child.accessCode ? 'Régénérer' : 'Générer un code'}
+								{active ? 'Régénérer' : 'Générer un code'}
 							</button>
-							{#if child.accessCode}
+							{#if active}
 								<button
 									class="rounded-full bg-white px-4 py-2 text-sm font-extrabold text-ink disabled:opacity-60"
 									type="button"

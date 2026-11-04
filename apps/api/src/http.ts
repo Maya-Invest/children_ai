@@ -115,6 +115,11 @@ export function createHttpApp(app: EdayaSparkApp, options: HttpOptions) {
 		await next();
 	});
 
+	http.use("/parent/*", async (c, next) => {
+		await next();
+		c.header("Cache-Control", "private, no-store");
+	});
+
 	http.get("/health", (c) => {
 		const palier = options.palier ?? "local";
 		return c.json({

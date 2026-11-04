@@ -14,13 +14,14 @@ const base = env.PUBLIC_API_URL ?? 'http://localhost:8787';
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 	const headers = new Headers(init.headers);
 	headers.set('Content-Type', 'application/json');
+	const next: RequestInit = { ...init, headers, cache: 'no-store' };
 	let response: Response;
 	if (isDemoExplore()) {
 		const token = getGuardianToken();
 		if (token) headers.set('Authorization', `Bearer ${token}`);
-		response = await fetch(`${base}${path}`, { ...init, headers });
+		response = await fetch(`${base}${path}`, next);
 	} else {
-		response = await parentApiFetch(path, { ...init, headers });
+		response = await parentApiFetch(path, next);
 	}
 	const body = await response.json().catch(() => ({}));
 	if (!response.ok) {
