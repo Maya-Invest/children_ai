@@ -98,7 +98,7 @@ export function createCloudflareRagClient(config: CloudflareRagConfig): RagClien
 		namespace,
 		instance,
 		byokAlias: config.byokAlias?.trim() ?? "",
-		fetchImpl: config.fetchImpl ?? fetch,
+		fetchImpl: config.fetchImpl ?? ((input, init) => fetch(input, init)),
 	});
 }
 
