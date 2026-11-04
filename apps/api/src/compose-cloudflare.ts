@@ -38,6 +38,8 @@ export type CloudflareAdaptorEnv = {
 	CLOUDFLARE_BYOK_ALIAS?: string;
 	FOCUS_MODEL?: string;
 	RAG_GENERATOR_MODEL?: string;
+	RAG_ENABLED?: string;
+	DEMO_ENABLED?: string;
 	RAG_PACK_VERSION?: string;
 	GEMINI_API_KEY?: string;
 	GEMINI_MODEL?: string;
@@ -65,6 +67,7 @@ export type WorkerRuntime = {
 	palier: Palier;
 	schoolId: string;
 	contextMode: "fixture" | "http";
+	demoEnabled: boolean;
 	close(): Promise<void>;
 };
 
@@ -98,6 +101,7 @@ export async function createCloudflareRuntime(
 			namespace: env.CLOUDFLARE_RAG_NAMESPACE,
 			instance: env.CLOUDFLARE_RAG_INSTANCE,
 			byokAlias: env.CLOUDFLARE_BYOK_ALIAS,
+			ragEnabled: env.RAG_ENABLED?.trim().toLowerCase() === "true",
 		})
 		: undefined;
 	const edayaApiBaseUrl = resolvePalierEdayaOrigin(palier, env.EDAYA_API_ORIGIN);
@@ -173,6 +177,7 @@ export async function createCloudflareRuntime(
 		palier,
 		schoolId: demo.schoolId,
 		contextMode: demo.contextMode,
+		demoEnabled: env.DEMO_ENABLED?.trim().toLowerCase() === "true",
 		close: () => persistence.close(),
 	};
 }

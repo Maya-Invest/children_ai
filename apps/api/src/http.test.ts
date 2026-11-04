@@ -19,7 +19,7 @@ import {
 } from "@edaya-spark/adaptors";
 import { verifyIdentityToken } from "./identity.ts";
 import { createTestIdentityKeys, signTestIdentityToken } from "./identity-testing.ts";
-import type { GuardianChildrenPort } from "@edaya-spark/domain";
+import { demoGuardianActor, type GuardianChildrenPort } from "@edaya-spark/domain";
 import { createHttpApp, type HttpOptions } from "./http.ts";
 
 const issuer = "http://localhost:9999";
@@ -57,8 +57,9 @@ async function createRuntime(
 		generatorName: "stub",
 		palier: httpOptions.palier ?? demo.palier,
 		contextMode: httpOptions.contextMode ?? "http",
+		demoEnabled: httpOptions.demoEnabled,
 	});
-	return { http, keys };
+	return { http, keys, sessions };
 }
 
 async function parentHeaders(
@@ -255,7 +256,7 @@ describe("Hono API", () => {
 	});
 
 	test("demo parent lists Léa then student enters only with a generated code", async () => {
-		const { http, keys } = await createRuntime();
+		const { http, keys } = await createRuntime(new EmptyGuardianChildrenPort(), { demoEnabled: true });
 		const demo = await http.request("http://localhost/auth/demo", { method: "POST" });
 		expect(demo.status).toBe(200);
 		const body = (await demo.json()) as {
@@ -368,6 +369,7 @@ describe("Hono API", () => {
 			generatorName: "stub",
 			palier: "local",
 			contextMode: "http",
+			demoEnabled: true,
 		});
 
 		const demo = await http.request("http://localhost/auth/demo", { method: "POST" });
@@ -403,8 +405,21 @@ describe("Hono API", () => {
 		expect(homeBody.lessonTitle).toBe(FIXTURE_LEA_READING);
 	});
 
+	test("demo login stays closed unless DEMO_ENABLED is set", async () => {
+		const { http, sessions } = await createRuntime();
+		const demo = await http.request("http://localhost/auth/demo", { method: "POST" });
+		expect(demo.status).toBe(403);
+		expect(await demo.json()).toMatchObject({ error: "DEMO_DISABLED" });
+
+		await sessions.set("demo-token", demoGuardianActor());
+		const parent = await http.request("http://localhost/parent/children", {
+			headers: { Authorization: "Bearer demo-token" },
+		});
+		expect(parent.status).toBe(401);
+	});
+
 	test("demo login is blocked on palier prod", async () => {
-		const { http } = await createRuntime(new EmptyGuardianChildrenPort(), { palier: "prod" });
+		const { http } = await createRuntime(new EmptyGuardianChildrenPort(), { palier: "prod", demoEnabled: true });
 		const demo = await http.request("http://localhost/auth/demo", { method: "POST" });
 		expect(demo.status).toBe(403);
 		expect(await demo.json()).toMatchObject({ error: "DEMO_DISABLED" });

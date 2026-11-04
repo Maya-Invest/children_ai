@@ -12,6 +12,7 @@ const http = createHttpApp(runtime.app, {
 	focusName: runtime.focusName,
 	palier: runtime.palier,
 	contextMode: runtime.contextMode,
+	demoEnabled: runtime.demoEnabled,
 	corsOrigins: (process.env.CORS_ORIGIN ?? "")
 		.split(",")
 		.map((item) => item.trim())

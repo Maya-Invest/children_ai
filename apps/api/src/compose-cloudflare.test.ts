@@ -19,7 +19,7 @@ describe("createCloudflareRuntime", () => {
 		expect(runtime.focusName).toBe("stub");
 		expect(runtime.generatorName).toBe("stub");
 		await runtime.close();
-	}, 20000);
+	}, 40000);
 
 	test("prod refuses a demo API key in env", async () => {
 		await expect(

@@ -19,6 +19,7 @@ export default {
 				focusName: runtime.focusName,
 				palier: runtime.palier,
 				contextMode: runtime.contextMode,
+				demoEnabled: runtime.demoEnabled,
 			});
 			return await http.fetch(request);
 		} finally {
