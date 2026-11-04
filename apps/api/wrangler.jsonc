@@ -38,9 +38,12 @@
 				"CLOUDFLARE_BYOK_ALIAS": "byok",
 				"CLOUDFLARE_RAG_INSTANCE": "edaya_spark_rag",
 				"CLOUDFLARE_RAG_NAMESPACE": "default",
-				"EDAYA_CONTEXT": "fixture",
+				"EDAYA_CONTEXT": "http",
+				"DEMO_ENABLED": "true",
 				"FOCUS": "cloudflare",
+				"FOCUS_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
 				"GENERATOR": "rag",
+				"RAG_GENERATOR_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
 				"PRACTICE_WEEKDAY": "mercredi"
 			},
 			"routes": [

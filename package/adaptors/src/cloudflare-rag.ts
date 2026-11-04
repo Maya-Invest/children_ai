@@ -73,20 +73,32 @@ export type CloudflareRagConfig = {
 	apiToken?: string;
 	namespace?: string;
 	instance?: string;
-	/** Stored AI Gateway key alias, sent as cf-aig-byok-alias. */
+	/** Stored AI Gateway key alias, sent as cf-aig-byok-alias for non-Workers-AI models. */
 	byokAlias?: string;
+	/** True only when RAG_ENABLED=true. Otherwise chat calls Workers AI with no retrieval. */
+	ragEnabled?: boolean;
 	fetchImpl?: CloudflareFetch;
 };
+
+export function ragRetrievalEnabled(value: string | boolean | undefined): boolean {
+	if (typeof value === "boolean") return value;
+	return value?.trim().toLowerCase() === "true";
+}
+
+export function workersAiModel(model: string): boolean {
+	return model.trim().startsWith("@cf/");
+}
 
 export function createCloudflareRagClient(config: CloudflareRagConfig): RagClient {
 	const instance = config.instance?.trim() ?? "";
 	const namespace = config.namespace?.trim() ?? "";
 	const accountId = config.accountId?.trim() ?? "";
 	const apiToken = config.apiToken?.trim() ?? "";
-	if (!instance) {
+	const ragEnabled = config.ragEnabled === true;
+	if (ragEnabled && !instance) {
 		throw new Error("CLOUDFLARE_RAG_INSTANCE is required for a Cloudflare RAG client.");
 	}
-	if (!namespace) {
+	if (ragEnabled && !namespace) {
 		throw new Error("CLOUDFLARE_RAG_NAMESPACE is required for a Cloudflare RAG client.");
 	}
 	if (!accountId || !apiToken) {
@@ -98,6 +110,7 @@ export function createCloudflareRagClient(config: CloudflareRagConfig): RagClien
 		namespace,
 		instance,
 		byokAlias: config.byokAlias?.trim() ?? "",
+		ragEnabled,
 		fetchImpl: config.fetchImpl ?? ((input, init) => fetch(input, init)),
 	});
 }
@@ -708,23 +721,41 @@ function requireProposals(focus: PracticeFocus): ExerciseProposal[] {
 	return focus.proposals;
 }
 
+function chatEndpoint(
+	options: {
+		accountId: string;
+		namespace: string;
+		instance: string;
+		byokAlias: string;
+		ragEnabled: boolean;
+	},
+	model: string,
+): string {
+	const url = options.ragEnabled
+		? new URL(`https://api.cloudflare.com/client/v4/accounts/${options.accountId}/ai-search/namespaces/${encodeURIComponent(options.namespace)}/instances/${encodeURIComponent(options.instance)}/chat/completions`)
+		: new URL(`https://api.cloudflare.com/client/v4/accounts/${options.accountId}/ai/v1/chat/completions`);
+	if (options.byokAlias && !workersAiModel(model)) {
+		url.searchParams.set("cf-aig-byok-alias", options.byokAlias);
+	}
+	return url.toString();
+}
+
 function httpClient(options: {
 	accountId: string;
 	apiToken: string;
 	namespace: string;
 	instance: string;
 	byokAlias: string;
+	ragEnabled: boolean;
 	fetchImpl: CloudflareFetch;
 }): RagClient {
 	const headers = {
 		Authorization: `Bearer ${options.apiToken}`,
 		"Content-Type": "application/json",
 	};
-	const url = new URL(`https://api.cloudflare.com/client/v4/accounts/${options.accountId}/ai-search/namespaces/${encodeURIComponent(options.namespace)}/instances/${encodeURIComponent(options.instance)}/chat/completions`);
-	if (options.byokAlias) url.searchParams.set("cf-aig-byok-alias", options.byokAlias);
-	const endpoint = url.toString();
 	return {
 		async chat(input) {
+			const endpoint = chatEndpoint(options, input.model);
 			const payload = {
 				messages: [
 					{ role: "system", content: input.system },
@@ -732,7 +763,9 @@ function httpClient(options: {
 				],
 				model: input.model,
 				max_completion_tokens: 8192,
-				ai_search_options: { retrieval: { max_num_results: 6 } },
+				...(options.ragEnabled
+					? { ai_search_options: { retrieval: { max_num_results: 6 } } }
+					: {}),
 				...(input.responseFormat ? { response_format: input.responseFormat } : {}),
 			};
 			const request = {
@@ -740,7 +773,13 @@ function httpClient(options: {
 				headers,
 				body: JSON.stringify(payload),
 			};
-			let response = await options.fetchImpl(endpoint, request);
+			let response: Response;
+			try {
+				response = await options.fetchImpl(endpoint, request);
+			} catch (error) {
+				const detail = error instanceof Error ? error.message : "requête impossible";
+				throw new ExerciseGenerationError(`Le modèle Cloudflare est injoignable. ${detail}`);
+			}
 			if (response.status === 400 && input.responseFormat) {
 				const detail = await response.text();
 				if (/response_format|json_schema|unsupported|unknown/i.test(detail)) {
@@ -770,7 +809,14 @@ function httpClient(options: {
 				}
 				throw new ExerciseGenerationError(`Le modèle Cloudflare a renvoyé ${response.status}.${message}`);
 			}
-			return readChat(await response.json());
+			let body: unknown;
+			try {
+				body = await response.json();
+			} catch (error) {
+				const detail = error instanceof Error ? error.message : "corps illisible";
+				throw new ExerciseGenerationError(`Le modèle Cloudflare a renvoyé un corps illisible. ${detail}`);
+			}
+			return readChat(body);
 		},
 	};
 }

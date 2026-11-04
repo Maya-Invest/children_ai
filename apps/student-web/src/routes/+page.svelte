@@ -1,7 +1,10 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { signInDemo } from '$lib/api';
+	import BrandLogo from '$lib/BrandLogo.svelte';
 	import { startDemoGuardian } from '$lib/session';
+
+	let { data }: { data: { demoOffered: boolean } } = $props();
 
 	let demoError = $state('');
 	let demoPending = $state(false);
@@ -27,7 +30,7 @@
 
 <main class="mx-auto flex min-h-screen max-w-xl flex-col justify-center px-6 py-12">
 	<div class="rounded-[2rem] bg-paper p-8 shadow-card sm:p-10">
-		<p class="text-sm font-extrabold uppercase tracking-[0.2em] text-forest">Edaya Spark</p>
+		<BrandLogo width={176} />
 		<h1 class="mt-3 text-4xl font-extrabold leading-tight text-ink">
 			Des exercices de révision, alignés sur le programme.
 		</h1>
@@ -53,18 +56,20 @@
 		</div>
 	</div>
 
-	<p class="mt-5 text-center text-xs text-ink/50">
-		Vous explorez Edaya Spark ?
-		<button
-			class="font-medium text-forest hover:underline disabled:opacity-60"
-			disabled={demoPending}
-			onclick={tryDemo}
-			type="button"
-		>
-			{demoPending ? 'Ouverture…' : 'Essayer la démo'}
-		</button>
-	</p>
-	{#if demoError}
-		<p class="mt-2 text-center text-sm font-bold text-clay">{demoError}</p>
+	{#if data.demoOffered}
+		<p class="mt-5 text-center text-xs text-ink/50">
+			Vous explorez Edaya Spark ?
+			<button
+				class="font-medium text-forest hover:underline disabled:opacity-60"
+				disabled={demoPending}
+				onclick={tryDemo}
+				type="button"
+			>
+				{demoPending ? 'Ouverture…' : 'Essayer la démo'}
+			</button>
+		</p>
+		{#if demoError}
+			<p class="mt-2 text-center text-sm font-bold text-clay">{demoError}</p>
+		{/if}
 	{/if}
 </main>

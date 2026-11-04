@@ -539,6 +539,7 @@ describe("practice focus selection", () => {
 			apiToken: "token",
 			namespace: "default",
 			instance: "edaya_spark_rag",
+			ragEnabled: true,
 			fetchImpl: async (input, init) => {
 				url = String(input);
 				body = JSON.parse(String(init?.body));
@@ -573,6 +574,7 @@ describe("practice focus selection", () => {
 			namespace: "default",
 			instance: "edaya_spark_rag",
 			byokAlias: "byok",
+			ragEnabled: true,
 			fetchImpl: async (input) => {
 				aliased = String(input);
 				return new Response(JSON.stringify({
@@ -584,6 +586,29 @@ describe("practice focus selection", () => {
 		expect(aliased).toBe(
 			"https://api.cloudflare.com/client/v4/accounts/acct/ai-search/namespaces/default/instances/edaya_spark_rag/chat/completions?cf-aig-byok-alias=byok",
 		);
+
+		let workersAi = "";
+		let workersBody: unknown;
+		const llm = createCloudflareRagClient({
+			accountId: "acct",
+			apiToken: "token",
+			byokAlias: "byok",
+			fetchImpl: async (input, init) => {
+				workersAi = String(input);
+				workersBody = JSON.parse(String(init?.body));
+				return new Response(JSON.stringify({
+					result: { choices: [{ message: { content: "{\"ok\":true}" } }] },
+				}));
+			},
+		});
+		await llm.chat({ model: "@cf/meta/llama-3.3-70b-instruct-fp8-fast", system: "sys", user: "user" });
+		expect(workersAi).toBe(
+			"https://api.cloudflare.com/client/v4/accounts/acct/ai/v1/chat/completions",
+		);
+		expect(workersBody).toMatchObject({
+			model: "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+		});
+		expect(workersBody).not.toHaveProperty("ai_search_options");
 	});
 
 	test("retries once when Cloudflare answers 502", async () => {

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { signInDemo } from '$lib/api';
+	import BrandLogo from '$lib/BrandLogo.svelte';
 	import { clearDemoFamily, isDemoExplore, startDemoGuardian } from '$lib/session';
 
 	let error = $state('');
@@ -37,6 +38,7 @@
 
 <main class="mx-auto flex min-h-screen max-w-3xl flex-col justify-center px-6 py-12">
 	<div class="rounded-[2rem] bg-paper p-8 shadow-card sm:p-10">
+		<BrandLogo width={176} />
 		<p class="text-sm font-extrabold uppercase tracking-[0.2em] text-forest">Démo seedée</p>
 		<h1 class="mt-3 text-4xl font-extrabold leading-tight text-ink">Même chaîne qu’en vrai</h1>
 		<p class="mt-4 text-lg text-ink/70">

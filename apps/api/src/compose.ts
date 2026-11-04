@@ -34,6 +34,7 @@ export type LocalRuntime = {
 	runtime: RuntimeKind;
 	schoolId: string;
 	contextMode: "fixture" | "http";
+	demoEnabled: boolean;
 	persistence: SparkPersistence;
 };
 
@@ -76,6 +77,7 @@ export async function createLocalRuntime(): Promise<LocalRuntime> {
 			namespace: process.env.CLOUDFLARE_RAG_NAMESPACE,
 			instance: process.env.CLOUDFLARE_RAG_INSTANCE,
 			byokAlias: process.env.CLOUDFLARE_BYOK_ALIAS,
+			ragEnabled: process.env.RAG_ENABLED?.trim().toLowerCase() === "true",
 		})
 		: undefined;
 	const credentials = new PostgresSchoolIntegrationVault(
@@ -133,6 +135,7 @@ export async function createLocalRuntime(): Promise<LocalRuntime> {
 		runtime,
 		schoolId: demo.schoolId,
 		contextMode: demo.contextMode,
+		demoEnabled: process.env.DEMO_ENABLED?.trim().toLowerCase() === "true",
 		persistence,
 	};
 }

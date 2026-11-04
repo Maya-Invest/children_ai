@@ -4,6 +4,8 @@ export {
 	CloudflarePracticeFocus,
 	CloudflareRagExerciseGenerator,
 	createCloudflareRagClient,
+	ragRetrievalEnabled,
+	workersAiModel,
 	AI_SEARCH_PACK_VERSION,
 	DEFAULT_FOCUS_MODEL,
 	DEFAULT_RAG_GENERATOR_MODEL,
