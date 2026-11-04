@@ -62,10 +62,25 @@ async function openPglite(dataDir: string | undefined, target: SparkDatabaseTarg
 	});
 }
 
+const PRACTICE_PLANS_TABLE = `
+CREATE TABLE IF NOT EXISTS practice_plans (
+  school_id TEXT NOT NULL,
+  student_id TEXT NOT NULL,
+  planning_date TEXT NOT NULL,
+  payload JSONB NOT NULL,
+  PRIMARY KEY (school_id, student_id, planning_date)
+)`;
+
 async function openPostgres(target: Extract<SparkDatabaseTarget, { kind: "postgres" }>): Promise<SparkPersistence> {
 	const { drizzle } = await import("drizzle-orm/node-postgres");
 	const { default: pg } = await import("pg");
 	const pool = new pg.Pool(postgresPoolConfig(target.url));
+	// Home reads this table before it asks the model for a plan. Baseline migrate
+	// creates sessions and access codes only; a database that never applied 0001
+	// still accepts demo login, then GET /home fails.
+	await pool.query(PRACTICE_PLANS_TABLE).catch((error: unknown) => {
+		console.error(error);
+	});
 	const db = drizzle(pool, { schema }) as unknown as SparkDb;
 	return bundle(db, target, async () => {
 		await pool.end();

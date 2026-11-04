@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { signInStudent } from '$lib/api';
+	import BrandLogo from '$lib/BrandLogo.svelte';
 	import { isDemoExplore, setToken } from '$lib/session';
 	import TermsAcceptance from '$lib/TermsAcceptance.svelte';
 
@@ -35,7 +36,10 @@
 		<a class="text-sm font-bold text-forest" href={demo ? '/parent' : '/'}>
 			{demo ? '← Espace parent' : '← Accueil'}
 		</a>
-		<h1 class="mt-4 text-3xl font-extrabold text-ink">Entrer avec un code</h1>
+		<div class="mt-4">
+			<BrandLogo width={160} />
+		</div>
+		<h1 class="mt-2 text-3xl font-extrabold text-ink">Entrer avec un code</h1>
 		<p class="mt-3 text-ink/70">
 			Le code est donné par un parent. Il ressemble à <span class="font-extrabold">A123-B456-C789-D125</span>.
 		</p>

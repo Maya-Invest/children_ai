@@ -37,6 +37,7 @@ export type HttpOptions = {
 	focusName?: "stub" | "cloudflare";
 	palier?: Palier;
 	contextMode?: "fixture" | "http";
+	demoEnabled?: boolean;
 };
 
 const DEFAULT_CORS = ["http://localhost:5175", "http://127.0.0.1:5175"];
@@ -74,7 +75,7 @@ export function createHttpApp(app: EdayaSparkApp, options: HttpOptions) {
 				if (
 					actor?.role === "guardian"
 					&& isDemoGuardian(actor)
-					&& (options.palier ?? "local") !== "prod"
+					&& demoIsOpen(options)
 				) {
 					c.set("guardian", actor);
 					await next();
@@ -125,6 +126,7 @@ export function createHttpApp(app: EdayaSparkApp, options: HttpOptions) {
 			contextMode: options.contextMode ?? "fixture",
 			generator: options.generatorName ?? "stub",
 			focus: options.focusName ?? "stub",
+			demoEnabled: demoIsOpen(options),
 			keysRequired: palier === "prod" || palier === "staging",
 		});
 	});
@@ -138,9 +140,14 @@ export function createHttpApp(app: EdayaSparkApp, options: HttpOptions) {
 	});
 
 	http.post("/auth/demo", async (c) => {
-		if ((options.palier ?? "local") === "prod") {
+		if (!demoIsOpen(options)) {
 			return c.json(
-				{ error: "DEMO_DISABLED", message: "La démo n'est pas disponible en production." },
+				{
+					error: "DEMO_DISABLED",
+					message: (options.palier ?? "local") === "prod"
+						? "La démo n'est pas disponible en production."
+						: "La démo n'est pas disponible.",
+				},
 				403,
 			);
 		}
@@ -330,7 +337,11 @@ export function createHttpApp(app: EdayaSparkApp, options: HttpOptions) {
 			return c.json({ error: error.code, message: error.message }, status);
 		}
 		console.error(error);
-		return c.json({ error: "INTERNAL", message: "Erreur inattendue" }, 500);
+		const message =
+			options.palier === "prod" || !(error instanceof Error) || !error.message
+				? "Erreur inattendue"
+				: error.message;
+		return c.json({ error: "INTERNAL", message }, 500);
 	});
 
 	return http;
@@ -391,6 +402,10 @@ function requireStudent(actor: StudentActor | undefined): StudentActor {
 		throw new DomainError("UNAUTHENTICATED", "Session élève requise.");
 	}
 	return actor;
+}
+
+function demoIsOpen(options: HttpOptions): boolean {
+	return options.demoEnabled === true && (options.palier ?? "local") !== "prod";
 }
 
 function requireGuardian(guardian: GuardianActor | undefined): GuardianActor {

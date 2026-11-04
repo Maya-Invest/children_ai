@@ -17,13 +17,24 @@ const bundledPrompts: Record<string, string> = {
 export async function loadPracticePrompts(version = PRACTICE_PROMPT_VERSION): Promise<PracticePrompts> {
 	const safe = version.trim();
 	if (!/^\d+\.\d+$/.test(safe)) throw new Error(`Version de prompt invalide : ${version}`);
-	let source = bundledPrompts[safe];
+	let source: unknown = bundledPrompts[safe];
 	if (typeof Bun !== "undefined") {
 		const file = Bun.file(new URL(`./${safe}.md`, import.meta.url));
 		if (await file.exists()) source = await file.text();
 	}
-	if (!source) throw new Error(`Version de prompt inconnue : ${safe}`);
-	return parsePracticePrompts(source, safe);
+	const text = promptText(source);
+	if (!text) throw new Error(`Version de prompt inconnue : ${safe}`);
+	return parsePracticePrompts(text, safe);
+}
+
+function promptText(value: unknown): string | undefined {
+	if (typeof value === "string") return value;
+	if (value && typeof value === "object" && "default" in value) {
+		const nested = (value as { default: unknown }).default;
+		if (typeof nested === "string") return nested;
+	}
+	if (value === undefined) return undefined;
+	throw new Error("Le fichier de prompt n'a pas été chargé comme texte.");
 }
 
 export function parsePracticePrompts(source: string, version: string): PracticePrompts {

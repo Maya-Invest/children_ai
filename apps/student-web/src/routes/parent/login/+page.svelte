@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { authClient, type AuthPayload } from '$lib/auth/client';
+	import BrandLogo from '$lib/BrandLogo.svelte';
 	import { clearDemoFamily } from '$lib/session';
 	import TermsAcceptance from '$lib/TermsAcceptance.svelte';
 
@@ -95,7 +96,10 @@
 <main class="mx-auto flex min-h-screen max-w-xl flex-col justify-center px-6 py-12">
 	<div class="rounded-[2rem] bg-paper p-8 shadow-card sm:p-10">
 		<a class="text-sm font-bold text-forest" href="/">← Accueil</a>
-		<h1 class="mt-4 text-3xl font-extrabold text-ink">Espace parent</h1>
+		<div class="mt-4">
+			<BrandLogo width={160} />
+		</div>
+		<h1 class="mt-2 text-3xl font-extrabold text-ink">Espace parent</h1>
 		<p class="mt-3 text-ink/70">
 			{#if step === 'email'}
 				Saisis l’email de ton compte Edaya. Un code à usage unique est envoyé.

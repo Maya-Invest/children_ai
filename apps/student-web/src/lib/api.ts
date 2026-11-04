@@ -37,6 +37,10 @@ export type DemoFamilyAuth = {
 	guardian: { token: string; actor: GuardianActor };
 };
 
+export function loadDemoEnabled() {
+	return request<{ demoEnabled?: boolean }>("/health").then((health) => health.demoEnabled === true);
+}
+
 export function signInDemo() {
 	return request<DemoFamilyAuth>(`/auth/demo`, { method: "POST" });
 }
