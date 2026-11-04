@@ -70,6 +70,7 @@ export async function createLocalRuntime(): Promise<LocalRuntime> {
 		geminiApiKey: geminiKey,
 	});
 	const focusName = resolveFocusName(process.env.FOCUS);
+	const ragEnabled = process.env.RAG_ENABLED?.trim().toLowerCase() === "true";
 	const rag = focusName === "cloudflare" || generatorName === "rag"
 		? createCloudflareRagClient({
 			accountId: process.env.CLOUDFLARE_ACCOUNT_ID,
@@ -77,7 +78,7 @@ export async function createLocalRuntime(): Promise<LocalRuntime> {
 			namespace: process.env.CLOUDFLARE_RAG_NAMESPACE,
 			instance: process.env.CLOUDFLARE_RAG_INSTANCE,
 			byokAlias: process.env.CLOUDFLARE_BYOK_ALIAS,
-			ragEnabled: process.env.RAG_ENABLED?.trim().toLowerCase() === "true",
+			ragEnabled,
 		})
 		: undefined;
 	const credentials = new PostgresSchoolIntegrationVault(
@@ -104,6 +105,7 @@ export async function createLocalRuntime(): Promise<LocalRuntime> {
 			rag,
 			model: process.env.FOCUS_MODEL,
 			packVersion: process.env.RAG_PACK_VERSION,
+			ragEnabled,
 		}),
 		generator: createExerciseGenerator({
 			ids,
@@ -113,6 +115,7 @@ export async function createLocalRuntime(): Promise<LocalRuntime> {
 			model: process.env.GEMINI_MODEL,
 			rag,
 			ragModel: process.env.RAG_GENERATOR_MODEL,
+			ragEnabled,
 		}),
 		snapshots: persistence.snapshots,
 		sets: persistence.sets,

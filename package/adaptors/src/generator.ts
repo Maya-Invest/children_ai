@@ -22,6 +22,7 @@ export type GeneratorRuntime = {
 	fetchImpl?: GeminiHttp;
 	rag?: RagClient;
 	ragModel?: string;
+	ragEnabled?: boolean;
 };
 
 export function resolveGeneratorName(input: {
@@ -59,5 +60,6 @@ export function createExerciseGenerator(runtime: GeneratorRuntime): ExerciseGene
 		model: runtime.ragModel?.trim() || DEFAULT_RAG_GENERATOR_MODEL,
 		ids: runtime.ids,
 		clock: runtime.clock,
+		ragEnabled: runtime.ragEnabled,
 	});
 }

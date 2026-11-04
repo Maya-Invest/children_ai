@@ -120,6 +120,8 @@ export class CloudflarePracticeFocus implements PracticeFocusPort {
 		private readonly options: {
 			rag: RagClient;
 			model: string;
+			/** False skips programme excerpts and plans from the pupil input. Omitted keeps the excerpt gate. */
+			ragEnabled?: boolean;
 		},
 	) {
 		if (!options.rag || !options.model.trim()) {
@@ -159,17 +161,20 @@ export class CloudflarePracticeFocus implements PracticeFocusPort {
 			min: DAILY_PRACTICE_MIN_MINUTES,
 			max: DAILY_PRACTICE_MAX_MINUTES,
 		};
+		const generic = !this.requiresProgramme();
 		let sawProgramme = false;
 		for (let attempt = 0; attempt < 2; attempt++) {
 			const reply = await this.options.rag.chat({
 				model: this.options.model,
-				system: await focusSystemPrompt(),
-				user: await focusUserPrompt(input.snapshot, window, revisionMatches, homeworkMatches, sessionMinutes),
+				system: await focusSystemPrompt(generic),
+				user: await focusUserPrompt(input.snapshot, window, revisionMatches, homeworkMatches, sessionMinutes, generic),
 				responseFormat: planResponseFormat(),
 			});
-			if (reply.hits.length > 0) sawProgramme = true;
-			if (!sawProgramme) {
-				throw new ExerciseGenerationError(PRACTICE_NO_PROGRAMME_MESSAGE);
+			if (this.requiresProgramme()) {
+				if (reply.hits.length > 0) sawProgramme = true;
+				if (!sawProgramme) {
+					throw new ExerciseGenerationError(PRACTICE_NO_PROGRAMME_MESSAGE);
+				}
 			}
 			try {
 				return stampPromptVersion(acceptPracticePlan({
@@ -179,6 +184,7 @@ export class CloudflarePracticeFocus implements PracticeFocusPort {
 					revisionMatches,
 					homeworkMatches,
 					sessionMinutes,
+					generic,
 				}));
 			} catch (error) {
 				const retryable = error instanceof PracticePlanError
@@ -191,6 +197,10 @@ export class CloudflarePracticeFocus implements PracticeFocusPort {
 		}
 		throw new PracticePlanError(PRACTICE_UNREADABLE_MESSAGE);
 	}
+
+	private requiresProgramme(): boolean {
+		return this.options.ragEnabled !== false;
+	}
 }
 
 export class CloudflareRagExerciseGenerator implements ExerciseGeneratorPort {
@@ -200,6 +210,8 @@ export class CloudflareRagExerciseGenerator implements ExerciseGeneratorPort {
 			model: string;
 			ids: IdGenerator;
 			clock: Clock;
+			/** False accepts a completion with no retrieved excerpts. Omitted keeps the excerpt gate. */
+			ragEnabled?: boolean;
 		},
 	) {}
 
@@ -228,9 +240,11 @@ export class CloudflareRagExerciseGenerator implements ExerciseGeneratorPort {
 					}),
 					responseFormat: questionResponseFormat(),
 				});
-				if (reply.hits.length > 0) sawProgramme = true;
-				if (!sawProgramme) {
-					throw new ExerciseGenerationError("Le RAG n'a renvoyé aucun extrait pour cette leçon.");
+				if (this.options.ragEnabled !== false) {
+					if (reply.hits.length > 0) sawProgramme = true;
+					if (!sawProgramme) {
+						throw new ExerciseGenerationError("Le RAG n'a renvoyé aucun extrait pour cette leçon.");
+					}
 				}
 				try {
 					produced = mapQuestions(parseJson(reply.text), this.options.ids, count).questions;
@@ -261,9 +275,9 @@ function stampPromptVersion(plan: PracticeSessionPlan): PracticeSessionPlan {
 	return { ...plan, promptVersion: PRACTICE_PROMPT_VERSION };
 }
 
-async function focusSystemPrompt(): Promise<string> {
+async function focusSystemPrompt(generic: boolean): Promise<string> {
 	const prompts = await loadPracticePrompts();
-	return prompts.fill("focus-system");
+	return prompts.fill(generic ? "focus-system-generic" : "focus-system");
 }
 
 async function focusUserPrompt(
@@ -272,6 +286,7 @@ async function focusUserPrompt(
 	revisionMatches: ReturnType<typeof endOfDaySnapshotLessons>,
 	homeworkMatches: ReturnType<typeof upcomingSnapshotLessons>,
 	sessionMinutes: { min: number; max: number },
+	generic: boolean,
 ): Promise<string> {
 	const prompts = await loadPracticePrompts();
 	const student = snapshot.context.student;
@@ -281,7 +296,7 @@ async function focusUserPrompt(
 	const homeworkLines = homeworkMatches.map((match) =>
 		`${match.lesson.id} | ${match.assessment.title} le ${match.assessment.dueAt.slice(0, 10)} | emploi du temps ${match.slot.title} | thème ${match.lesson.theme.title}`,
 	);
-	return prompts.fill("focus-user", {
+	return prompts.fill(generic ? "focus-user-generic" : "focus-user", {
 		studentName: student.firstName,
 		classLabel: student.classLabel,
 		grade: student.gradeLevel.label,
@@ -324,6 +339,7 @@ function acceptPracticePlan(input: {
 	revisionMatches: ReturnType<typeof endOfDaySnapshotLessons>;
 	homeworkMatches: ReturnType<typeof upcomingSnapshotLessons>;
 	sessionMinutes: { min: number; max: number };
+	generic?: boolean;
 }): PracticeSessionPlan {
 	const root = planRoot(input.payload);
 	if (!root) throw new PracticePlanError(PRACTICE_UNREADABLE_MESSAGE);
@@ -352,7 +368,7 @@ function acceptPracticePlan(input: {
 
 	const revisionSeriesItems = revision.available
 		? proposalsNameLessons(revision)
-			? seriesFromProposals(revision, input.revisionMatches)
+			? seriesFromProposals(revision, input.revisionMatches, input.generic === true)
 			: revisionSeries(
 				revision,
 				resolveTrack(revision, input.revisionMatches),
@@ -361,7 +377,7 @@ function acceptPracticePlan(input: {
 		: [];
 	const homeworkSeries = homework.available
 		? proposalsNameLessons(homework)
-			? seriesFromProposals(homework, input.homeworkMatches)
+			? seriesFromProposals(homework, input.homeworkMatches, input.generic === true)
 			: [resolveTrack(homework, input.homeworkMatches)]
 		: [];
 	const homeworks = homeworkSeries.flatMap((choice) => {
@@ -505,6 +521,7 @@ function proposalsNameLessons(track: ParsedTrack): boolean {
 function seriesFromProposals(
 	track: ParsedTrack,
 	matches: { lesson: CurriculumLesson }[],
+	generic: boolean,
 ): { focus: PracticeFocus; lesson: CurriculumLesson; minutes: number }[] {
 	const groups = new Map<string, PlannedProposal[]>();
 	const order: string[] = [];
@@ -527,7 +544,7 @@ function seriesFromProposals(
 		const lesson = matches.find((match) => match.lesson.id === lessonId)?.lesson;
 		const grouped = groups.get(lessonId);
 		if (!lesson || !grouped) return [];
-		const proposals = grouped.map(publishedProposal);
+		const proposals = grouped.map((proposal) => publishedProposal(proposal, generic));
 		return [{
 			lesson,
 			minutes: proposals.reduce((sum, proposal) => sum + proposal.minutes, 0),
@@ -543,10 +560,12 @@ function seriesFromProposals(
 	});
 }
 
-function publishedProposal(proposal: PlannedProposal): ExerciseProposal {
-	const promptHint = proposal.grounding === "candidate_only"
-		? `${proposal.promptHint} Reste sur les informations du candidat, sans ajouter d'objectif officiel DPFC.`
-		: proposal.promptHint;
+function publishedProposal(proposal: PlannedProposal, generic: boolean): ExerciseProposal {
+	const promptHint = generic
+		? `${proposal.promptHint} Reste sur le niveau, la leçon et la consigne fournis.`
+		: proposal.grounding === "candidate_only"
+			? `${proposal.promptHint} Reste sur les informations du candidat, sans ajouter d'objectif officiel DPFC.`
+			: proposal.promptHint;
 	return {
 		objective: proposal.objective,
 		theme: proposal.theme,

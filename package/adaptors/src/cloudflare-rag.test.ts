@@ -531,6 +531,67 @@ describe("practice focus selection", () => {
 		expect(plan.summary).toBe(NOTHING_TO_PRACTICE_MESSAGE);
 	});
 
+	test("cloudflare plan without RAG accepts an empty-hit reply from the pupil input", async () => {
+		let system = "";
+		let user = "";
+		const focus = new CloudflarePracticeFocus({
+			ragEnabled: false,
+			rag: {
+				async chat(input) {
+					system = input.system;
+					user = input.user;
+					return {
+						text: JSON.stringify({
+							revision: {
+								available: true,
+								minutes: 40,
+								rationale: "Leçon du jour.",
+								brief: "Reste sur le titre de la leçon.",
+								proposals: [
+									{
+										lessonId: "math-mon",
+										subject: "Mathématiques",
+										mode: "consolidation",
+										objective: "Comparer deux fractions",
+										theme: "Fractions",
+										exerciseType: "recognition",
+										difficulty: "easy",
+										minutes: 40,
+										promptHint: "Reconnaître la plus grande de 1/2 et 1/3.",
+										grounding: "dpfc_verified",
+									},
+								],
+							},
+							homework: {
+								available: false,
+								minutes: 0,
+								rationale: "Aucune évaluation dans la fenêtre.",
+								brief: "",
+								proposals: [],
+							},
+						}),
+						hits: [],
+					};
+				},
+			},
+			model: DEFAULT_FOCUS_MODEL,
+		});
+		const plan = await focus.plan({
+			snapshot: mondaySnapshot({ upcomingAssessments: [] }),
+			now: monday,
+			sessionMinutes: { min: 40, max: 40 },
+		});
+		expect(plan.tracks[0]?.items.map((item) => [item.lesson.id, item.minutes])).toEqual([
+			["math-mon", 40],
+		]);
+		const hint = plan.tracks[0]?.items[0]?.focus.proposals[0]?.promptHint ?? "";
+		expect(hint).toContain("Reste sur le niveau, la leçon et la consigne fournis.");
+		expect(hint).not.toContain("DPFC");
+		expect(system).toContain("exercices génériques");
+		expect(system).not.toContain("DPFC");
+		expect(user).not.toContain("DPFC");
+	});
+
 	test("chat posts to the namespace instance endpoint", async () => {
 		let url = "";
 		let body: unknown;
@@ -706,6 +767,65 @@ describe("cloudflare exercise generator", () => {
 		expect(user).toContain("Consigne : On revoit les fractions.");
 		expect(user).toContain("Proposition :");
 		expect(set.questions).toHaveLength(3);
+	});
+
+	test("writes questions without retrieved excerpts when RAG is off", async () => {
+		const generator = new CloudflareRagExerciseGenerator({
+			ragEnabled: false,
+			rag: {
+				async chat() {
+					return {
+						text: JSON.stringify({
+							questions: [
+								{ prompt: "Compare 1/2 et 1/3.", kind: "written", expectedAnswer: "1/2 > 1/3" },
+							],
+						}),
+						hits: [],
+					};
+				},
+			},
+			model: DEFAULT_RAG_GENERATOR_MODEL,
+			ids: new CryptoIdGenerator(),
+			clock: new SystemClock(),
+		});
+		const set = await generator.generate({
+			snapshot,
+			lesson: {
+				id: lessonJson.lesson.id,
+				packVersion: "rag-index-2026",
+				country: "CI",
+				cycle: "college",
+				grade: "6e",
+				subject: "MATH",
+				competence: { id: "rag", title: "Calculs" },
+				theme: { id: "rag", title: "Nombres" },
+				title: "Fractions",
+				sequence: 0,
+				exampleSituation: "Partager un plat.",
+				skills: ["Comparer deux fractions"],
+				contents: ["Fractions égales"],
+				sourcePdf: "cloudflare-rag",
+			},
+			focus: {
+				lessonId: lessonJson.lesson.id,
+				subject: "MATH",
+				rationale: "note faible",
+				brief: "On revoit les fractions.",
+				intent: "prepare_next_day",
+				proposals: [
+					{
+						objective: "Comparer deux fractions",
+						theme: "Nombres",
+						exerciseType: "comprehension",
+						difficulty: "medium",
+						minutes: 15,
+						promptHint: "Comparer 1/2 et 1/3",
+					},
+				],
+			},
+			plannedMinutes: 40,
+		});
+		expect(set.questions.map((question) => question.prompt)).toEqual(["Compare 1/2 et 1/3."]);
 	});
 
 	test("collapses repeated QCM choices and keeps a one-choice QCM as a written question", async () => {

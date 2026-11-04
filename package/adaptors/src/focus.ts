@@ -20,6 +20,7 @@ export function createPracticeFocus(options: {
 	rag?: RagClient;
 	model?: string;
 	packVersion?: string;
+	ragEnabled?: boolean;
 }): PracticeFocusPort {
 	const name = resolveFocusName(options.focus);
 	if (name === "stub") return new StubPracticeFocus();
@@ -30,5 +31,6 @@ export function createPracticeFocus(options: {
 	return new CloudflarePracticeFocus({
 		rag: options.rag,
 		model,
+		ragEnabled: options.ragEnabled,
 	});
 }

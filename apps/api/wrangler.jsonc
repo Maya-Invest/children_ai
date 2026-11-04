@@ -43,6 +43,7 @@
 				"FOCUS": "cloudflare",
 				"FOCUS_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
 				"GENERATOR": "rag",
+				"RAG_ENABLED": "false",
 				"RAG_GENERATOR_MODEL": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
 				"PRACTICE_WEEKDAY": "mercredi"
 			},

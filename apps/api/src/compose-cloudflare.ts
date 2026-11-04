@@ -94,6 +94,7 @@ export async function createCloudflareRuntime(
 		geminiApiKey: env.GEMINI_API_KEY,
 	});
 	const focusName = resolveFocusName(env.FOCUS);
+	const ragEnabled = env.RAG_ENABLED?.trim().toLowerCase() === "true";
 	const rag = focusName === "cloudflare" || generatorName === "rag"
 		? createCloudflareRagClient({
 			accountId: env.CLOUDFLARE_ACCOUNT_ID,
@@ -101,7 +102,7 @@ export async function createCloudflareRuntime(
 			namespace: env.CLOUDFLARE_RAG_NAMESPACE,
 			instance: env.CLOUDFLARE_RAG_INSTANCE,
 			byokAlias: env.CLOUDFLARE_BYOK_ALIAS,
-			ragEnabled: env.RAG_ENABLED?.trim().toLowerCase() === "true",
+			ragEnabled,
 		})
 		: undefined;
 	const edayaApiBaseUrl = resolvePalierEdayaOrigin(palier, env.EDAYA_API_ORIGIN);
@@ -143,6 +144,7 @@ export async function createCloudflareRuntime(
 			rag,
 			model: env.FOCUS_MODEL,
 			packVersion: env.RAG_PACK_VERSION,
+			ragEnabled,
 		}),
 		generator: createExerciseGenerator({
 			ids,
@@ -152,6 +154,7 @@ export async function createCloudflareRuntime(
 			model: env.GEMINI_MODEL,
 			rag,
 			ragModel: env.RAG_GENERATOR_MODEL,
+			ragEnabled,
 		}),
 		snapshots: persistence.snapshots,
 		sets: persistence.sets,
