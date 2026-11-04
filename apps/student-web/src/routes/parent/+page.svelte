@@ -38,7 +38,6 @@
 	}
 
 	async function revoke(studentId: string) {
-		if (!requireTerms()) return;
 		pendingId = studentId;
 		error = '';
 		if (copiedId === studentId) copiedId = '';
@@ -155,7 +154,7 @@
 								<button
 									class="rounded-full bg-white px-4 py-2 text-sm font-extrabold text-ink disabled:opacity-60"
 									type="button"
-									disabled={pendingId === child.studentId || !acceptedTerms}
+									disabled={pendingId === child.studentId}
 									onclick={() => revoke(child.studentId)}
 								>
 									Révoquer
