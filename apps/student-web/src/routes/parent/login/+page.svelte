@@ -5,7 +5,7 @@
 	import { clearDemoFamily } from '$lib/session';
 	import TermsAcceptance from '$lib/TermsAcceptance.svelte';
 
-	let { data }: { data: { otpFlag: boolean } } = $props();
+	let { data }: { data: { otpFlag: boolean; terms: { enforced: boolean; version: string } } } = $props();
 
 	let email = $state('m.kone@mail.ci');
 	let code = $state('');
@@ -27,11 +27,18 @@
 			error = 'Accepte les conditions d’utilisation pour continuer.';
 			return;
 		}
+		if (step === 'email' && data.terms.enforced && !data.terms.version) {
+			error = 'Les conditions d’utilisation ne sont pas disponibles.';
+			return;
+		}
 		pending = true;
 		try {
 			if (step === 'email') {
-				const { data, error: startError } = await authClient.startOtp(email.trim());
-				const nextChallenge = challengeFrom(data);
+				const terms = data.terms.enforced
+					? { version: data.terms.version, locale: 'fr' as const }
+					: undefined;
+				const { data: started, error: startError } = await authClient.startOtp(email.trim(), terms);
+				const nextChallenge = challengeFrom(started);
 				if (startError || !nextChallenge) {
 					error = startError?.message ?? 'Envoi du code impossible';
 					return;

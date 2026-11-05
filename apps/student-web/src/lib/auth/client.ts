@@ -42,8 +42,15 @@ async function post<T>(path: string, body: object): Promise<{ data: T | null; er
 }
 
 export const authClient = {
-	startOtp: (email: string) =>
-		post<AuthChallenge>('/auth/edaya/otp/start', { kind: 'email', value: email, channel: 'email' }),
+	startOtp: (email: string, terms?: { version: string; locale: 'fr' | 'en' }) =>
+		post<AuthChallenge>('/auth/edaya/otp/start', {
+			kind: 'email',
+			value: email,
+			channel: 'email',
+			...(terms
+				? { termsAcceptance: { version: terms.version, locale: terms.locale, accepted: true } }
+				: {}),
+		}),
 	revealOtp: (challenge: string) =>
 		post<{ otp: string }>('/auth/edaya/testing/otp', { challenge }),
 	verifyOtp: (challenge: string, code: string) =>
