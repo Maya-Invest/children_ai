@@ -75,6 +75,10 @@
 			step = 'recovery';
 			return;
 		}
+		if (move.type !== 'challenge') {
+			error = 'Connexion incomplète';
+			return;
+		}
 		challenge = move.challenge;
 		secret = move.secret;
 		code = '';
