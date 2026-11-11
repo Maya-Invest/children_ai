@@ -20,10 +20,20 @@ export type AuthLinked = {
 	state: 'linked';
 };
 
-export type AuthPayload = AuthChallenge | AuthComplete | AuthLinked | {
+export type AuthRegistration = {
+	state: 'registration_required';
+	challenge: string;
+	proof: string;
+	expiresAt?: number;
+	eligible?: boolean;
+};
+
+export type AuthPayload = AuthChallenge | AuthComplete | AuthLinked | AuthRegistration | {
 	state: string;
 	challenge?: string;
 	secret?: string;
+	proof?: string;
+	eligible?: boolean;
 	recoveryCodes?: string[];
 };
 
@@ -73,6 +83,18 @@ export const authClient = {
 		post<AuthChallenge>('/auth/edaya/totp/enroll', { challenge }),
 	confirmEnrollment: (challenge: string, code: string) =>
 		post<AuthPayload>('/auth/edaya/totp/confirm', { challenge, code }),
+	completeRegistration: (
+		challenge: string,
+		proof: string,
+		terms?: { version: string; locale: 'fr' | 'en' },
+	) =>
+		post<AuthPayload>('/auth/edaya/registration/complete', {
+			challenge,
+			proof,
+			...(terms
+				? { termsAcceptance: { version: terms.version, locale: terms.locale, accepted: true } }
+				: {}),
+		}),
 	getSession: () => post<{ user?: { id: string } }>('/auth/edaya/session', {}),
 	signOut: () => {
 		accessTokens.clear();

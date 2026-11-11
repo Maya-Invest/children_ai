@@ -7,6 +7,7 @@ export type ParentLoginMove =
 	| { type: 'recovery'; codes: string[] }
 	| { type: 'challenge'; phase: 'totp' | 'enrollment'; challenge: string; secret: string }
 	| { type: 'needs-enrollment'; challenge: string }
+	| { type: 'register'; challenge: string; proof: string; eligible: boolean }
 	| { type: 'incomplete' };
 
 /** Maps an Edaya auth success body onto the next parent-login step. */
@@ -28,6 +29,11 @@ export function moveAfterAuth(payload: AuthPayload): ParentLoginMove {
 		if (!secret) return { type: 'needs-enrollment', challenge };
 		return { type: 'challenge', phase: 'enrollment', challenge, secret };
 	}
+	if (payload.state === 'registration_required') {
+		const proof = proofOf(payload);
+		if (!challenge || !proof) return { type: 'incomplete' };
+		return { type: 'register', challenge, proof, eligible: eligibleOf(payload) };
+	}
 	return { type: 'incomplete' };
 }
 
@@ -37,6 +43,14 @@ function challengeOf(payload: AuthPayload): string {
 
 function secretOf(payload: AuthPayload): string {
 	return 'secret' in payload && payload.secret ? payload.secret : '';
+}
+
+function proofOf(payload: AuthPayload): string {
+	return 'proof' in payload && payload.proof ? payload.proof : '';
+}
+
+function eligibleOf(payload: AuthPayload): boolean {
+	return 'eligible' in payload && payload.eligible === true;
 }
 
 function recoveryCodesOf(payload: AuthPayload): string[] {

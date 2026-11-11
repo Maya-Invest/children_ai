@@ -44,6 +44,34 @@ describe('moveAfterAuth', () => {
 		});
 	});
 
+	test('finishes registration when the account is eligible', () => {
+		expect(moveAfterAuth({
+			state: 'registration_required',
+			challenge: 'pending',
+			proof: 'proof',
+			eligible: true,
+		})).toEqual({
+			type: 'register',
+			challenge: 'pending',
+			proof: 'proof',
+			eligible: true,
+		});
+	});
+
+	test('keeps an ineligible registration from opening a session', () => {
+		expect(moveAfterAuth({
+			state: 'registration_required',
+			challenge: 'pending',
+			proof: 'proof',
+			eligible: false,
+		})).toEqual({
+			type: 'register',
+			challenge: 'pending',
+			proof: 'proof',
+			eligible: false,
+		});
+	});
+
 	test('stops when a success body has no next step', () => {
 		expect(moveAfterAuth({ state: 'primary_required' })).toEqual({ type: 'incomplete' });
 		expect(moveAfterAuth({ state: 'enrollment_required' })).toEqual({ type: 'incomplete' });

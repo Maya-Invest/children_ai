@@ -170,7 +170,12 @@ async function accessTokenAfterLogin(email: string, expectEnrollment: boolean): 
 
 	const verified = await postAuth("/auth/edaya/otp/verify", { challenge: startBody.challenge, code: otp });
 	expect(verified.status).toBe(200);
-	const verifiedBody = await verified.json() as { state: string; challenge?: string };
+	const verifiedBody = await verified.json() as {
+		state: string;
+		challenge?: string;
+		proof?: string;
+		eligible?: boolean;
+	};
 
 	let sessionCookie = "";
 	if (expectEnrollment) {
@@ -190,6 +195,18 @@ async function accessTokenAfterLogin(email: string, expectEnrollment: boolean): 
 		expect(confirmedBody.state).toBe("complete");
 		expect(confirmedBody.recoveryCodes?.length).toBeGreaterThan(0);
 		sessionCookie = sessionCookieFrom(confirmed);
+	} else if (verifiedBody.state === "registration_required") {
+		expect(verifiedBody.eligible).toBe(true);
+		expect(verifiedBody.challenge).toBeTruthy();
+		expect(verifiedBody.proof).toBeTruthy();
+		const completed = await postAuth("/auth/edaya/registration/complete", {
+			challenge: verifiedBody.challenge,
+			proof: verifiedBody.proof,
+		});
+		expect(completed.status).toBe(200);
+		const completedBody = await completed.json() as { state: string };
+		expect(completedBody.state).toBe("complete");
+		sessionCookie = sessionCookieFrom(completed);
 	} else {
 		expect(verifiedBody.state).toBe("complete");
 		sessionCookie = sessionCookieFrom(verified);

@@ -30,6 +30,25 @@
 
 	async function applyVerified(payload: AuthPayload) {
 		let move = moveAfterAuth(payload);
+		if (move.type === 'register') {
+			if (!move.eligible) {
+				error = 'Cet email n’est pas encore autorisé à ouvrir l’espace parent.';
+				return;
+			}
+			const terms = data.terms.enforced && data.terms.version
+				? { version: data.terms.version, locale: 'fr' as const }
+				: undefined;
+			const completed = await authClient.completeRegistration(move.challenge, move.proof, terms);
+			if (completed.error || !completed.data) {
+				error = completed.error?.message ?? 'Inscription impossible';
+				return;
+			}
+			move = moveAfterAuth(completed.data);
+			if (move.type === 'register') {
+				error = 'Connexion incomplète';
+				return;
+			}
+		}
 		if (move.type === 'needs-enrollment') {
 			const enrolled = await authClient.enroll(move.challenge);
 			if (enrolled.error || !enrolled.data) {

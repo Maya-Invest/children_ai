@@ -34,6 +34,7 @@ export async function startEdayaDouble(): Promise<EdayaDouble> {
 	const challenges = new Map<string, { email: string; code: string; subjectId: string }>();
 	const sessions = new Map<string, { email: string; subjectId: string }>();
 	const enrollment = new Map<string, EnrollmentPending>();
+	const registration = new Map<string, RegistrationOffer>();
 
 	let server: ReturnType<typeof Bun.serve>;
 	try {
@@ -54,6 +55,7 @@ export async function startEdayaDouble(): Promise<EdayaDouble> {
 						challenges,
 						sessions,
 						enrollment,
+						registration,
 					});
 				}
 				if (url.pathname === "/internal/edaya-spark/resolve-guardian") {
@@ -111,6 +113,12 @@ type EnrollmentPending = {
 	secret: string;
 };
 
+type RegistrationOffer = {
+	email: string;
+	subjectId: string;
+	proof: string;
+};
+
 function subjectForEmail(email: string): string {
 	const normalized = email.trim().toLowerCase();
 	if (normalized === PARENT_EMAIL) return PARENT_SUBJECT_ID;
@@ -132,6 +140,7 @@ async function handleAuth(
 		challenges: Map<string, { email: string; code: string; subjectId: string }>;
 		sessions: Map<string, { email: string; subjectId: string }>;
 		enrollment: Map<string, EnrollmentPending>;
+		registration: Map<string, RegistrationOffer>;
 	},
 ): Promise<Response> {
 	const body = await readJson(request);
@@ -166,7 +175,24 @@ async function handleAuth(
 			});
 			return json({ state: "enrollment_required", challenge: token });
 		}
-		return completeSession(deps, challenge.email, challenge.subjectId);
+		const token = crypto.randomUUID();
+		const proof = crypto.randomUUID();
+		deps.registration.set(token, { email: challenge.email, subjectId: challenge.subjectId, proof });
+		return json({
+			state: "registration_required",
+			challenge: token,
+			proof,
+			expiresAt: Date.now() + 300000,
+			eligible: true,
+		});
+	}
+	if (pathname === "/auth/edaya/registration/complete") {
+		const token = typeof body.challenge === "string" ? body.challenge : "";
+		const proof = typeof body.proof === "string" ? body.proof : "";
+		const offer = deps.registration.get(token);
+		if (!offer || offer.proof !== proof) return json({ message: "Inscription impossible" }, 401);
+		deps.registration.delete(token);
+		return completeSession(deps, offer.email, offer.subjectId);
 	}
 	if (pathname === "/auth/edaya/totp/enroll") {
 		const token = typeof body.challenge === "string" ? body.challenge : "";
