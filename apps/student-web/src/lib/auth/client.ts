@@ -6,14 +6,26 @@ type AuthFailure = { code?: string; message: string };
 export type AuthChallenge = {
 	state: 'primary_required' | 'totp_required' | 'enrollment_required';
 	challenge: string;
+	secret?: string;
+	uri?: string;
 };
 
 export type AuthComplete = {
 	state: 'complete';
 	user?: { id: string; email?: string | null };
+	recoveryCodes?: string[];
 };
 
-export type AuthPayload = AuthChallenge | AuthComplete | { state: string; challenge?: string };
+export type AuthLinked = {
+	state: 'linked';
+};
+
+export type AuthPayload = AuthChallenge | AuthComplete | AuthLinked | {
+	state: string;
+	challenge?: string;
+	secret?: string;
+	recoveryCodes?: string[];
+};
 
 async function post<T>(path: string, body: object): Promise<{ data: T | null; error: AuthFailure | null }> {
 	let response: Response;
@@ -57,6 +69,10 @@ export const authClient = {
 		post<AuthPayload>('/auth/edaya/otp/verify', { challenge, code }),
 	verifyTotp: (challenge: string, code: string) =>
 		post<AuthPayload>('/auth/edaya/totp/verify', { challenge, code }),
+	enroll: (challenge: string) =>
+		post<AuthChallenge>('/auth/edaya/totp/enroll', { challenge }),
+	confirmEnrollment: (challenge: string, code: string) =>
+		post<AuthPayload>('/auth/edaya/totp/confirm', { challenge, code }),
 	getSession: () => post<{ user?: { id: string } }>('/auth/edaya/session', {}),
 	signOut: () => {
 		accessTokens.clear();

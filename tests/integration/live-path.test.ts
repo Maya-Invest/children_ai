@@ -13,7 +13,7 @@ import {
 	STAFF_SUBJECT_ID,
 	STUDENT_ID,
 } from "./edaya-contract.ts";
-import { startEdayaDouble, type EdayaDouble } from "./edaya-double.ts";
+import { ENROLLMENT_CONFIRM_CODE, startEdayaDouble, type EdayaDouble } from "./edaya-double.ts";
 
 const repoRoot = path.join(import.meta.dir, "../..");
 const evidencePath = path.join(repoRoot, ".ci-evidence", "integration-summary.json");
@@ -58,6 +58,22 @@ test("live parent and student path uses the simulated Edaya", async () => {
 		api = startApi(standIn.origin, dataDir);
 		const health = await waitForHealth(apiUrl("/health"));
 		expect(health).toMatchObject({ contextMode: "http", generator: "stub" });
+
+		const signedInParent = await accessTokenAfterLogin("m.kone@mail.ci", false);
+		const signedInChildren = await request(apiUrl("/parent/children"), {
+			headers: { authorization: `Bearer ${signedInParent}` },
+		});
+		expect(signedInChildren.status).toBe(200);
+		const signedInListing = await signedInChildren.json() as { children: Array<{ studentId: string }> };
+		expect(signedInListing.children.map((child) => child.studentId)).toEqual([STUDENT_ID, SECOND_STUDENT_ID]);
+
+		const enrolledStaff = await accessTokenAfterLogin("a.toure@ecole-ci.edaya.dev", true);
+		const enrolledChildren = await request(apiUrl("/parent/children"), {
+			headers: { authorization: `Bearer ${enrolledStaff}` },
+		});
+		expect(enrolledChildren.status).toBe(200);
+		const enrolledListing = await enrolledChildren.json() as { children: unknown[] };
+		expect(enrolledListing.children).toEqual([]);
 
 		const parentToken = await standIn.signParentJwt(PARENT_SUBJECT_ID, "m.kone@mail.ci");
 		const parentHeaders = { authorization: `Bearer ${parentToken}` };
@@ -137,6 +153,72 @@ test("live parent and student path uses the simulated Edaya", async () => {
 		if (dataDir) rmSync(dataDir, { recursive: true, force: true });
 	}
 }, 60_000);
+
+async function accessTokenAfterLogin(email: string, expectEnrollment: boolean): Promise<string> {
+	const started = await postAuth("/auth/edaya/otp/start", {
+		kind: "email",
+		value: email,
+		channel: "email",
+	});
+	expect(started.status).toBe(200);
+	const startBody = await started.json() as { state: string; challenge: string };
+	expect(startBody.state).toBe("primary_required");
+
+	const revealed = await postAuth("/auth/edaya/testing/otp", { challenge: startBody.challenge });
+	expect(revealed.status).toBe(200);
+	const { otp } = await revealed.json() as { otp: string };
+
+	const verified = await postAuth("/auth/edaya/otp/verify", { challenge: startBody.challenge, code: otp });
+	expect(verified.status).toBe(200);
+	const verifiedBody = await verified.json() as { state: string; challenge?: string };
+
+	let sessionCookie = "";
+	if (expectEnrollment) {
+		expect(verifiedBody.state).toBe("enrollment_required");
+		expect(verifiedBody.challenge).toBeTruthy();
+		const enrolled = await postAuth("/auth/edaya/totp/enroll", { challenge: verifiedBody.challenge });
+		expect(enrolled.status).toBe(200);
+		const enrolledBody = await enrolled.json() as { state: string; challenge: string; secret?: string };
+		expect(enrolledBody.state).toBe("enrollment_required");
+		expect(enrolledBody.secret).toBeTruthy();
+		const confirmed = await postAuth("/auth/edaya/totp/confirm", {
+			challenge: enrolledBody.challenge,
+			code: ENROLLMENT_CONFIRM_CODE,
+		});
+		expect(confirmed.status).toBe(200);
+		const confirmedBody = await confirmed.json() as { state: string; recoveryCodes?: string[] };
+		expect(confirmedBody.state).toBe("complete");
+		expect(confirmedBody.recoveryCodes?.length).toBeGreaterThan(0);
+		sessionCookie = sessionCookieFrom(confirmed);
+	} else {
+		expect(verifiedBody.state).toBe("complete");
+		sessionCookie = sessionCookieFrom(verified);
+	}
+
+	const tokenResponse = await request(`${standIn.origin}/auth/edaya/access-token`, {
+		method: "POST",
+		headers: { cookie: sessionCookie },
+		body: JSON.stringify({ resource: standIn.origin }),
+	});
+	expect(tokenResponse.status).toBe(200);
+	const tokenBody = await tokenResponse.json() as { accessToken: string };
+	expect(tokenBody.accessToken).toBeTruthy();
+	return tokenBody.accessToken;
+}
+
+function postAuth(pathname: string, body: object): Promise<Response> {
+	return request(`${standIn.origin}${pathname}`, { method: "POST", body: JSON.stringify(body) });
+}
+
+function sessionCookieFrom(response: Response): string {
+	const listed = typeof response.headers.getSetCookie === "function" ? response.headers.getSetCookie() : [];
+	const headers = listed.length > 0 ? listed : [response.headers.get("set-cookie") ?? ""];
+	const pair = headers
+		.map((value) => value.split(";")[0]?.trim() ?? "")
+		.find((value) => value.startsWith("cai_session="));
+	if (!pair) throw new Error("Session cookie missing");
+	return pair;
+}
 
 function apiUrl(pathname: string): string {
 	return `http://127.0.0.1:${apiPort}${pathname}`;

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { authClient, type AuthPayload } from '$lib/auth/client';
+	import { moveAfterAuth, type ParentLoginPhase } from '$lib/auth/parent-login-flow';
 	import BrandLogo from '$lib/BrandLogo.svelte';
 	import { clearDemoFamily } from '$lib/session';
 	import TermsAcceptance from '$lib/TermsAcceptance.svelte';
@@ -10,7 +11,9 @@
 	let email = $state('m.kone@mail.ci');
 	let code = $state('');
 	let challenge = $state('');
-	let step = $state<'email' | 'otp' | 'totp'>('email');
+	let secret = $state('');
+	let recoveryCodes = $state<string[]>([]);
+	let step = $state<ParentLoginPhase>('email');
 	let error = $state('');
 	let pending = $state(false);
 	let revealedOtp = $state('');
@@ -20,9 +23,59 @@
 		return payload && 'challenge' in payload && payload.challenge ? payload.challenge : '';
 	}
 
+	async function enterParent() {
+		clearDemoFamily();
+		await goto('/parent');
+	}
+
+	async function applyVerified(payload: AuthPayload) {
+		let move = moveAfterAuth(payload);
+		if (move.type === 'needs-enrollment') {
+			const enrolled = await authClient.enroll(move.challenge);
+			if (enrolled.error || !enrolled.data) {
+				error = enrolled.error?.message ?? 'Configuration impossible';
+				return;
+			}
+			move = moveAfterAuth(enrolled.data);
+			if (move.type === 'needs-enrollment') {
+				error = 'Connexion incomplète';
+				return;
+			}
+		}
+		if (move.type === 'incomplete') {
+			error = 'Connexion incomplète';
+			return;
+		}
+		if (move.type === 'signed-in') {
+			await enterParent();
+			return;
+		}
+		if (move.type === 'recovery') {
+			recoveryCodes = move.codes;
+			code = '';
+			step = 'recovery';
+			return;
+		}
+		challenge = move.challenge;
+		secret = move.secret;
+		code = '';
+		step = move.phase;
+	}
+
 	async function submit(event: SubmitEvent) {
 		event.preventDefault();
 		error = '';
+		if (step === 'recovery') {
+			pending = true;
+			try {
+				await enterParent();
+			} catch (caught) {
+				error = caught instanceof Error ? caught.message : 'Connexion impossible';
+			} finally {
+				pending = false;
+			}
+			return;
+		}
 		if (step === 'email' && !acceptedTerms) {
 			error = 'Accepte les conditions d’utilisation pour continuer.';
 			return;
@@ -53,28 +106,14 @@
 			const result =
 				step === 'otp'
 					? await authClient.verifyOtp(challenge, code.trim())
-					: await authClient.verifyTotp(challenge, code.trim());
+					: step === 'enrollment'
+						? await authClient.confirmEnrollment(challenge, code.trim())
+						: await authClient.verifyTotp(challenge, code.trim());
 			if (result.error || !result.data) {
 				error = result.error?.message ?? 'Code refusé';
 				return;
 			}
-			if (result.data.state === 'totp_required') {
-				const nextChallenge = challengeFrom(result.data);
-				if (!nextChallenge) {
-					error = 'Authentification incomplète';
-					return;
-				}
-				challenge = nextChallenge;
-				code = '';
-				step = 'totp';
-				return;
-			}
-			if (result.data.state !== 'complete') {
-				error = 'Connexion incomplète';
-				return;
-			}
-			clearDemoFamily();
-			await goto('/parent');
+			await applyVerified(result.data);
 		} catch (caught) {
 			error = caught instanceof Error ? caught.message : 'Connexion impossible';
 		} finally {
@@ -115,6 +154,10 @@
 				{#if data.otpFlag}
 					En local, tu peux l’afficher ci-dessous.
 				{/if}
+			{:else if step === 'enrollment'}
+				Ajoute ce secret dans ton application d’authentification, puis entre le code affiché.
+			{:else if step === 'recovery'}
+				Conserve ces codes de récupération. Ils ne seront plus affichés.
 			{:else}
 				Entre le code de ton application d’authentification.
 			{/if}
@@ -133,9 +176,20 @@
 					/>
 				</label>
 				<TermsAcceptance bind:accepted={acceptedTerms} />
+			{:else if step === 'recovery'}
+				<ul class="space-y-2">
+					{#each recoveryCodes as recoveryCode (recoveryCode)}
+						<li class="break-all font-mono text-sm font-bold text-ink">{recoveryCode}</li>
+					{/each}
+				</ul>
 			{:else}
+				{#if step === 'enrollment' && secret}
+					<p class="break-all rounded-2xl border border-dashed border-ink/20 p-4 font-mono text-sm font-bold text-ink" data-sensitive>
+						{secret}
+					</p>
+				{/if}
 				<label class="block">
-					<span class="text-sm font-bold text-ink/80">{step === 'totp' ? 'Code authenticator' : 'Code'}</span>
+					<span class="text-sm font-bold text-ink/80">{step === 'otp' ? 'Code' : 'Code authenticator'}</span>
 					<input
 						class="mt-2 w-full rounded-2xl border border-ink/10 bg-cream px-4 py-3 outline-none ring-forest focus:ring-2"
 						bind:value={code}
@@ -170,7 +224,15 @@
 				disabled={pending || (step === 'email' && !acceptedTerms)}
 				type="submit"
 			>
-				{pending ? 'Vérification…' : step === 'email' ? 'Recevoir un code' : 'Se connecter'}
+				{pending
+					? 'Vérification…'
+					: step === 'email'
+						? 'Recevoir un code'
+						: step === 'recovery'
+							? 'Continuer'
+							: step === 'enrollment'
+								? 'Activer'
+								: 'Se connecter'}
 			</button>
 		</form>
 	</div>

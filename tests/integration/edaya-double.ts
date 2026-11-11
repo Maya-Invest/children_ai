@@ -33,6 +33,7 @@ export async function startEdayaDouble(): Promise<EdayaDouble> {
 	const origin = EDAYA_STAND_IN_ORIGIN;
 	const challenges = new Map<string, { email: string; code: string; subjectId: string }>();
 	const sessions = new Map<string, { email: string; subjectId: string }>();
+	const enrollment = new Map<string, EnrollmentPending>();
 
 	let server: ReturnType<typeof Bun.serve>;
 	try {
@@ -52,6 +53,7 @@ export async function startEdayaDouble(): Promise<EdayaDouble> {
 						keys,
 						challenges,
 						sessions,
+						enrollment,
 					});
 				}
 				if (url.pathname === "/internal/edaya-spark/resolve-guardian") {
@@ -99,6 +101,15 @@ export async function startEdayaDouble(): Promise<EdayaDouble> {
 
 const PARENT_EMAIL = "m.kone@mail.ci";
 const STAFF_EMAIL = "a.toure@ecole-ci.edaya.dev";
+/** Fixed authenticator code for the staff fixture, which must enroll before a session exists. */
+export const ENROLLMENT_CONFIRM_CODE = "654321";
+const ENROLLMENT_SECRET = "STANDINENROLLMENTSECRET";
+
+type EnrollmentPending = {
+	email: string;
+	subjectId: string;
+	secret: string;
+};
 
 function subjectForEmail(email: string): string {
 	const normalized = email.trim().toLowerCase();
@@ -120,6 +131,7 @@ async function handleAuth(
 		keys: TestIdentityKeys;
 		challenges: Map<string, { email: string; code: string; subjectId: string }>;
 		sessions: Map<string, { email: string; subjectId: string }>;
+		enrollment: Map<string, EnrollmentPending>;
 	},
 ): Promise<Response> {
 	const body = await readJson(request);
@@ -145,13 +157,35 @@ async function handleAuth(
 		const challenge = deps.challenges.get(challengeId);
 		const code = typeof body.code === "string" ? body.code.trim() : "";
 		if (!challenge || code !== challenge.code) return json({ message: "Code refusé" }, 401);
-		const sessionId = crypto.randomUUID();
-		deps.sessions.set(sessionId, { email: challenge.email, subjectId: challenge.subjectId });
-		return json(
-			{ state: "complete", user: { id: challenge.subjectId, email: challenge.email } },
-			200,
-			`cai_session=${encodeURIComponent(sessionId)}; Path=/; HttpOnly; SameSite=Lax`,
-		);
+		if (challenge.email === STAFF_EMAIL) {
+			const token = crypto.randomUUID();
+			deps.enrollment.set(token, {
+				email: challenge.email,
+				subjectId: challenge.subjectId,
+				secret: ENROLLMENT_SECRET,
+			});
+			return json({ state: "enrollment_required", challenge: token });
+		}
+		return completeSession(deps, challenge.email, challenge.subjectId);
+	}
+	if (pathname === "/auth/edaya/totp/enroll") {
+		const token = typeof body.challenge === "string" ? body.challenge : "";
+		const pending = deps.enrollment.get(token);
+		if (!pending) return json({ message: "Configuration impossible" }, 401);
+		return json({
+			state: "enrollment_required",
+			challenge: token,
+			secret: pending.secret,
+			uri: `otpauth://totp/EDAYA:${encodeURIComponent(pending.subjectId)}?secret=${pending.secret}&issuer=EDAYA`,
+		});
+	}
+	if (pathname === "/auth/edaya/totp/confirm") {
+		const token = typeof body.challenge === "string" ? body.challenge : "";
+		const pending = deps.enrollment.get(token);
+		const confirmCode = typeof body.code === "string" ? body.code.trim() : "";
+		if (!pending || confirmCode !== ENROLLMENT_CONFIRM_CODE) return json({ message: "Code refusé" }, 401);
+		deps.enrollment.delete(token);
+		return completeSession(deps, pending.email, pending.subjectId, ["stand-in-recovery-1", "stand-in-recovery-2"]);
 	}
 	const session = deps.sessions.get(sessionIdFrom(request));
 	if (!session) return json({ message: "Session absente" }, 401);
@@ -166,6 +200,27 @@ async function handleAuth(
 		});
 	}
 	return json({ message: "Not found" }, 404);
+}
+
+function completeSession(
+	deps: {
+		sessions: Map<string, { email: string; subjectId: string }>;
+	},
+	email: string,
+	subjectId: string,
+	recoveryCodes?: string[],
+): Response {
+	const sessionId = crypto.randomUUID();
+	deps.sessions.set(sessionId, { email, subjectId });
+	return json(
+		{
+			state: "complete",
+			user: { id: subjectId, email },
+			...(recoveryCodes ? { recoveryCodes } : {}),
+		},
+		200,
+		`cai_session=${encodeURIComponent(sessionId)}; Path=/; HttpOnly; SameSite=Lax`,
+	);
 }
 
 function signParent(
