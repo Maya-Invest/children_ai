@@ -94,14 +94,20 @@ describe("Hono API", () => {
 	test("parent JWT lists live children and never injects Léa", async () => {
 		const live: GuardianChildrenPort = {
 			async listChildren() {
+				const children = [{
+					studentId: "stu-live-1",
+					schoolId: "school-uuid",
+					firstName: "Kofi",
+					lastName: "Mensah",
+				}];
 				return {
 					schoolId: "school-uuid",
 					displayName: "Awa Diallo",
-					children: [{
-						studentId: "stu-live-1",
+					children,
+					schools: [{
 						schoolId: "school-uuid",
-						firstName: "Kofi",
-						lastName: "Mensah",
+						schoolName: "École A",
+						children,
 					}],
 				};
 			},
@@ -112,9 +118,17 @@ describe("Hono API", () => {
 		expect(children.status).toBe(200);
 		const listing = (await children.json()) as {
 			children: Array<{ studentId: string }>;
+			schools: Array<{ schoolId: string; schoolName: string; children: Array<{ studentId: string }> }>;
 		};
 		expect(listing.children.map((child) => child.studentId)).toEqual(["stu-live-1"]);
 		expect(listing.children.some((child) => child.studentId === "ci-s1")).toBe(false);
+		expect(listing.schools).toEqual([
+			{
+				schoolId: "school-uuid",
+				schoolName: "École A",
+				children: [expect.objectContaining({ studentId: "stu-live-1" })],
+			},
+		]);
 	});
 
 	test("revoke clears the active code and tells the browser not to cache the list", async () => {

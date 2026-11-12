@@ -229,6 +229,7 @@ export function createHttpApp(app: EdayaSparkApp, options: HttpOptions) {
 			schoolId: listing.schoolId,
 			displayName: listing.displayName,
 			children: listing.children,
+			schools: listing.schools,
 			emptyMessage:
 				listing.children.length === 0
 					? "Aucun enfant n'est lié à votre compte à l'école."

@@ -25,10 +25,7 @@ export function utcTimetableDay(now = new Date()): (typeof TIMETABLE_DAYS)[numbe
 	return TIMETABLE_DAYS[now.getUTCDay()] ?? "monday";
 }
 
-export const resolveParent = {
-	schoolId: SCHOOL_ID,
-	displayName: "Mariam Koné",
-	children: [
+const parentChildren = [
 		{
 			studentId: STUDENT_ID,
 			schoolId: SCHOOL_ID,
@@ -57,6 +54,18 @@ export const resolveParent = {
 				cycle: "Collège",
 			},
 		},
+];
+
+export const resolveParent = {
+	schoolId: SCHOOL_ID,
+	displayName: "Mariam Koné",
+	children: parentChildren,
+	schools: [
+		{
+			schoolId: SCHOOL_ID,
+			schoolName: "Groupe scolaire Cocody",
+			children: parentChildren,
+		},
 	],
 };
 
@@ -64,6 +73,7 @@ export const resolveEmpty = {
 	schoolId: "",
 	displayName: "",
 	children: [],
+	schools: [],
 };
 
 export function entityRows(name: string, dayOfWeek: string): Record<string, unknown>[] {

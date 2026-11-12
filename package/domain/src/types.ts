@@ -254,6 +254,7 @@ export type GuardianActor = {
 	subjectId: string;
 	schoolId: string;
 	displayName: string;
+	email?: string;
 	sessionKind?: "demo";
 };
 
@@ -290,10 +291,17 @@ export type GuardianChild = {
 	gradeLevel?: SchoolGradeLevel;
 };
 
+export type GuardianSchoolGroup = {
+	schoolId: string;
+	schoolName: string;
+	children: GuardianChild[];
+};
+
 export type GuardianChildrenListing = {
 	schoolId: string;
 	displayName: string;
 	children: GuardianChild[];
+	schools: GuardianSchoolGroup[];
 };
 
 export class DomainError extends Error {

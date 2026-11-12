@@ -73,11 +73,18 @@ export type GuardianChildView = {
 	accessCode: { hint: string } | null;
 };
 
+export type ParentSchoolGroup = {
+	schoolId: string;
+	schoolName: string;
+	children: GuardianChildView[];
+};
+
 export type ParentChildrenPayload = {
 	guardian: GuardianActor;
 	schoolId: string;
 	displayName: string;
 	children: GuardianChildView[];
+	schools: ParentSchoolGroup[];
 	emptyMessage?: string;
 };
 

@@ -5,9 +5,11 @@ import {
 	type EdayaContextPort,
 	type EdayaCredentialsPort,
 	type SchoolGradeLevel,
+	type GuardianChild,
 	type GuardianChildrenListing,
 	type GuardianChildrenPort,
 	type GuardianChildrenQuery,
+	type GuardianSchoolGroup,
 	type LearnerContext,
 	type LearnerContextQuery,
 	type SchoolCredentials,
@@ -57,10 +59,10 @@ export class HttpEdayaContext implements EdayaContextPort, GuardianChildrenPort 
 		const origin = resolve?.origin?.trim().replace(/\/+$/, "") ?? "";
 		const secret = resolve?.secret?.trim() ?? "";
 		if (!origin || !secret) {
-			return { schoolId: "", displayName: query.email ?? "Parent", children: [] };
+			return emptyListing(query.email ?? "Parent");
 		}
 
-		const cacheKey = `${origin}:${query.subjectId}`;
+		const cacheKey = `${origin}:${query.subjectId}:${query.email ?? ""}`;
 		const cached = this.childrenCache.get(cacheKey);
 		if (cached && cached.expiresAt > Date.now()) {
 			return cached.listing;
@@ -72,7 +74,10 @@ export class HttpEdayaContext implements EdayaContextPort, GuardianChildrenPort 
 				"content-type": "application/json",
 				[EDAYA_SPARK_RESOLVE_SECRET_HEADER]: secret,
 			},
-			body: JSON.stringify({ subjectId: query.subjectId }),
+			body: JSON.stringify({
+				subjectId: query.subjectId,
+				...(query.email ? { email: query.email } : {}),
+			}),
 		});
 		const text = await response.text();
 		if (!response.ok) {
@@ -85,6 +90,7 @@ export class HttpEdayaContext implements EdayaContextPort, GuardianChildrenPort 
 			schoolId: parsed.schoolId,
 			displayName: parsed.displayName || query.email || "Parent",
 			children: parsed.children,
+			schools: parsed.schools,
 		};
 		this.childrenCache.set(cacheKey, {
 			expiresAt: Date.now() + CHILDREN_LIST_CACHE_MS,
@@ -355,32 +361,78 @@ export class HttpEdayaContext implements EdayaContextPort, GuardianChildrenPort 
 	}
 }
 
+function emptyListing(displayName = ""): GuardianChildrenListing {
+	return { schoolId: "", displayName, children: [], schools: [] };
+}
+
+function readChild(row: JsonRecord, fallbackSchoolId: string): GuardianChild | null {
+	const classLabel = asString(row.classLabel);
+	const gradeLevel = readOptionalGradeLevel(row.gradeLevel);
+	const studentId = asString(row.studentId) || asString(row.id);
+	if (!studentId) return null;
+	return {
+		studentId,
+		schoolId: asString(row.schoolId) || fallbackSchoolId,
+		firstName: asString(row.firstName) || "Élève",
+		lastName: asString(row.lastName),
+		...(classLabel ? { classLabel } : {}),
+		...(gradeLevel ? { gradeLevel } : {}),
+	};
+}
+
 function parseResolveGuardian(text: string): GuardianChildrenListing {
 	if (!text.trim()) {
-		return { schoolId: "", displayName: "", children: [] };
+		return emptyListing();
 	}
 	const parsed: unknown = JSON.parse(text);
 	if (!isRecord(parsed)) {
-		return { schoolId: "", displayName: "", children: [] };
+		return emptyListing();
 	}
-	const childrenRaw = Array.isArray(parsed.children) ? parsed.children : [];
 	const schoolId = asString(parsed.schoolId);
+	const schools: GuardianSchoolGroup[] = [];
+	if (Array.isArray(parsed.schools)) {
+		for (const entry of parsed.schools) {
+			if (!isRecord(entry)) continue;
+			const groupSchoolId = asString(entry.schoolId) || schoolId;
+			const children = (Array.isArray(entry.children) ? entry.children : [])
+				.filter(isRecord)
+				.map((row) => readChild(row, groupSchoolId))
+				.filter((child): child is GuardianChild => child !== null);
+			if (!groupSchoolId || children.length === 0) continue;
+			schools.push({
+				schoolId: groupSchoolId,
+				schoolName: asString(entry.schoolName) || groupSchoolId,
+				children,
+			});
+		}
+	}
+	const flatChildren = schools.length > 0
+		? schools.flatMap((school) => school.children)
+		: (Array.isArray(parsed.children) ? parsed.children : [])
+			.filter(isRecord)
+			.map((row) => readChild(row, schoolId))
+			.filter((child): child is GuardianChild => child !== null);
+	const grouped = schools.length > 0 ? schools : groupChildren(schoolId, flatChildren);
 	return {
-		schoolId,
+		schoolId: grouped[0]?.schoolId ?? schoolId,
 		displayName: asString(parsed.displayName),
-		children: childrenRaw.filter(isRecord).map((row) => {
-			const classLabel = asString(row.classLabel);
-			const gradeLevel = readOptionalGradeLevel(row.gradeLevel);
-			return {
-				studentId: asString(row.studentId) || asString(row.id),
-				schoolId: asString(row.schoolId) || schoolId,
-				firstName: asString(row.firstName) || "Élève",
-				lastName: asString(row.lastName),
-				...(classLabel ? { classLabel } : {}),
-				...(gradeLevel ? { gradeLevel } : {}),
-			};
-		}).filter((child) => child.studentId),
+		children: flatChildren,
+		schools: grouped,
 	};
+}
+
+function groupChildren(schoolId: string, children: GuardianChild[]): GuardianSchoolGroup[] {
+	const groups = new Map<string, GuardianSchoolGroup>();
+	for (const child of children) {
+		const id = child.schoolId || schoolId;
+		const existing = groups.get(id);
+		if (existing) {
+			existing.children.push(child);
+			continue;
+		}
+		groups.set(id, { schoolId: id, schoolName: id, children: [child] });
+	}
+	return [...groups.values()];
 }
 
 function unwrapList(text: string): JsonRecord[] {

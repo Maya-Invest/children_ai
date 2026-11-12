@@ -118,9 +118,15 @@ export function demoFamilyChildren(): GuardianChild[] {
 }
 
 export function demoFamilyListing(guardian: GuardianActor): GuardianChildrenListing {
+	const children = demoFamilyChildren();
 	return {
 		schoolId: DEMO_FIXTURE_SCHOOL_ID,
 		displayName: guardian.displayName || DEMO_FIXTURE_GUARDIAN_NAME,
-		children: demoFamilyChildren(),
+		children,
+		schools: [{
+			schoolId: DEMO_FIXTURE_SCHOOL_ID,
+			schoolName: "Démonstration",
+			children,
+		}],
 	};
 }

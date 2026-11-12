@@ -12,13 +12,19 @@ export class FixtureGuardianChildrenPort implements GuardianChildrenPort {
 	async listChildren(query: GuardianChildrenQuery): Promise<GuardianChildrenListing> {
 		const local = query.email?.split("@")[0]?.replace(/[._]/g, " ") ?? "Parent";
 		const displayName = titleCase(local);
+		const children = demoFamilyChildren().map((child) => ({
+			...child,
+			schoolId: this.schoolId,
+		}));
 		return {
 			schoolId: this.schoolId,
 			displayName,
-			children: demoFamilyChildren().map((child) => ({
-				...child,
+			children,
+			schools: [{
 				schoolId: this.schoolId,
-			})),
+				schoolName: "Démonstration",
+				children,
+			}],
 		};
 	}
 }
@@ -29,6 +35,7 @@ export class EmptyGuardianChildrenPort implements GuardianChildrenPort {
 			schoolId: "",
 			displayName: query.email ?? "Parent",
 			children: [],
+			schools: [],
 		};
 	}
 }

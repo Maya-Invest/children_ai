@@ -108,6 +108,7 @@ export class EdayaSparkApp {
 				|| listing.displayName
 				|| principal.email
 				|| "Parent",
+			...(principal.email ? { email: principal.email } : {}),
 		};
 	}
 
@@ -115,24 +116,39 @@ export class EdayaSparkApp {
 		schoolId: string;
 		displayName: string;
 		children: GuardianChildView[];
+		schools: { schoolId: string; schoolName: string; children: GuardianChildView[] }[];
 	}> {
 		const listing = isDemoGuardian(guardian)
 			? demoFamilyListing(guardian)
 			: await this.ports.children.listChildren({
 				subjectId: guardian.subjectId,
+				...(guardian.email ? { email: guardian.email } : {}),
 			});
-		const children: GuardianChildView[] = [];
-		for (const child of listing.children) {
-			const active = await this.ports.codes.getActiveByStudentId(child.studentId);
-			children.push({
-				...child,
-				accessCode: active ? { hint: active.displayHint } : null,
+		const schools = [];
+		for (const school of listing.schools) {
+			const children: GuardianChildView[] = [];
+			for (const child of school.children) {
+				children.push(await this.withAccessCode(child));
+			}
+			schools.push({
+				schoolId: school.schoolId,
+				schoolName: school.schoolName,
+				children,
 			});
 		}
 		return {
 			schoolId: listing.schoolId,
 			displayName: listing.displayName || guardian.displayName,
-			children,
+			children: schools.flatMap((school) => school.children),
+			schools,
+		};
+	}
+
+	private async withAccessCode(child: GuardianChild): Promise<GuardianChildView> {
+		const active = await this.ports.codes.getActiveByStudentId(child.studentId);
+		return {
+			...child,
+			accessCode: active ? { hint: active.displayHint } : null,
 		};
 	}
 

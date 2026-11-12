@@ -281,8 +281,9 @@ describe("HttpEdayaContext", () => {
 				expect(url).toBe("http://localhost:9999/internal/edaya-spark/resolve-guardian");
 				const headers = new Headers(init?.headers);
 				expect(headers.get("x-edaya-spark-resolve-secret")).toBe("local-edaya-spark-resolve-secret");
-				const body = JSON.parse(String(init?.body ?? "{}")) as { subjectId?: string };
+				const body = JSON.parse(String(init?.body ?? "{}")) as { subjectId?: string; email?: string };
 				expect(body.subjectId).toBe("sub-parent");
+				expect(body.email).toBe("awa@mail.ci");
 				return new Response(JSON.stringify({
 					schoolId: "school-uuid",
 					displayName: "Awa Diallo",
@@ -323,6 +324,56 @@ describe("HttpEdayaContext", () => {
 			gradeLevel: { label: "2nde C", cycle: "Lycée" },
 		});
 		expect(listing.displayName).toBe("Awa Diallo");
+		expect(listing.schools).toEqual([
+			expect.objectContaining({
+				schoolId: "school-uuid",
+				schoolName: "school-uuid",
+				children: expect.any(Array),
+			}),
+		]);
+	});
+
+	test("keeps each school's children under that school", async () => {
+		const edaya = new HttpEdayaContext({
+			credentials: new MemorySchoolIntegrationVault(),
+			resolveGuardian: {
+				origin: "http://localhost:9999",
+				secret: "local-edaya-spark-resolve-secret",
+			},
+			fetchImpl: async () => new Response(JSON.stringify({
+				displayName: "Awa Diallo",
+				schools: [
+					{
+						schoolId: "school-a",
+						schoolName: "École A",
+						children: [
+							{ studentId: "stu-a", schoolId: "school-a", firstName: "Awa", lastName: "Diallo" },
+						],
+					},
+					{
+						schoolId: "school-b",
+						schoolName: "École B",
+						children: [
+							{ studentId: "stu-b", schoolId: "school-b", firstName: "Kofi", lastName: "Mensah" },
+						],
+					},
+				],
+			})),
+		});
+
+		const listing = await edaya.listChildren({
+			subjectId: "sub-parent",
+			email: "awa@mail.ci",
+		});
+		expect(listing.children.map((child) => child.studentId)).toEqual(["stu-a", "stu-b"]);
+		expect(listing.schools.map((school) => ({
+			schoolId: school.schoolId,
+			schoolName: school.schoolName,
+			studentIds: school.children.map((child) => child.studentId),
+		}))).toEqual([
+			{ schoolId: "school-a", schoolName: "École A", studentIds: ["stu-a"] },
+			{ schoolId: "school-b", schoolName: "École B", studentIds: ["stu-b"] },
+		]);
 	});
 
 	test("reuses resolve-guardian within the cache window", async () => {

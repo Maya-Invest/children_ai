@@ -7,6 +7,17 @@
 
 	let { data }: { data: { listing: ParentChildrenPayload } } = $props();
 	let listing = $derived(data.listing);
+	let schools = $derived(
+		listing.schools.length > 0
+			? listing.schools
+			: listing.children.length === 0
+				? []
+				: [{
+					schoolId: listing.schoolId || 'school',
+					schoolName: listing.schoolId || 'École',
+					children: listing.children,
+				}],
+	);
 	let demo = $derived(isDemoExplore());
 	let revealed = $state<Record<string, string>>({});
 	let revokedIds = $state<string[]>([]);
@@ -106,8 +117,11 @@
 			</p>
 		</div>
 	{:else}
-		<ul class="mt-8 space-y-4">
-			{#each listing.children as child (child.studentId)}
+		{#each schools as school (school.schoolId)}
+			<section class="mt-8">
+				<h2 class="text-lg font-extrabold text-ink">{school.schoolName}</h2>
+				<ul class="mt-4 space-y-4">
+					{#each school.children as child (`${school.schoolId}:${child.studentId}`)}
 				{@const active = activeCode(child)}
 				<li class="rounded-2xl bg-cream p-5">
 					<div class="flex flex-wrap items-start justify-between gap-3">
@@ -181,8 +195,10 @@
 							</a>
 						</div>
 					</div>
-				</li>
-			{/each}
-		</ul>
+					</li>
+					{/each}
+				</ul>
+			</section>
+		{/each}
 	{/if}
 </section>
