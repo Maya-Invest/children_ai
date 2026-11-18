@@ -1,10 +1,10 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
 	decryptVaultSecret,
 	encryptVaultSecret,
 } from "@edaya-spark/adaptors";
 import type { EdayaCredentialsPort, SchoolCredentials, SchoolIntegration } from "@edaya-spark/domain";
-import type { SparkDb } from "./repositories.ts";
+import { freshRead, type SparkDb } from "./repositories.ts";
 import { schoolIntegrations } from "./schema.ts";
 
 function readIntegration(value: unknown): SchoolIntegration {
@@ -44,7 +44,7 @@ export class PostgresSchoolIntegrationVault implements EdayaCredentialsPort {
 		const rows = await this.db
 			.select()
 			.from(schoolIntegrations)
-			.where(eq(schoolIntegrations.schoolId, schoolId))
+			.where(and(eq(schoolIntegrations.schoolId, schoolId), freshRead()))
 			.limit(1);
 		const row = rows[0];
 		if (!row || row.status !== "active") return null;

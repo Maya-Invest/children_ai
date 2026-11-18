@@ -59,6 +59,11 @@ export function createHttpApp(app: EdayaSparkApp, options: HttpOptions) {
 	);
 
 	http.use("/*", async (c, next) => {
+		await next();
+		c.header("Cache-Control", "private, no-store");
+	});
+
+	http.use("/*", async (c, next) => {
 		if (c.req.method === "OPTIONS" || publicPaths.has(c.req.path)) {
 			await next();
 			return;

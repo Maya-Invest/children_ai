@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, isNull } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, sql, type SQL } from "drizzle-orm";
 import type { PgliteDatabase } from "drizzle-orm/pglite";
 import {
 	exerciseTrack,
@@ -30,6 +30,11 @@ export type SparkClock = {
 
 const systemClock: SparkClock = { now: () => new Date() };
 
+/** Hyperdrive caches a SELECT and does not drop it after a write. NOW() makes the read uncacheable, so Terminer is visible on the next request. */
+export function freshRead(): SQL {
+	return sql`NOW() IS NOT NULL`;
+}
+
 function readJson<T>(value: unknown): T {
 	if (typeof value === "string") return JSON.parse(value) as T;
 	return value as T;
@@ -46,6 +51,7 @@ export class PostgresSnapshotRepository implements SnapshotRepository {
 				and(
 					eq(schema.snapshots.schoolId, query.schoolId),
 					eq(schema.snapshots.studentId, query.studentId),
+					freshRead(),
 				),
 			)
 			.orderBy(desc(schema.snapshots.createdAt), desc(schema.snapshots.id))
@@ -83,7 +89,7 @@ export class PostgresExerciseSetRepository implements ExerciseSetRepository {
 		const rows = await this.db
 			.select()
 			.from(schema.exerciseSets)
-			.where(eq(schema.exerciseSets.snapshotId, snapshotId))
+			.where(and(eq(schema.exerciseSets.snapshotId, snapshotId), freshRead()))
 			.orderBy(desc(schema.exerciseSets.generatedAt))
 			.limit(1);
 		const row = rows[0];
@@ -97,7 +103,7 @@ export class PostgresExerciseSetRepository implements ExerciseSetRepository {
 		const rows = await this.db
 			.select()
 			.from(schema.exerciseSets)
-			.where(eq(schema.exerciseSets.snapshotId, snapshotId))
+			.where(and(eq(schema.exerciseSets.snapshotId, snapshotId), freshRead()))
 			.orderBy(desc(schema.exerciseSets.generatedAt));
 		for (const row of rows) {
 			const set = readJson<ExerciseSet>(row.payload);
@@ -114,6 +120,7 @@ export class PostgresExerciseSetRepository implements ExerciseSetRepository {
 				and(
 					eq(schema.exerciseSets.schoolId, query.schoolId),
 					eq(schema.exerciseSets.studentId, query.studentId),
+					freshRead(),
 				),
 			)
 			.orderBy(desc(schema.exerciseSets.generatedAt));
@@ -124,7 +131,7 @@ export class PostgresExerciseSetRepository implements ExerciseSetRepository {
 		const rows = await this.db
 			.select()
 			.from(schema.exerciseSets)
-			.where(eq(schema.exerciseSets.id, id))
+			.where(and(eq(schema.exerciseSets.id, id), freshRead()))
 			.limit(1);
 		const row = rows[0];
 		return row ? readJson<ExerciseSet>(row.payload) : null;
@@ -165,6 +172,7 @@ export class PostgresPracticeSettingsRepository implements PracticeSettingsRepos
 				and(
 					eq(schema.practiceSettings.schoolId, query.schoolId),
 					eq(schema.practiceSettings.studentId, query.studentId),
+					freshRead(),
 				),
 			)
 			.limit(1);
@@ -199,6 +207,7 @@ export class PostgresPracticePlanRepository implements PracticePlanRepository {
 					eq(schema.practicePlans.schoolId, query.schoolId),
 					eq(schema.practicePlans.studentId, query.studentId),
 					eq(schema.practicePlans.planningDate, planningDate),
+					freshRead(),
 				),
 			)
 			.limit(1);
@@ -237,7 +246,7 @@ export class PostgresStudentAccessCodeRepository implements StudentAccessCodeRep
 		const rows = await this.db
 			.select()
 			.from(schema.accessCodes)
-			.where(eq(schema.accessCodes.id, id))
+			.where(and(eq(schema.accessCodes.id, id), freshRead()))
 			.limit(1);
 		const row = rows[0];
 		return row ? readJson<StudentAccessCode>(row.payload) : null;
@@ -247,7 +256,7 @@ export class PostgresStudentAccessCodeRepository implements StudentAccessCodeRep
 		const rows = await this.db
 			.select()
 			.from(schema.accessCodes)
-			.where(eq(schema.accessCodes.codeHash, codeHash))
+			.where(and(eq(schema.accessCodes.codeHash, codeHash), freshRead()))
 			.limit(1);
 		const row = rows[0];
 		return row ? readJson<StudentAccessCode>(row.payload) : null;
@@ -258,7 +267,7 @@ export class PostgresStudentAccessCodeRepository implements StudentAccessCodeRep
 			.select()
 			.from(schema.accessCodes)
 			.where(
-				and(eq(schema.accessCodes.studentId, studentId), isNull(schema.accessCodes.revokedAt)),
+				and(eq(schema.accessCodes.studentId, studentId), isNull(schema.accessCodes.revokedAt), freshRead()),
 			)
 			.limit(1);
 		const row = rows[0];
@@ -269,7 +278,7 @@ export class PostgresStudentAccessCodeRepository implements StudentAccessCodeRep
 		const rows = await this.db
 			.select()
 			.from(schema.accessCodes)
-			.where(eq(schema.accessCodes.studentId, studentId));
+			.where(and(eq(schema.accessCodes.studentId, studentId), freshRead()));
 		return rows.map((row) => readJson<StudentAccessCode>(row.payload));
 	}
 
@@ -277,7 +286,7 @@ export class PostgresStudentAccessCodeRepository implements StudentAccessCodeRep
 		const rows = await this.db
 			.select()
 			.from(schema.accessCodes)
-			.where(isNull(schema.accessCodes.revokedAt));
+			.where(and(isNull(schema.accessCodes.revokedAt), freshRead()));
 		return rows.map((row) => learnerQueryForIssuedCode(readJson<StudentAccessCode>(row.payload)));
 	}
 
@@ -317,7 +326,7 @@ export class PostgresSessionStore implements SessionStore {
 		const rows = await this.db
 			.select()
 			.from(schema.sessions)
-			.where(and(eq(schema.sessions.token, token), gt(schema.sessions.expiresAt, now)))
+			.where(and(eq(schema.sessions.token, token), gt(schema.sessions.expiresAt, now), freshRead()))
 			.limit(1);
 		const row = rows[0];
 		if (!row) {
